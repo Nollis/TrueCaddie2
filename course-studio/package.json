@@ -1,0 +1,10 @@
+{
+  "name": "truecaddie-course-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "publish:pilot": "node app/publish-kungsbacka-nya.mjs",
+    "validate:bundle": "node app/validate-bundle.mjs ../shared/sample-bundles/kungsbacka-nya.v1.json"
+  }
+}
