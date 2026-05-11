@@ -444,8 +444,8 @@ private struct HoleSketchLayout {
     private let drawingSize: CGSize
 
     init(hole: CourseHole, size: CGSize) {
-        self.featuresByType = Dictionary(grouping: hole.baseMappingData.features, by: \.featureType)
-        self.drawingSize = CGSize(width: max(size.width - 20, 1), height: max(size.height - 20, 1))
+        let featuresByType = Dictionary(grouping: hole.baseMappingData.features, by: \.featureType)
+        let drawingSize = CGSize(width: max(size.width - 20, 1), height: max(size.height - 20, 1))
 
         var allCoordinates = [[Double]]()
         allCoordinates.append(contentsOf: Self.collectCoordinates(from: hole.baseMappingData.centerline))
@@ -466,9 +466,9 @@ private struct HoleSketchLayout {
             allCoordinates.append(point)
         }
 
-        self.bounds = Self.makeBounds(from: allCoordinates, size: size)
-        self.centerline = Self.linePoints(from: hole.baseMappingData.centerline, in: bounds, size: drawingSize)
-        self.outOfBounds = hole.baseMappingData.outOfBoundsLines.compactMap { line in
+        let bounds = Self.makeBounds(from: allCoordinates, size: size)
+        let centerline = Self.linePoints(from: hole.baseMappingData.centerline, in: bounds, size: drawingSize)
+        let outOfBounds = hole.baseMappingData.outOfBoundsLines.compactMap { line in
             guard let geometry = line.geometry else {
                 return nil
             }
@@ -476,8 +476,16 @@ private struct HoleSketchLayout {
             let points = Self.linePoints(from: geometry, in: bounds, size: drawingSize)
             return points.isEmpty ? nil : points
         }
-        self.teePoints = hole.tees.map { Self.project($0.teeCoordinate, in: bounds, size: drawingSize) }
-        self.greenCenter = Self.projectOptional(hole.baseMappingData.green.center, in: bounds, size: drawingSize)
+        let teePoints = hole.tees.map { Self.project($0.teeCoordinate, in: bounds, size: drawingSize) }
+        let greenCenter = Self.projectOptional(hole.baseMappingData.green.center, in: bounds, size: drawingSize)
+
+        self.featuresByType = featuresByType
+        self.drawingSize = drawingSize
+        self.bounds = bounds
+        self.centerline = centerline
+        self.outOfBounds = outOfBounds
+        self.teePoints = teePoints
+        self.greenCenter = greenCenter
     }
 
     func polygons(for featureType: String) -> [Path] {
