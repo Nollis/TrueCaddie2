@@ -202,3 +202,45 @@ public enum JSONValue: Decodable, Sendable {
         }
     }
 }
+
+public extension JSONValue {
+    var stringValue: String? {
+        guard case let .string(value) = self else {
+            return nil
+        }
+
+        return value
+    }
+
+    var numberValue: Double? {
+        guard case let .number(value) = self else {
+            return nil
+        }
+
+        return value
+    }
+
+    var boolValue: Bool? {
+        guard case let .bool(value) = self else {
+            return nil
+        }
+
+        return value
+    }
+
+    var objectValue: [String: JSONValue]? {
+        guard case let .object(value) = self else {
+            return nil
+        }
+
+        return value
+    }
+
+    var arrayValue: [JSONValue]? {
+        guard case let .array(value) = self else {
+            return nil
+        }
+
+        return value
+    }
+}

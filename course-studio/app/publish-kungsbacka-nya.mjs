@@ -7,7 +7,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..");
 const defaultSourceDir = "C:\\Projekt\\TrueCaddie\\Sources\\TrueCaddieAppSupport\\Resources\\Courses";
 const defaultOutFile = path.join(repoRoot, "shared", "sample-bundles", "kungsbacka-nya.v1.json");
-const derivationVersion = "course-studio-foundation-v1";
+const derivationVersion = "course-studio-foundation-v2";
+
+const hazardBaseScores = {
+  water: 0.9,
+  bunker: 0.55,
+  woods: 0.7,
+  rough: 0.35
+};
 
 function argValue(flag, fallback) {
   const index = process.argv.indexOf(flag);
@@ -120,6 +127,9 @@ function qualityForHole(sourceHole) {
 
   const score = Math.max(0.35, Number((1 - notes.length * 0.09).toFixed(2)));
   const confidence = score >= 0.82 ? "high" : score >= 0.6 ? "medium" : "low";
+  const hazardCoverage = (sourceHole.features ?? []).filter((feature) =>
+    ["water", "bunker", "woods", "rough"].includes(feature.properties?.featureType)
+  ).length;
 
   return {
     hole_publish_confidence: confidence,
@@ -128,16 +138,118 @@ function qualityForHole(sourceHole) {
       tee_target_corridor: 0,
       preferred_miss: 0,
       layup_candidates: 0,
-      hazard_severity: 0
+      hazard_severity: hazardCoverage > 0 ? Number(Math.min(0.85, 0.45 + hazardCoverage * 0.04).toFixed(2)) : 0
     },
     notes
   };
+}
+
+function numericValue(value, fallback = null) {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function severityBand(score) {
+  if (score >= 0.85) {
+    return "critical";
+  }
+
+  if (score >= 0.65) {
+    return "high";
+  }
+
+  if (score >= 0.4) {
+    return "medium";
+  }
+
+  return "low";
+}
+
+function penaltyKindForFeature(featureType) {
+  switch (featureType) {
+    case "water":
+      return "stroke_penalty";
+    case "woods":
+      return "recovery_only";
+    case "bunker":
+      return "recovery_only";
+    case "rough":
+      return "angle_loss";
+    default:
+      return "context_only";
+  }
+}
+
+function hazardReason(featureType, side, along, distance) {
+  const sideText = side ?? "unknown side";
+  const alongText = along === null ? "unknown distance" : `${along}m along`;
+  const distanceText = distance === null ? "unknown separation" : `${distance}m from centerline`;
+
+  switch (featureType) {
+    case "water":
+      return `water on the ${sideText} at ${alongText} with ${distanceText}`;
+    case "woods":
+      return `woods on the ${sideText} at ${alongText} can turn a miss into recovery golf`;
+    case "bunker":
+      return `bunker on the ${sideText} at ${alongText} adds recovery cost`;
+    case "rough":
+      return `rough on the ${sideText} at ${alongText} reduces control`;
+    default:
+      return `${featureType} at ${alongText}`;
+  }
+}
+
+function deriveHazardSeverity(sourceHole, sourceFile) {
+  return (sourceHole.features ?? [])
+    .filter((feature) => ["water", "bunker", "woods", "rough"].includes(feature.properties?.featureType))
+    .map((feature) => {
+      const featureType = feature.properties?.featureType;
+      const along = numericValue(feature.properties?.centerline_along_m);
+      const distance = numericValue(feature.properties?.centerline_distance_m);
+      const side = feature.properties?.centerline_side ?? null;
+      const relevanceBoost = distance === null ? 0 : Math.max(0, 0.2 - Math.min(distance, 40) / 200);
+      const score = Number(Math.min(0.98, (hazardBaseScores[featureType] ?? 0.3) + relevanceBoost).toFixed(2));
+
+      return {
+        overlay_id: `hazard-severity-${feature.id}`,
+        overlay_type: "hazard_severity",
+        course_id: sourceHole.courseId,
+        hole_id: String(sourceHole.holeId ?? sourceHole.hole),
+        tee_set_id: "all",
+        shot_phase: "all",
+        geometry: feature.geometry,
+        properties: {
+          hazard_ref_id: feature.id,
+          hazard_kind: feature.properties?.hazardKind ?? featureType,
+          severity_band: severityBand(score),
+          severity_score: score,
+          context_relevance_score: Number(Math.max(0.25, 1 - Math.min(distance ?? 60, 60) / 75).toFixed(2)),
+          penalty_kind: penaltyKindForFeature(featureType),
+          landing_conflict: distance !== null ? distance <= 20 : false,
+          blocks_recovery: featureType === "woods"
+        },
+        confidence: {
+          band: "medium",
+          score: 0.72
+        },
+        rationale: {
+          primary_reason: hazardReason(featureType, side, along, distance)
+        },
+        constraints: {
+          derived_from: "course_studio_hazard_v1"
+        },
+        provenance: {
+          source_file: sourceFile,
+          derivation_version: derivationVersion
+        }
+      };
+    });
 }
 
 function normalizeHole(sourceHole, teeSets, sourceFile, sourceUpdatedAt) {
   const tees = teeSets
     .map((teeSet) => normalizeTee(teeSet, sourceHole))
     .filter(Boolean);
+  const hazardSeverity = deriveHazardSeverity(sourceHole, sourceFile);
 
   return {
     hole_id: String(sourceHole.holeId ?? sourceHole.hole),
@@ -167,7 +279,7 @@ function normalizeHole(sourceHole, teeSets, sourceFile, sourceUpdatedAt) {
       aggressive_tee_corridors: [],
       layup_candidates: [],
       preferred_miss: [],
-      hazard_severity: []
+      hazard_severity: hazardSeverity
     },
     quality_confidence: qualityForHole(sourceHole),
     provenance: {

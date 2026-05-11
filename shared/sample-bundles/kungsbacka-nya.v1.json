@@ -3,13 +3,13 @@
   "bundle_version": "kungsbacka-nya.v1.foundation",
   "course_id": "kungsbacka-nya",
   "course_name": "Kungsbacka Nya",
-  "published_at": "2026-05-10T17:18:08.549Z",
+  "published_at": "2026-05-11T09:23:43.574Z",
   "provenance": {
     "source_system": "truecaddie-pilot-json",
     "source_path": "C:\\Projekt\\TrueCaddie\\Sources\\TrueCaddieAppSupport\\Resources\\Courses",
     "source_file": "kungsbacka-nya-manifest.json",
     "source_updated_at": "2026-04-13T09:55:40.272Z",
-    "derivation_version": "course-studio-foundation-v1"
+    "derivation_version": "course-studio-foundation-v2"
   },
   "holes": [
     {
@@ -1374,7 +1374,825 @@
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
         "preferred_miss": [],
-        "hazard_severity": []
+        "hazard_severity": [
+          {
+            "overlay_id": "hazard-severity-02966659-d47f-4c28-8f68-19ea68bcc41d",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "1",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.992168575525286,
+                    57.491224813624875
+                  ],
+                  [
+                    11.992128342390062,
+                    57.491201749676804
+                  ],
+                  [
+                    11.992125660181047,
+                    57.491178685714175
+                  ],
+                  [
+                    11.99216052889824,
+                    57.491155621736986
+                  ],
+                  [
+                    11.992200762033463,
+                    57.49115201799211
+                  ],
+                  [
+                    11.992246359586717,
+                    57.49116787447956
+                  ],
+                  [
+                    11.992269158363344,
+                    57.49118589320534
+                  ],
+                  [
+                    11.992269158363344,
+                    57.49120607416947
+                  ],
+                  [
+                    11.992249041795732,
+                    57.49122120988837
+                  ],
+                  [
+                    11.992208808660509,
+                    57.49123130036206
+                  ],
+                  [
+                    11.992168575525286,
+                    57.491224813624875
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "02966659-d47f-4c28-8f68-19ea68bcc41d",
+              "hazard_kind": "bunker",
+              "severity_band": "high",
+              "severity_score": 0.74,
+              "context_relevance_score": 0.97,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "bunker on the left at 417.12m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-1.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-17f15a34-7176-4076-a07e-5d073f9d07b4",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "1",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.990308463573458,
+                    57.4925617769634
+                  ],
+                  [
+                    11.990313827991487,
+                    57.49253727241538
+                  ],
+                  [
+                    11.990333944559099,
+                    57.492506281337555
+                  ],
+                  [
+                    11.990368813276291,
+                    57.49246880372991
+                  ],
+                  [
+                    11.990421116352081,
+                    57.49244862347805
+                  ],
+                  [
+                    11.99049085378647,
+                    57.492445740581964
+                  ],
+                  [
+                    11.990537792444231,
+                    57.49245366854212
+                  ],
+                  [
+                    11.990561932325365,
+                    57.49247240735852
+                  ],
+                  [
+                    11.99054852128029,
+                    57.492499794832376
+                  ],
+                  [
+                    11.990497559309006,
+                    57.492535830963696
+                  ],
+                  [
+                    11.99045330286026,
+                    57.49256105624566
+                  ],
+                  [
+                    11.990415751934053,
+                    57.49257547067828
+                  ],
+                  [
+                    11.990374177694322,
+                    57.492580515730296
+                  ],
+                  [
+                    11.99032858014107,
+                    57.492576191401696
+                  ],
+                  [
+                    11.990308463573458,
+                    57.4925617769634
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "17f15a34-7176-4076-a07e-5d073f9d07b4",
+              "hazard_kind": "bunker",
+              "severity_band": "high",
+              "severity_score": 0.66,
+              "context_relevance_score": 0.76,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "bunker on the left at 240.11m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-1.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-cca05a3a-7b9a-4502-aa22-b052662517d8",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "1",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.9883148598671,
+                    57.49242393333791
+                  ],
+                  [
+                    11.988328270912174,
+                    57.49238213124489
+                  ],
+                  [
+                    11.988526754379276,
+                    57.492323031652376
+                  ],
+                  [
+                    11.988612585067752,
+                    57.4922754636182
+                  ],
+                  [
+                    11.98914902687073,
+                    57.49210537135264
+                  ],
+                  [
+                    11.989379696846012,
+                    57.49207077621862
+                  ],
+                  [
+                    11.98966401100159,
+                    57.4920678932893
+                  ],
+                  [
+                    11.989838354587558,
+                    57.49207798354091
+                  ],
+                  [
+                    11.989948325157167,
+                    57.49211257866809
+                  ],
+                  [
+                    11.990181677341464,
+                    57.492141407915724
+                  ],
+                  [
+                    11.990187041759494,
+                    57.492191859044325
+                  ],
+                  [
+                    11.99012535095215,
+                    57.49222645406362
+                  ],
+                  [
+                    11.990004651546482,
+                    57.49223798572944
+                  ],
+                  [
+                    11.989631824493411,
+                    57.49234321201179
+                  ],
+                  [
+                    11.989524536132816,
+                    57.492364833813085
+                  ],
+                  [
+                    11.989017598629001,
+                    57.49239222140965
+                  ],
+                  [
+                    11.988829843997959,
+                    57.49239077995772
+                  ],
+                  [
+                    11.98873864889145,
+                    57.492402311571624
+                  ],
+                  [
+                    11.988693051338197,
+                    57.49242393333791
+                  ],
+                  [
+                    11.988438241481784,
+                    57.49245708668803
+                  ],
+                  [
+                    11.988352410793308,
+                    57.492448437990895
+                  ],
+                  [
+                    11.9883148598671,
+                    57.49242393333791
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "cca05a3a-7b9a-4502-aa22-b052662517d8",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.93,
+              "context_relevance_score": 0.56,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": false,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the right at 187.83m along with 33.04m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-1.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-cf61a4f6-f5bb-4ecc-a71e-bfd72f82b8ff",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "1",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.987976094117526,
+                    57.492424542789394
+                  ],
+                  [
+                    11.988069971433047,
+                    57.492388506519376
+                  ],
+                  [
+                    11.988102157941226,
+                    57.49238994797086
+                  ],
+                  [
+                    11.988155802121524,
+                    57.492428867139424
+                  ],
+                  [
+                    11.988177259793645,
+                    57.49246634481807
+                  ],
+                  [
+                    11.988139708867436,
+                    57.49249661522277
+                  ],
+                  [
+                    11.988051195969945,
+                    57.492528327048355
+                  ],
+                  [
+                    11.987592538228398,
+                    57.49262634524429
+                  ],
+                  [
+                    11.987356503835088,
+                    57.49276616486248
+                  ],
+                  [
+                    11.987128516068822,
+                    57.49284688522302
+                  ],
+                  [
+                    11.986983676782017,
+                    57.49287571387996
+                  ],
+                  [
+                    11.986254115929967,
+                    57.49288724533636
+                  ],
+                  [
+                    11.986093183389073,
+                    57.492911749669126
+                  ],
+                  [
+                    11.985964437356358,
+                    57.49295355113998
+                  ],
+                  [
+                    11.985731085172063,
+                    57.49298382114075
+                  ],
+                  [
+                    11.985497732987767,
+                    57.49305445104495
+                  ],
+                  [
+                    11.985401173463229,
+                    57.49310922516227
+                  ],
+                  [
+                    11.985331436028844,
+                    57.49318273766429
+                  ],
+                  [
+                    11.98535825811899,
+                    57.49323895300712
+                  ],
+                  [
+                    11.985355575909976,
+                    57.49328075410339
+                  ],
+                  [
+                    11.985309978356725,
+                    57.49334417636494
+                  ],
+                  [
+                    11.985068579545384,
+                    57.493416246983
+                  ],
+                  [
+                    11.98506589733637,
+                    57.493445075190394
+                  ],
+                  [
+                    11.985020299783116,
+                    57.4934796690092
+                  ],
+                  [
+                    11.984969337811831,
+                    57.49349696590634
+                  ],
+                  [
+                    11.984872778287297,
+                    57.49349552449855
+                  ],
+                  [
+                    11.984698434701329,
+                    57.49357912605573
+                  ],
+                  [
+                    11.984642108312016,
+                    57.49355894638703
+                  ],
+                  [
+                    11.98462333284891,
+                    57.49351426279525
+                  ],
+                  [
+                    11.984626015057927,
+                    57.49347102055758
+                  ],
+                  [
+                    11.984644790521031,
+                    57.49343786814069
+                  ],
+                  [
+                    11.984695752492314,
+                    57.49339895004765
+                  ],
+                  [
+                    11.98480304085291,
+                    57.49336868039107
+                  ],
+                  [
+                    11.984864731660252,
+                    57.49335282484664
+                  ],
+                  [
+                    11.984923740258578,
+                    57.493305258172064
+                  ],
+                  [
+                    11.98517050348795,
+                    57.49318273766429
+                  ],
+                  [
+                    11.985221465459233,
+                    57.49314093645579
+                  ],
+                  [
+                    11.985221465459233,
+                    57.49298093828461
+                  ],
+                  [
+                    11.985135634770756,
+                    57.492921839683696
+                  ],
+                  [
+                    11.985108812680608,
+                    57.4928771553122
+                  ],
+                  [
+                    11.985173185696965,
+                    57.49285697525553
+                  ],
+                  [
+                    11.985240240922337,
+                    57.492862740987164
+                  ],
+                  [
+                    11.985446771016482,
+                    57.492944902563735
+                  ],
+                  [
+                    11.985602339139348,
+                    57.4929621997142
+                  ],
+                  [
+                    11.985867877831822,
+                    57.49292039825321
+                  ],
+                  [
+                    11.986093183389073,
+                    57.4928771553122
+                  ],
+                  [
+                    11.986176331868535,
+                    57.49281229080464
+                  ],
+                  [
+                    11.986187060704593,
+                    57.4927301289296
+                  ],
+                  [
+                    11.986259480347996,
+                    57.49261913803296
+                  ],
+                  [
+                    11.986364086499576,
+                    57.49253553427763
+                  ],
+                  [
+                    11.986997087827092,
+                    57.49237985780929
+                  ],
+                  [
+                    11.987761517396335,
+                    57.49237985780929
+                  ],
+                  [
+                    11.987874170174962,
+                    57.49240292103166
+                  ],
+                  [
+                    11.987976094117526,
+                    57.492424542789394
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "cf61a4f6-f5bb-4ecc-a71e-bfd72f82b8ff",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.9,
+              "context_relevance_score": 0.48,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": false,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the right at 0m along with 39.18m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-1.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-87c15ae5-0a50-4edb-9192-aa52abacc61c",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "1",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.988567709922792,
+                    57.493046819491234
+                  ],
+                  [
+                    11.988530158996584,
+                    57.49301222529
+                  ],
+                  [
+                    11.988551616668701,
+                    57.49297186534715
+                  ],
+                  [
+                    11.988653540611269,
+                    57.49298051391007
+                  ],
+                  [
+                    11.988648176193239,
+                    57.493029522394714
+                  ],
+                  [
+                    11.988567709922792,
+                    57.493046819491234
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "87c15ae5-0a50-4edb-9192-aa52abacc61c",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.71,
+              "context_relevance_score": 0.5,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": false,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the left at 123.88m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-1.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-d1316706-a211-47ed-988b-09c4c66a2819",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "1",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.990032196044922,
+                    57.491977266944836
+                  ],
+                  [
+                    11.989769339561462,
+                    57.4919397887942
+                  ],
+                  [
+                    11.989506483078005,
+                    57.49193690585793
+                  ],
+                  [
+                    11.989667415618898,
+                    57.49176392926588
+                  ],
+                  [
+                    11.989898085594179,
+                    57.49183600294549
+                  ],
+                  [
+                    11.990118026733398,
+                    57.49173509975421
+                  ],
+                  [
+                    11.990445256233217,
+                    57.491645728123316
+                  ],
+                  [
+                    11.990670561790468,
+                    57.49149004798587
+                  ],
+                  [
+                    11.990944147109987,
+                    57.491351665084224
+                  ],
+                  [
+                    11.991292834281923,
+                    57.49126517550436
+                  ],
+                  [
+                    11.991410851478578,
+                    57.49119886668773
+                  ],
+                  [
+                    11.991437673568726,
+                    57.49127094148273
+                  ],
+                  [
+                    11.991228461265566,
+                    57.49145256933512
+                  ],
+                  [
+                    11.99107825756073,
+                    57.49157941999779
+                  ],
+                  [
+                    11.99088513851166,
+                    57.49167744066254
+                  ],
+                  [
+                    11.990761756896974,
+                    57.49177834401316
+                  ],
+                  [
+                    11.990514993667603,
+                    57.49185041766433
+                  ],
+                  [
+                    11.990225315093996,
+                    57.491919608235605
+                  ],
+                  [
+                    11.990155577659609,
+                    57.49195420347207
+                  ],
+                  [
+                    11.990032196044922,
+                    57.491977266944836
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "d1316706-a211-47ed-988b-09c4c66a2819",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.7,
+              "context_relevance_score": 0.45,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": false,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the right at 312.49m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-1.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-cbd6b3ce-5f83-4b80-b927-8c6b74968063",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "1",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.991984844207765,
+                    57.49151887769104
+                  ],
+                  [
+                    11.991925835609438,
+                    57.491443920410255
+                  ],
+                  [
+                    11.992129683494568,
+                    57.49136031403094
+                  ],
+                  [
+                    11.99238181114197,
+                    57.4913257182318
+                  ],
+                  [
+                    11.992499828338625,
+                    57.491377611918224
+                  ],
+                  [
+                    11.992430090904236,
+                    57.49147275015184
+                  ],
+                  [
+                    11.992226243019106,
+                    57.491510228781884
+                  ],
+                  [
+                    11.991984844207765,
+                    57.49151887769104
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "cbd6b3ce-5f83-4b80-b927-8c6b74968063",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.82,
+              "context_relevance_score": 0.8,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the left at 397.83m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-1.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ]
       },
       "quality_confidence": {
         "hole_publish_confidence": "medium",
@@ -1383,7 +2201,7 @@
           "tee_target_corridor": 0,
           "preferred_miss": 0,
           "layup_candidates": 0,
-          "hazard_severity": 0
+          "hazard_severity": 0.73
         },
         "notes": [
           "5 landing-zone points collapse to 1 unique id/coordinate pair",
@@ -1396,7 +2214,7 @@
         "source_system": "manual-editor",
         "source_file": "kungsbacka-nya-hole-1.json",
         "source_updated_at": "2026-03-09T16:01:23.686Z",
-        "derivation_version": "course-studio-foundation-v1"
+        "derivation_version": "course-studio-foundation-v2"
       }
     },
     {
@@ -1861,7 +2679,139 @@
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
         "preferred_miss": [],
-        "hazard_severity": []
+        "hazard_severity": [
+          {
+            "overlay_id": "hazard-severity-98e35e0a-352d-4503-ba4c-6bb82c3640d0",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "2",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.99670821428299,
+                    57.48901493293537
+                  ],
+                  [
+                    11.99663579463959,
+                    57.48898610125318
+                  ],
+                  [
+                    11.996638476848604,
+                    57.48894141210086
+                  ],
+                  [
+                    11.996659934520723,
+                    57.48889672289382
+                  ],
+                  [
+                    11.996659934520723,
+                    57.48877418769074
+                  ],
+                  [
+                    11.996759176254272,
+                    57.48865165207648
+                  ],
+                  [
+                    11.996847689151766,
+                    57.48856515610123
+                  ],
+                  [
+                    11.996922791004181,
+                    57.48851181681436
+                  ],
+                  [
+                    11.997180283069612,
+                    57.4884974007775
+                  ],
+                  [
+                    11.997437775135042,
+                    57.48838495549474
+                  ],
+                  [
+                    11.997528970241548,
+                    57.488389280319694
+                  ],
+                  [
+                    11.997566521167757,
+                    57.488403696399246
+                  ],
+                  [
+                    11.997566521167757,
+                    57.488433970147724
+                  ],
+                  [
+                    11.997351944446565,
+                    57.48852334963972
+                  ],
+                  [
+                    11.997201740741732,
+                    57.48861705371095
+                  ],
+                  [
+                    11.997121274471285,
+                    57.488677600829114
+                  ],
+                  [
+                    11.997121274471285,
+                    57.48873093987383
+                  ],
+                  [
+                    11.997081041336061,
+                    57.48881022749904
+                  ],
+                  [
+                    11.996984481811525,
+                    57.48886644952894
+                  ],
+                  [
+                    11.996906697750093,
+                    57.4888996060701
+                  ],
+                  [
+                    11.996831595897676,
+                    57.48892987940749
+                  ],
+                  [
+                    11.99676185846329,
+                    57.48897456857397
+                  ],
+                  [
+                    11.99670821428299,
+                    57.48901493293537
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "98e35e0a-352d-4503-ba4c-6bb82c3640d0",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.98,
+              "context_relevance_score": 0.81,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the left at 92.76m along with 14.05m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-2.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ]
       },
       "quality_confidence": {
         "hole_publish_confidence": "high",
@@ -1870,7 +2820,7 @@
           "tee_target_corridor": 0,
           "preferred_miss": 0,
           "layup_candidates": 0,
-          "hazard_severity": 0
+          "hazard_severity": 0.49
         },
         "notes": [
           "centerline has only 2 points",
@@ -1881,7 +2831,7 @@
         "source_system": "manual-editor",
         "source_file": "kungsbacka-nya-hole-2.json",
         "source_updated_at": "2026-03-05T10:58:04.100Z",
-        "derivation_version": "course-studio-foundation-v1"
+        "derivation_version": "course-studio-foundation-v2"
       }
     },
     {
@@ -2815,7 +3765,567 @@
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
         "preferred_miss": [],
-        "hazard_severity": []
+        "hazard_severity": [
+          {
+            "overlay_id": "hazard-severity-c2faf4d5-aa20-4731-8e7e-18affac5e655",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "3",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.993991136550905,
+                    57.487370049072034
+                  ],
+                  [
+                    11.99410378932953,
+                    57.487318149690104
+                  ],
+                  [
+                    11.994082331657411,
+                    57.487251833705855
+                  ],
+                  [
+                    11.993932127952577,
+                    57.48719416753468
+                  ],
+                  [
+                    11.993776559829714,
+                    57.48715668447459
+                  ],
+                  [
+                    11.99356734752655,
+                    57.48707595159914
+                  ],
+                  [
+                    11.993277668952944,
+                    57.486969268597115
+                  ],
+                  [
+                    11.99310064315796,
+                    57.48688276863697
+                  ],
+                  [
+                    11.992928981781008,
+                    57.48680780183909
+                  ],
+                  [
+                    11.992789506912231,
+                    57.486796268471934
+                  ],
+                  [
+                    11.9926393032074,
+                    57.48683663524111
+                  ],
+                  [
+                    11.992526650428772,
+                    57.486859701946315
+                  ],
+                  [
+                    11.99238181114197,
+                    57.48686546862034
+                  ],
+                  [
+                    11.992295980453493,
+                    57.48690583531303
+                  ],
+                  [
+                    11.992242336273195,
+                    57.48695196862148
+                  ],
+                  [
+                    11.992274522781374,
+                    57.48701540182544
+                  ],
+                  [
+                    11.992408633232118,
+                    57.48705865167403
+                  ],
+                  [
+                    11.992537379264833,
+                    57.48708460155862
+                  ],
+                  [
+                    11.99260175228119,
+                    57.48715380116071
+                  ],
+                  [
+                    11.992714405059816,
+                    57.48717975097766
+                  ],
+                  [
+                    11.99285387992859,
+                    57.487148034532204
+                  ],
+                  [
+                    11.992993354797365,
+                    57.487136501272474
+                  ],
+                  [
+                    11.993181109428406,
+                    57.48719705084541
+                  ],
+                  [
+                    11.993438601493835,
+                    57.487254717012
+                  ],
+                  [
+                    11.993722915649416,
+                    57.48731526638894
+                  ],
+                  [
+                    11.993991136550905,
+                    57.487370049072034
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "c2faf4d5-aa20-4731-8e7e-18affac5e655",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.9,
+              "context_relevance_score": 0.41,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": false,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the right at 185.01m along with 44.39m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-3.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-52edd88a-66d3-480c-8f22-b03e941e1a2c",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "3",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.993299126625063,
+                    57.486637684303865
+                  ],
+                  [
+                    11.99336349964142,
+                    57.48666363448758
+                  ],
+                  [
+                    11.993443965911865,
+                    57.486626150883
+                  ],
+                  [
+                    11.993476152420046,
+                    57.48657425044385
+                  ],
+                  [
+                    11.993422508239748,
+                    57.48652523329474
+                  ],
+                  [
+                    11.993433237075806,
+                    57.48645891587062
+                  ],
+                  [
+                    11.993438601493835,
+                    57.486412781939315
+                  ],
+                  [
+                    11.99336349964142,
+                    57.486357997820214
+                  ],
+                  [
+                    11.993320584297182,
+                    57.4863205139019
+                  ],
+                  [
+                    11.993283033370973,
+                    57.486352231066064
+                  ],
+                  [
+                    11.993240118026735,
+                    57.48640413182073
+                  ],
+                  [
+                    11.993240118026735,
+                    57.48645314913237
+                  ],
+                  [
+                    11.993266940116882,
+                    57.486505049743606
+                  ],
+                  [
+                    11.993234753608705,
+                    57.4865569502811
+                  ],
+                  [
+                    11.993256211280825,
+                    57.48659443395672
+                  ],
+                  [
+                    11.993299126625063,
+                    57.486637684303865
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "52edd88a-66d3-480c-8f22-b03e941e1a2c",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.98,
+              "context_relevance_score": 0.84,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the left at 196.42m along with 12.18m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-3.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-89e21442-8354-45d2-900e-c8737675f3e0",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "3",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.993561983108522,
+                    57.486208061916145
+                  ],
+                  [
+                    11.993497610092165,
+                    57.48630033023767
+                  ],
+                  [
+                    11.993492245674135,
+                    57.486366647949744
+                  ],
+                  [
+                    11.993556618690492,
+                    57.48643873228284
+                  ],
+                  [
+                    11.993663907051088,
+                    57.48648198281439
+                  ],
+                  [
+                    11.993792653083801,
+                    57.48650793310873
+                  ],
+                  [
+                    11.993953585624697,
+                    57.48652811665826
+                  ],
+                  [
+                    11.99410378932953,
+                    57.48652523329474
+                  ],
+                  [
+                    11.994248628616335,
+                    57.4865136998383
+                  ],
+                  [
+                    11.99436128139496,
+                    57.48648198281439
+                  ],
+                  [
+                    11.994414925575258,
+                    57.48642431542761
+                  ],
+                  [
+                    11.994264721870422,
+                    57.486355114443256
+                  ],
+                  [
+                    11.993985772132875,
+                    57.48629456347438
+                  ],
+                  [
+                    11.993749737739563,
+                    57.486248429335504
+                  ],
+                  [
+                    11.993561983108522,
+                    57.486208061916145
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "89e21442-8354-45d2-900e-c8737675f3e0",
+              "hazard_kind": "rough",
+              "severity_band": "low",
+              "severity_score": 0.35,
+              "context_relevance_score": 0.25,
+              "penalty_kind": "angle_loss",
+              "landing_conflict": false,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "rough on the left at 170.03m along reduces control"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-3.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-e369f76b-21df-46d7-b5b0-431507760c6b",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "3",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.994409377391506,
+                    57.4873823350471
+                  ],
+                  [
+                    11.994377184280967,
+                    57.48727850390491
+                  ],
+                  [
+                    11.994522053278406,
+                    57.48722370401639
+                  ],
+                  [
+                    11.994790329199564,
+                    57.487252546073236
+                  ],
+                  [
+                    11.995031777528615,
+                    57.48727850390491
+                  ],
+                  [
+                    11.995369805189277,
+                    57.48733907210707
+                  ],
+                  [
+                    11.995611253518327,
+                    57.48740829278651
+                  ],
+                  [
+                    11.99581514321841,
+                    57.48748328170787
+                  ],
+                  [
+                    11.995890260476342,
+                    57.48755827047526
+                  ],
+                  [
+                    11.995734660442048,
+                    57.48761306986171
+                  ],
+                  [
+                    11.995530770741963,
+                    57.487607301509115
+                  ],
+                  [
+                    11.995428825891922,
+                    57.48754961793304
+                  ],
+                  [
+                    11.995385901744564,
+                    57.487480397521445
+                  ],
+                  [
+                    11.9951927430813,
+                    57.48742848212664
+                  ],
+                  [
+                    11.99496739130754,
+                    57.4873823350471
+                  ],
+                  [
+                    11.99472594297849,
+                    57.487379450852686
+                  ],
+                  [
+                    11.994564977425803,
+                    57.48739387182244
+                  ],
+                  [
+                    11.994409377391506,
+                    57.4873823350471
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "e369f76b-21df-46d7-b5b0-431507760c6b",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.72,
+              "context_relevance_score": 0.53,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": false,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the right at 55.98m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-3.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-5403465a-31e9-41e4-b547-0041cbaa6fb2",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "3",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.992676314940836,
+                    57.486332473233524
+                  ],
+                  [
+                    11.99252608042497,
+                    57.48644207560302
+                  ],
+                  [
+                    11.992338287280175,
+                    57.486517066508384
+                  ],
+                  [
+                    11.99210822582245,
+                    57.486617500814916
+                  ],
+                  [
+                    11.991860756140502,
+                    57.486664163606335
+                  ],
+                  [
+                    11.991710521624638,
+                    57.48667281635832
+                  ],
+                  [
+                    11.991415418111371,
+                    57.486730501319364
+                  ],
+                  [
+                    11.991388590519263,
+                    57.48686317638399
+                  ],
+                  [
+                    11.991469073295585,
+                    57.48699296674166
+                  ],
+                  [
+                    11.991511997442982,
+                    57.48707949339055
+                  ],
+                  [
+                    11.991173969782318,
+                    57.487044882755576
+                  ],
+                  [
+                    11.99116860426389,
+                    57.48681414435104
+                  ],
+                  [
+                    11.991216893929716,
+                    57.486649742348405
+                  ],
+                  [
+                    11.99188758373261,
+                    57.486459381210246
+                  ],
+                  [
+                    11.992322190724886,
+                    57.486326704678646
+                  ],
+                  [
+                    11.992676314940836,
+                    57.486332473233524
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "5403465a-31e9-41e4-b547-0041cbaa6fb2",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.75,
+              "context_relevance_score": 0.59,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": false,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the left at 277.88m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-3.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ]
       },
       "quality_confidence": {
         "hole_publish_confidence": "medium",
@@ -2824,7 +4334,7 @@
           "tee_target_corridor": 0,
           "preferred_miss": 0,
           "layup_candidates": 0,
-          "hazard_severity": 0
+          "hazard_severity": 0.65
         },
         "notes": [
           "duplicate feature name 'water-1' appears 2 times",
@@ -2836,7 +4346,7 @@
         "source_system": "manual-editor",
         "source_file": "kungsbacka-nya-hole-3.json",
         "source_updated_at": "2026-03-06T06:57:34.346Z",
-        "derivation_version": "course-studio-foundation-v1"
+        "derivation_version": "course-studio-foundation-v2"
       }
     },
     {
@@ -3498,7 +5008,135 @@
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
         "preferred_miss": [],
-        "hazard_severity": []
+        "hazard_severity": [
+          {
+            "overlay_id": "hazard-severity-c2b5cf56-7cdd-4d0c-8f49-25354b7c8978",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "4",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.987253355979927,
+                    57.48620464692687
+                  ],
+                  [
+                    11.987261404257572,
+                    57.486106580841685
+                  ],
+                  [
+                    11.987223845628607,
+                    57.48601428310921
+                  ],
+                  [
+                    11.987264087016786,
+                    57.48593352240194
+                  ],
+                  [
+                    11.98732310771943,
+                    57.485864298796415
+                  ],
+                  [
+                    11.98745724568001,
+                    57.48579219073449
+                  ],
+                  [
+                    11.987545776734018,
+                    57.48578497992048
+                  ],
+                  [
+                    11.987655769861664,
+                    57.48580372803396
+                  ],
+                  [
+                    11.987733569878813,
+                    57.48583257126672
+                  ],
+                  [
+                    11.987763080230136,
+                    57.485875836073134
+                  ],
+                  [
+                    11.987856976802535,
+                    57.485913332197214
+                  ],
+                  [
+                    11.987851611284144,
+                    57.485956596907954
+                  ],
+                  [
+                    11.98781673541439,
+                    57.48598832432992
+                  ],
+                  [
+                    11.987744300915672,
+                    57.48602870464528
+                  ],
+                  [
+                    11.987720156082739,
+                    57.48605322124354
+                  ],
+                  [
+                    11.987704059527491,
+                    57.48611667589201
+                  ],
+                  [
+                    11.987663818139307,
+                    57.486195994047584
+                  ],
+                  [
+                    11.98756992156691,
+                    57.48624502700306
+                  ],
+                  [
+                    11.987497487068193,
+                    57.486260890592185
+                  ],
+                  [
+                    11.987438466365548,
+                    57.486260890592185
+                  ],
+                  [
+                    11.987333838756292,
+                    57.48623925842348
+                  ],
+                  [
+                    11.987253355979927,
+                    57.48620464692687
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "c2b5cf56-7cdd-4d0c-8f49-25354b7c8978",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.98,
+              "context_relevance_score": 0.96,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the left at 280.76m along with 2.79m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-4.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ]
       },
       "quality_confidence": {
         "hole_publish_confidence": "high",
@@ -3507,7 +5145,7 @@
           "tee_target_corridor": 0,
           "preferred_miss": 0,
           "layup_candidates": 0,
-          "hazard_severity": 0
+          "hazard_severity": 0.49
         },
         "notes": [
           "centerline has only 3 points",
@@ -3518,7 +5156,7 @@
         "source_system": "manual-editor",
         "source_file": "kungsbacka-nya-hole-4.json",
         "source_updated_at": "2026-03-21T10:31:47.233Z",
-        "derivation_version": "course-studio-foundation-v1"
+        "derivation_version": "course-studio-foundation-v2"
       }
     },
     {
@@ -4355,7 +5993,328 @@
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
         "preferred_miss": [],
-        "hazard_severity": []
+        "hazard_severity": [
+          {
+            "overlay_id": "hazard-severity-80bd88df-3c1b-4153-8e1d-a51be6085152",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "5",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.984234957511621,
+                    57.486970975123924
+                  ],
+                  [
+                    11.98418398508658,
+                    57.48700702802562
+                  ],
+                  [
+                    11.98412764714315,
+                    57.48700702802562
+                  ],
+                  [
+                    11.984060578162861,
+                    57.486995491100956
+                  ],
+                  [
+                    11.984020336774678,
+                    57.48693348006841
+                  ],
+                  [
+                    11.98405521264443,
+                    57.48688156377414
+                  ],
+                  [
+                    11.984181302327405,
+                    57.48682676316124
+                  ],
+                  [
+                    11.984293978214264,
+                    57.48681955254814
+                  ],
+                  [
+                    11.984369095472198,
+                    57.48679071008156
+                  ],
+                  [
+                    11.984495185155136,
+                    57.48677340459069
+                  ],
+                  [
+                    11.984546157580176,
+                    57.486751772715564
+                  ],
+                  [
+                    11.98463737139336,
+                    57.48674600421338
+                  ],
+                  [
+                    11.984744681761828,
+                    57.48676619396708
+                  ],
+                  [
+                    11.984771509353937,
+                    57.48680224707093
+                  ],
+                  [
+                    11.984704440373648,
+                    57.48683108952841
+                  ],
+                  [
+                    11.984664198985465,
+                    57.486872911051236
+                  ],
+                  [
+                    11.984564936894639,
+                    57.48689886921376
+                  ],
+                  [
+                    11.984508598951207,
+                    57.48693924854099
+                  ],
+                  [
+                    11.984428116174845,
+                    57.486962322422194
+                  ],
+                  [
+                    11.984302026491909,
+                    57.48697530147402
+                  ],
+                  [
+                    11.984234957511621,
+                    57.486970975123924
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "80bd88df-3c1b-4153-8e1d-a51be6085152",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.98,
+              "context_relevance_score": 0.78,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the left at 104.22m along with 16.28m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-5.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-edc7f484-c896-46de-bdf2-aa3142c5fc96",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "5",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.981621950039504,
+                    57.48792347814189
+                  ],
+                  [
+                    11.981587074169752,
+                    57.48790473115196
+                  ],
+                  [
+                    11.981587074169752,
+                    57.487871563376984
+                  ],
+                  [
+                    11.981619267280287,
+                    57.487839837650974
+                  ],
+                  [
+                    11.981670239705291,
+                    57.487844163887964
+                  ],
+                  [
+                    11.981686336260578,
+                    57.48787588961021
+                  ],
+                  [
+                    11.98168097074215,
+                    57.487909057381266
+                  ],
+                  [
+                    11.981621950039504,
+                    57.48792347814189
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "edc7f484-c896-46de-bdf2-aa3142c5fc96",
+              "hazard_kind": "bunker",
+              "severity_band": "high",
+              "severity_score": 0.65,
+              "context_relevance_score": 0.73,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "bunker on the right at 302.74m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-5.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-76d503f6-6314-41eb-8e34-a84c8a82af8f",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "5",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.982868166520035,
+                    57.487753931587555
+                  ],
+                  [
+                    11.982962063092472,
+                    57.4877510474225
+                  ],
+                  [
+                    11.982988890684581,
+                    57.48771499534004
+                  ],
+                  [
+                    11.982929869981895,
+                    57.48768471156325
+                  ],
+                  [
+                    11.982854752724,
+                    57.487713553255986
+                  ],
+                  [
+                    11.982868166520035,
+                    57.487753931587555
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "76d503f6-6314-41eb-8e34-a84c8a82af8f",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.83,
+              "context_relevance_score": 0.8,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the right at 227.96m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-5.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-68775228-a8d1-44f2-a734-dac7bb055ba6",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "5",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.984008339184998,
+                    57.48737898821977
+                  ],
+                  [
+                    11.98409955299818,
+                    57.48735303045949
+                  ],
+                  [
+                    11.984067359887643,
+                    57.48732851478011
+                  ],
+                  [
+                    11.983992242629709,
+                    57.48733284107766
+                  ],
+                  [
+                    11.98397614607446,
+                    57.487358798852256
+                  ],
+                  [
+                    11.984008339184998,
+                    57.48737898821977
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "68775228-a8d1-44f2-a734-dac7bb055ba6",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.83,
+              "context_relevance_score": 0.8,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the right at 150.7m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-5.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ]
       },
       "quality_confidence": {
         "hole_publish_confidence": "medium",
@@ -4364,7 +6323,7 @@
           "tee_target_corridor": 0,
           "preferred_miss": 0,
           "layup_candidates": 0,
-          "hazard_severity": 0
+          "hazard_severity": 0.61
         },
         "notes": [
           "centerline has only 3 points",
@@ -4376,7 +6335,7 @@
         "source_system": "manual-editor",
         "source_file": "kungsbacka-nya-hole-5.json",
         "source_updated_at": "2026-03-23T13:38:35.018Z",
-        "derivation_version": "course-studio-foundation-v1"
+        "derivation_version": "course-studio-foundation-v2"
       }
     },
     {
@@ -5028,7 +6987,142 @@
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
         "preferred_miss": [],
-        "hazard_severity": []
+        "hazard_severity": [
+          {
+            "overlay_id": "hazard-severity-9328d2ff-906a-4ef4-8c49-5d676501c96c",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "6",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.986665336535532,
+                    57.48802427329062
+                  ],
+                  [
+                    11.986625095147351,
+                    57.48800120013459
+                  ],
+                  [
+                    11.986606315832889,
+                    57.4879694745212
+                  ],
+                  [
+                    11.986676067572391,
+                    57.48794063303059
+                  ],
+                  [
+                    11.98673240551582,
+                    57.48795505377874
+                  ],
+                  [
+                    11.986740453793466,
+                    57.48799975806184
+                  ],
+                  [
+                    11.986665336535532,
+                    57.48802427329062
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "9328d2ff-906a-4ef4-8c49-5d676501c96c",
+              "hazard_kind": "bunker",
+              "severity_band": "high",
+              "severity_score": 0.73,
+              "context_relevance_score": 0.95,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "bunker on the right at 299.3m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-6.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-f1234701-cf44-4e93-9263-e299ed218099",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "6",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.986847764161938,
+                    57.48795938000207
+                  ],
+                  [
+                    11.986810205532969,
+                    57.48792621227671
+                  ],
+                  [
+                    11.986845081402723,
+                    57.48788727621288
+                  ],
+                  [
+                    11.986917515901402,
+                    57.48788727621288
+                  ],
+                  [
+                    11.986947026252764,
+                    57.48792044397361
+                  ],
+                  [
+                    11.986912150383013,
+                    57.48794495925565
+                  ],
+                  [
+                    11.986847764161938,
+                    57.48795938000207
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "f1234701-cf44-4e93-9263-e299ed218099",
+              "hazard_kind": "bunker",
+              "severity_band": "high",
+              "severity_score": 0.7,
+              "context_relevance_score": 0.87,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "bunker on the right at 312.22m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-6.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ]
       },
       "quality_confidence": {
         "hole_publish_confidence": "medium",
@@ -5037,7 +7131,7 @@
           "tee_target_corridor": 0,
           "preferred_miss": 0,
           "layup_candidates": 0,
-          "hazard_severity": 0
+          "hazard_severity": 0.53
         },
         "notes": [
           "centerline has only 3 points",
@@ -5049,7 +7143,7 @@
         "source_system": "manual-editor",
         "source_file": "kungsbacka-nya-hole-6.json",
         "source_updated_at": "2026-03-23T13:40:13.540Z",
-        "derivation_version": "course-studio-foundation-v1"
+        "derivation_version": "course-studio-foundation-v2"
       }
     },
     {
@@ -6319,7 +8413,984 @@
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
         "preferred_miss": [],
-        "hazard_severity": []
+        "hazard_severity": [
+          {
+            "overlay_id": "hazard-severity-102e8807-a7c0-48c7-b1af-d44f8d35d278",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.9933743264125,
+                    57.4874687323145
+                  ],
+                  [
+                    11.993277747080889,
+                    57.48746296393908
+                  ],
+                  [
+                    11.99326701604403,
+                    57.487396627556535
+                  ],
+                  [
+                    11.99336359537564,
+                    57.48737066980883
+                  ],
+                  [
+                    11.993460174707252,
+                    57.48741393271144
+                  ],
+                  [
+                    11.9933743264125,
+                    57.4874687323145
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "102e8807-a7c0-48c7-b1af-d44f8d35d278",
+              "hazard_kind": "woods",
+              "severity_band": "critical",
+              "severity_score": 0.87,
+              "context_relevance_score": 0.91,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the right at 401.34m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-7ead95d2-0773-45d4-b2dd-3110b2bc8e16",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.994676440742179,
+                    57.48768504925251
+                  ],
+                  [
+                    11.994637910650662,
+                    57.48768503854768
+                  ],
+                  [
+                    11.99458963852157,
+                    57.487650428486624
+                  ],
+                  [
+                    11.99458927043341,
+                    57.48762449914125
+                  ],
+                  [
+                    11.994605729231255,
+                    57.48759851333354
+                  ],
+                  [
+                    11.99464023070845,
+                    57.48759566546297
+                  ],
+                  [
+                    11.99467009207007,
+                    57.48759851333354
+                  ],
+                  [
+                    11.99470227348944,
+                    57.48763312344381
+                  ],
+                  [
+                    11.994715331712744,
+                    57.487655494578874
+                  ],
+                  [
+                    11.994713000629256,
+                    57.48767638603548
+                  ],
+                  [
+                    11.994676440742179,
+                    57.48768504925251
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "7ead95d2-0773-45d4-b2dd-3110b2bc8e16",
+              "hazard_kind": "bunker",
+              "severity_band": "high",
+              "severity_score": 0.7,
+              "context_relevance_score": 0.86,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "bunker on the left at 481.25m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-af531b55-4151-48e9-9060-409cb404fc98",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.994980107554955,
+                    57.48745968237184
+                  ],
+                  [
+                    11.99490498277068,
+                    57.48745968237184
+                  ],
+                  [
+                    11.994860171043234,
+                    57.48745727030263
+                  ],
+                  [
+                    11.994830670020047,
+                    57.487446455720395
+                  ],
+                  [
+                    11.994837370219125,
+                    57.48742410924773
+                  ],
+                  [
+                    11.994872786434565,
+                    57.487407760047525
+                  ],
+                  [
+                    11.994931250810625,
+                    57.48740392683422
+                  ],
+                  [
+                    11.994990839666995,
+                    57.487404875471775
+                  ],
+                  [
+                    11.995031835696167,
+                    57.48741401772197
+                  ],
+                  [
+                    11.99505328927332,
+                    57.48742699254029
+                  ],
+                  [
+                    11.99504927005476,
+                    57.487443574031445
+                  ],
+                  [
+                    11.995025124031182,
+                    57.4874515024404
+                  ],
+                  [
+                    11.994980107554955,
+                    57.48745968237184
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "af531b55-4151-48e9-9060-409cb404fc98",
+              "hazard_kind": "bunker",
+              "severity_band": "high",
+              "severity_score": 0.67,
+              "context_relevance_score": 0.78,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "bunker on the right at 496.6m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-393a418e-d921-4996-9cb4-9600fe4138ef",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.994892357141898,
+                    57.48772180832391
+                  ],
+                  [
+                    11.994889678618375,
+                    57.487698744726515
+                  ],
+                  [
+                    11.994909791910008,
+                    57.48769225448248
+                  ],
+                  [
+                    11.994937958790157,
+                    57.48769297305749
+                  ],
+                  [
+                    11.994974741498915,
+                    57.487707754680265
+                  ],
+                  [
+                    11.994999645502494,
+                    57.4877311811904
+                  ],
+                  [
+                    11.995001571779033,
+                    57.48775967657806
+                  ],
+                  [
+                    11.994983555524426,
+                    57.48776578039525
+                  ],
+                  [
+                    11.994955389872773,
+                    57.48776793899952
+                  ],
+                  [
+                    11.994917842222545,
+                    57.487750640683856
+                  ],
+                  [
+                    11.994892357141898,
+                    57.48772180832391
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "393a418e-d921-4996-9cb4-9600fe4138ef",
+              "hazard_kind": "bunker",
+              "severity_band": "high",
+              "severity_score": 0.68,
+              "context_relevance_score": 0.82,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "bunker on the left at 499.55m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-3109d9a2-2bef-4a05-b6cb-07cac9264e30",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.992972177221592,
+                    57.487275652482346
+                  ],
+                  [
+                    11.992918516661357,
+                    57.48722661448643
+                  ],
+                  [
+                    11.992982909333632,
+                    57.48718911479806
+                  ],
+                  [
+                    11.993063400173904,
+                    57.48720930694273
+                  ],
+                  [
+                    11.993063400173904,
+                    57.487261229549205
+                  ],
+                  [
+                    11.992972177221592,
+                    57.487275652482346
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "3109d9a2-2bef-4a05-b6cb-07cac9264e30",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.77,
+              "context_relevance_score": 0.66,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": false,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the right at 378.66m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-2b502e65-b30f-4881-91c1-077c1f866871",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.989870596841985,
+                    57.48781506609164
+                  ],
+                  [
+                    11.989822302337828,
+                    57.487774682460994
+                  ],
+                  [
+                    11.989897427122104,
+                    57.487731414235746
+                  ],
+                  [
+                    11.990004748242493,
+                    57.48775160608057
+                  ],
+                  [
+                    11.989972551906376,
+                    57.48780929700429
+                  ],
+                  [
+                    11.989870596841985,
+                    57.48781506609164
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "2b502e65-b30f-4881-91c1-077c1f866871",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.74,
+              "context_relevance_score": 0.58,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": false,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the left at 193.86m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-83af3b50-9561-4b51-9814-5944259d7585",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.990868683261738,
+                    57.487757375177054
+                  ],
+                  [
+                    11.991244307183145,
+                    57.48770833782797
+                  ],
+                  [
+                    11.991507243928119,
+                    57.4876448776314
+                  ],
+                  [
+                    11.991861403625451,
+                    57.48763045484408
+                  ],
+                  [
+                    11.99209214403431,
+                    57.48766506952409
+                  ],
+                  [
+                    11.992129706426425,
+                    57.48773718333538
+                  ],
+                  [
+                    11.992124340370426,
+                    57.48782371972098
+                  ],
+                  [
+                    11.991829207289294,
+                    57.48790160229269
+                  ],
+                  [
+                    11.991356994359533,
+                    57.48788717960674
+                  ],
+                  [
+                    11.991083325502517,
+                    57.487846796055834
+                  ],
+                  [
+                    11.990868683261738,
+                    57.487757375177054
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "83af3b50-9561-4b51-9814-5944259d7585",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.75,
+              "context_relevance_score": 0.6,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": false,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the left at 295m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-6dd07421-ebb1-4581-acfe-27b0e3afd194",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.994565895859532,
+                    57.487763144272606
+                  ],
+                  [
+                    11.994539065579414,
+                    57.48771987603366
+                  ],
+                  [
+                    11.99461419036369,
+                    57.48768814595922
+                  ],
+                  [
+                    11.994678583035961,
+                    57.48771987603366
+                  ],
+                  [
+                    11.994657118811844,
+                    57.48775160608057
+                  ],
+                  [
+                    11.994565895859532,
+                    57.487763144272606
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "6dd07421-ebb1-4581-acfe-27b0e3afd194",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.8,
+              "context_relevance_score": 0.74,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the left at 479.59m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-dc949be1-2c92-4c10-80fc-63defd5ba443",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.994802002324391,
+                    57.48780064337155
+                  ],
+                  [
+                    11.994775172044314,
+                    57.48776025972494
+                  ],
+                  [
+                    11.994839564716546,
+                    57.48773429878567
+                  ],
+                  [
+                    11.994909323444821,
+                    57.48776025972494
+                  ],
+                  [
+                    11.994882493164704,
+                    57.4877948742819
+                  ],
+                  [
+                    11.994802002324391,
+                    57.48780064337155
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "dc949be1-2c92-4c10-80fc-63defd5ba443",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.79,
+              "context_relevance_score": 0.7,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": false,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the left at 493.75m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-90567fcd-c4d9-4b12-9c64-dd973a1fd35d",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.993991136550905,
+                    57.487370049072034
+                  ],
+                  [
+                    11.99410378932953,
+                    57.487318149690104
+                  ],
+                  [
+                    11.994082331657411,
+                    57.487251833705855
+                  ],
+                  [
+                    11.993932127952577,
+                    57.48719416753468
+                  ],
+                  [
+                    11.993776559829714,
+                    57.48715668447459
+                  ],
+                  [
+                    11.99356734752655,
+                    57.48707595159914
+                  ],
+                  [
+                    11.993277668952944,
+                    57.486969268597115
+                  ],
+                  [
+                    11.99310064315796,
+                    57.48688276863697
+                  ],
+                  [
+                    11.992928981781008,
+                    57.48680780183909
+                  ],
+                  [
+                    11.992789506912231,
+                    57.486796268471934
+                  ],
+                  [
+                    11.9926393032074,
+                    57.48683663524111
+                  ],
+                  [
+                    11.992526650428772,
+                    57.486859701946315
+                  ],
+                  [
+                    11.99238181114197,
+                    57.48686546862034
+                  ],
+                  [
+                    11.992295980453493,
+                    57.48690583531303
+                  ],
+                  [
+                    11.992242336273195,
+                    57.48695196862148
+                  ],
+                  [
+                    11.992274522781374,
+                    57.48701540182544
+                  ],
+                  [
+                    11.992408633232118,
+                    57.48705865167403
+                  ],
+                  [
+                    11.992537379264833,
+                    57.48708460155862
+                  ],
+                  [
+                    11.99260175228119,
+                    57.48715380116071
+                  ],
+                  [
+                    11.992714405059816,
+                    57.48717975097766
+                  ],
+                  [
+                    11.99285387992859,
+                    57.487148034532204
+                  ],
+                  [
+                    11.992993354797365,
+                    57.487136501272474
+                  ],
+                  [
+                    11.993181109428406,
+                    57.48719705084541
+                  ],
+                  [
+                    11.993438601493835,
+                    57.487254717012
+                  ],
+                  [
+                    11.993722915649416,
+                    57.48731526638894
+                  ],
+                  [
+                    11.993991136550905,
+                    57.487370049072034
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "90567fcd-c4d9-4b12-9c64-dd973a1fd35d",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.98,
+              "context_relevance_score": 0.72,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": false,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the right at 380.26m along with 20.72m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-5c9871af-853a-47f2-95ce-7adbf7287e22",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.990926702642156,
+                    57.487352661023074
+                  ],
+                  [
+                    11.991339718709503,
+                    57.48722287028947
+                  ],
+                  [
+                    11.991645457876249,
+                    57.48715941687406
+                  ],
+                  [
+                    11.991908286282763,
+                    57.48719114359555
+                  ],
+                  [
+                    11.99201556318337,
+                    57.48729786054737
+                  ],
+                  [
+                    11.991865375522499,
+                    57.48734400832183
+                  ],
+                  [
+                    11.991328991019445,
+                    57.487369966419344
+                  ],
+                  [
+                    11.991012524162649,
+                    57.487398808728294
+                  ],
+                  [
+                    11.990926702642156,
+                    57.487352661023074
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "5c9871af-853a-47f2-95ce-7adbf7287e22",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.83,
+              "context_relevance_score": 0.81,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the right at 293.37m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-fa36ae81-4e30-4714-8a61-95b4b2683032",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.994579481108058,
+                    57.487398808728294
+                  ],
+                  [
+                    11.994381018841915,
+                    57.48736131372224
+                  ],
+                  [
+                    11.994466840362406,
+                    57.48724882847309
+                  ],
+                  [
+                    11.994767215684146,
+                    57.48724882847309
+                  ],
+                  [
+                    11.995094410231,
+                    57.48727767087769
+                  ],
+                  [
+                    11.99532505556731,
+                    57.48732670291324
+                  ],
+                  [
+                    11.995502062453337,
+                    57.48739304026832
+                  ],
+                  [
+                    11.995748799324753,
+                    57.48748245129537
+                  ],
+                  [
+                    11.995754163169758,
+                    57.48757763053522
+                  ],
+                  [
+                    11.995625430889046,
+                    57.48763819901325
+                  ],
+                  [
+                    11.995496698608289,
+                    57.48754878836751
+                  ],
+                  [
+                    11.9954108770878,
+                    57.487450724826964
+                  ],
+                  [
+                    11.995249961736874,
+                    57.487369966419344
+                  ],
+                  [
+                    11.995024680245615,
+                    57.48733247138367
+                  ],
+                  [
+                    11.994788671064256,
+                    57.48734112408764
+                  ],
+                  [
+                    11.994579481108058,
+                    57.487398808728294
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "fa36ae81-4e30-4714-8a61-95b4b2683032",
+              "hazard_kind": "woods",
+              "severity_band": "high",
+              "severity_score": 0.8,
+              "context_relevance_score": 0.72,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": false,
+              "blocks_recovery": true
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "woods on the left at 507.96m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ]
       },
       "quality_confidence": {
         "hole_publish_confidence": "medium",
@@ -6328,7 +9399,7 @@
           "tee_target_corridor": 0,
           "preferred_miss": 0,
           "layup_candidates": 0,
-          "hazard_severity": 0
+          "hazard_severity": 0.85
         },
         "notes": [
           "2 landing-zone points collapse to 1 unique id/coordinate pair",
@@ -6341,7 +9412,7 @@
         "source_system": "manual-editor",
         "source_file": "kungsbacka-nya-hole-7.json",
         "source_updated_at": "2026-03-09T16:01:23.686Z",
-        "derivation_version": "course-studio-foundation-v1"
+        "derivation_version": "course-studio-foundation-v2"
       }
     },
     {
@@ -6839,7 +9910,75 @@
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
         "preferred_miss": [],
-        "hazard_severity": []
+        "hazard_severity": [
+          {
+            "overlay_id": "hazard-severity-4ce25bc4-edbf-48e2-9958-772a01cd8ddf",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "8",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.993074011074663,
+                    57.490606616868114
+                  ],
+                  [
+                    11.993004252346427,
+                    57.49060084822177
+                  ],
+                  [
+                    11.992955957842232,
+                    57.49057488930191
+                  ],
+                  [
+                    11.993004252346427,
+                    57.49053162439446
+                  ],
+                  [
+                    11.993106207410818,
+                    57.490543161708125
+                  ],
+                  [
+                    11.993133037690896,
+                    57.49057777362724
+                  ],
+                  [
+                    11.993074011074663,
+                    57.490606616868114
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "4ce25bc4-edbf-48e2-9958-772a01cd8ddf",
+              "hazard_kind": "bunker",
+              "severity_band": "high",
+              "severity_score": 0.68,
+              "context_relevance_score": 0.83,
+              "penalty_kind": "recovery_only",
+              "landing_conflict": true,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "bunker on the right at 114.72m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-8.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ]
       },
       "quality_confidence": {
         "hole_publish_confidence": "medium",
@@ -6848,7 +9987,7 @@
           "tee_target_corridor": 0,
           "preferred_miss": 0,
           "layup_candidates": 0,
-          "hazard_severity": 0
+          "hazard_severity": 0.49
         },
         "notes": [
           "centerline has only 2 points",
@@ -6860,7 +9999,7 @@
         "source_system": "manual-editor",
         "source_file": "kungsbacka-nya-hole-8.json",
         "source_updated_at": "2026-03-19T09:21:51.861Z",
-        "derivation_version": "course-studio-foundation-v1"
+        "derivation_version": "course-studio-foundation-v2"
       }
     },
     {
@@ -7765,7 +10904,390 @@
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
         "preferred_miss": [],
-        "hazard_severity": []
+        "hazard_severity": [
+          {
+            "overlay_id": "hazard-severity-ec0139be-6fd3-445c-bde9-6f88667d4493",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "9",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.9883148598671,
+                    57.49242393333791
+                  ],
+                  [
+                    11.988328270912174,
+                    57.49238213124489
+                  ],
+                  [
+                    11.988526754379276,
+                    57.492323031652376
+                  ],
+                  [
+                    11.988612585067752,
+                    57.4922754636182
+                  ],
+                  [
+                    11.98914902687073,
+                    57.49210537135264
+                  ],
+                  [
+                    11.989379696846012,
+                    57.49207077621862
+                  ],
+                  [
+                    11.98966401100159,
+                    57.4920678932893
+                  ],
+                  [
+                    11.989838354587558,
+                    57.49207798354091
+                  ],
+                  [
+                    11.989948325157167,
+                    57.49211257866809
+                  ],
+                  [
+                    11.990181677341464,
+                    57.492141407915724
+                  ],
+                  [
+                    11.990187041759494,
+                    57.492191859044325
+                  ],
+                  [
+                    11.99012535095215,
+                    57.49222645406362
+                  ],
+                  [
+                    11.990004651546482,
+                    57.49223798572944
+                  ],
+                  [
+                    11.989631824493411,
+                    57.49234321201179
+                  ],
+                  [
+                    11.989524536132816,
+                    57.492364833813085
+                  ],
+                  [
+                    11.989017598629001,
+                    57.49239222140965
+                  ],
+                  [
+                    11.988829843997959,
+                    57.49239077995772
+                  ],
+                  [
+                    11.98873864889145,
+                    57.492402311571624
+                  ],
+                  [
+                    11.988693051338197,
+                    57.49242393333791
+                  ],
+                  [
+                    11.988438241481784,
+                    57.49245708668803
+                  ],
+                  [
+                    11.988352410793308,
+                    57.492448437990895
+                  ],
+                  [
+                    11.9883148598671,
+                    57.49242393333791
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "ec0139be-6fd3-445c-bde9-6f88667d4493",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.95,
+              "context_relevance_score": 0.59,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": false,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the right at 105.57m along with 30.42m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-9.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          },
+          {
+            "overlay_id": "hazard-severity-fcd929a1-eed9-44ef-bb13-6d5aac835bbd",
+            "overlay_type": "hazard_severity",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "9",
+            "tee_set_id": "all",
+            "shot_phase": "all",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.987976094117526,
+                    57.492424542789394
+                  ],
+                  [
+                    11.988069971433047,
+                    57.492388506519376
+                  ],
+                  [
+                    11.988102157941226,
+                    57.49238994797086
+                  ],
+                  [
+                    11.988155802121524,
+                    57.492428867139424
+                  ],
+                  [
+                    11.988177259793645,
+                    57.49246634481807
+                  ],
+                  [
+                    11.988139708867436,
+                    57.49249661522277
+                  ],
+                  [
+                    11.988051195969945,
+                    57.492528327048355
+                  ],
+                  [
+                    11.987592538228398,
+                    57.49262634524429
+                  ],
+                  [
+                    11.987356503835088,
+                    57.49276616486248
+                  ],
+                  [
+                    11.987128516068822,
+                    57.49284688522302
+                  ],
+                  [
+                    11.986983676782017,
+                    57.49287571387996
+                  ],
+                  [
+                    11.986254115929967,
+                    57.49288724533636
+                  ],
+                  [
+                    11.986093183389073,
+                    57.492911749669126
+                  ],
+                  [
+                    11.985964437356358,
+                    57.49295355113998
+                  ],
+                  [
+                    11.985731085172063,
+                    57.49298382114075
+                  ],
+                  [
+                    11.985497732987767,
+                    57.49305445104495
+                  ],
+                  [
+                    11.985401173463229,
+                    57.49310922516227
+                  ],
+                  [
+                    11.985331436028844,
+                    57.49318273766429
+                  ],
+                  [
+                    11.98535825811899,
+                    57.49323895300712
+                  ],
+                  [
+                    11.985355575909976,
+                    57.49328075410339
+                  ],
+                  [
+                    11.985309978356725,
+                    57.49334417636494
+                  ],
+                  [
+                    11.985068579545384,
+                    57.493416246983
+                  ],
+                  [
+                    11.98506589733637,
+                    57.493445075190394
+                  ],
+                  [
+                    11.985020299783116,
+                    57.4934796690092
+                  ],
+                  [
+                    11.984969337811831,
+                    57.49349696590634
+                  ],
+                  [
+                    11.984872778287297,
+                    57.49349552449855
+                  ],
+                  [
+                    11.984698434701329,
+                    57.49357912605573
+                  ],
+                  [
+                    11.984642108312016,
+                    57.49355894638703
+                  ],
+                  [
+                    11.98462333284891,
+                    57.49351426279525
+                  ],
+                  [
+                    11.984626015057927,
+                    57.49347102055758
+                  ],
+                  [
+                    11.984644790521031,
+                    57.49343786814069
+                  ],
+                  [
+                    11.984695752492314,
+                    57.49339895004765
+                  ],
+                  [
+                    11.98480304085291,
+                    57.49336868039107
+                  ],
+                  [
+                    11.984864731660252,
+                    57.49335282484664
+                  ],
+                  [
+                    11.984923740258578,
+                    57.493305258172064
+                  ],
+                  [
+                    11.98517050348795,
+                    57.49318273766429
+                  ],
+                  [
+                    11.985221465459233,
+                    57.49314093645579
+                  ],
+                  [
+                    11.985221465459233,
+                    57.49298093828461
+                  ],
+                  [
+                    11.985135634770756,
+                    57.492921839683696
+                  ],
+                  [
+                    11.985108812680608,
+                    57.4928771553122
+                  ],
+                  [
+                    11.985173185696965,
+                    57.49285697525553
+                  ],
+                  [
+                    11.985240240922337,
+                    57.492862740987164
+                  ],
+                  [
+                    11.985446771016482,
+                    57.492944902563735
+                  ],
+                  [
+                    11.985602339139348,
+                    57.4929621997142
+                  ],
+                  [
+                    11.985867877831822,
+                    57.49292039825321
+                  ],
+                  [
+                    11.986093183389073,
+                    57.4928771553122
+                  ],
+                  [
+                    11.986176331868535,
+                    57.49281229080464
+                  ],
+                  [
+                    11.986187060704593,
+                    57.4927301289296
+                  ],
+                  [
+                    11.986259480347996,
+                    57.49261913803296
+                  ],
+                  [
+                    11.986364086499576,
+                    57.49253553427763
+                  ],
+                  [
+                    11.986997087827092,
+                    57.49237985780929
+                  ],
+                  [
+                    11.987761517396335,
+                    57.49237985780929
+                  ],
+                  [
+                    11.987874170174962,
+                    57.49240292103166
+                  ],
+                  [
+                    11.987976094117526,
+                    57.492424542789394
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "hazard_ref_id": "fcd929a1-eed9-44ef-bb13-6d5aac835bbd",
+              "hazard_kind": "water",
+              "severity_band": "critical",
+              "severity_score": 0.98,
+              "context_relevance_score": 0.72,
+              "penalty_kind": "stroke_penalty",
+              "landing_conflict": false,
+              "blocks_recovery": false
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "water on the left at 298.3m along with 20.97m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_hazard_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-9.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ]
       },
       "quality_confidence": {
         "hole_publish_confidence": "medium",
@@ -7774,7 +11296,7 @@
           "tee_target_corridor": 0,
           "preferred_miss": 0,
           "layup_candidates": 0,
-          "hazard_severity": 0
+          "hazard_severity": 0.53
         },
         "notes": [
           "2 landing-zone points collapse to 1 unique id/coordinate pair",
@@ -7787,7 +11309,7 @@
         "source_system": "manual-editor",
         "source_file": "kungsbacka-nya-hole-9.json",
         "source_updated_at": "2026-03-23T13:41:40.572Z",
-        "derivation_version": "course-studio-foundation-v1"
+        "derivation_version": "course-studio-foundation-v2"
       }
     }
   ]
