@@ -24,6 +24,7 @@ public struct CourseHole: Decodable, Identifiable, Sendable {
     public let holeId: String
     public let holeNumber: Int
     public let par: Int
+    public let defaultPlayDirection: [String: JSONValue]?
     public let tees: [Tee]
     public let baseMappingData: BaseMappingData
     public let strategyOverlays: StrategyOverlays
@@ -36,6 +37,7 @@ public struct CourseHole: Decodable, Identifiable, Sendable {
         case holeId = "hole_id"
         case holeNumber = "hole_number"
         case par
+        case defaultPlayDirection = "default_play_direction"
         case tees
         case baseMappingData = "base_mapping_data"
         case strategyOverlays = "strategy_overlays"
