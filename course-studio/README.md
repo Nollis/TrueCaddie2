@@ -12,6 +12,6 @@ node course-studio/app/publish-kungsbacka-nya.mjs
 
 By default, the publisher reads from:
 
-`C:\Projekt\TrueCaddie\Sources\TrueCaddieAppSupport\Resources\Courses`
+`shared/pilot-data/kungsbacka-nya`
 
 Use `--source <path>` to read from another directory and `--out <file>` to write somewhere else.

@@ -20,6 +20,7 @@ npm --prefix course-studio run validate:bundle
 
 - The bundle uses `schema_version: v1`.
 - The bundle exposes `course_id`, `course_name`, `bundle_version`, `published_at`, and bundle-level provenance.
+- The default publisher input is the repo-local snapshot in `shared/pilot-data/kungsbacka-nya/`.
 - Holes 1-9 are present.
 - Each hole has tees, centerline, green reference data, canonical features, strategy overlay containers, quality metadata, and hole-level provenance.
 - Known source-data issues are surfaced in `quality_confidence.notes`.

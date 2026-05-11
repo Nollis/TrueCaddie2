@@ -5,7 +5,7 @@ import { validateCourseBundle } from "./validate-bundle.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..");
-const defaultSourceDir = "C:\\Projekt\\TrueCaddie\\Sources\\TrueCaddieAppSupport\\Resources\\Courses";
+const defaultSourceDir = path.join(repoRoot, "shared", "pilot-data", "kungsbacka-nya");
 const defaultOutFile = path.join(repoRoot, "shared", "sample-bundles", "kungsbacka-nya.v1.json");
 const derivationVersion = "course-studio-foundation-v2";
 

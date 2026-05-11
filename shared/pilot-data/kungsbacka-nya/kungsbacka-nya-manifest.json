@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "2.0",
+  "courseId": "kungsbacka-nya",
+  "name": "Kungsbacka Nya",
+  "holes": [
+    {
+      "holeId": "1",
+      "file": "kungsbacka-nya-hole-1"
+    },
+    {
+      "holeId": "2",
+      "file": "kungsbacka-nya-hole-2"
+    },
+    {
+      "holeId": "3",
+      "file": "kungsbacka-nya-hole-3"
+    },
+    {
+      "holeId": "4",
+      "file": "kungsbacka-nya-hole-4"
+    },
+    {
+      "holeId": "5",
+      "file": "kungsbacka-nya-hole-5"
+    },
+    {
+      "holeId": "6",
+      "file": "kungsbacka-nya-hole-6"
+    },
+    {
+      "holeId": "7",
+      "file": "kungsbacka-nya-hole-7"
+    },
+    {
+      "holeId": "8",
+      "file": "kungsbacka-nya-hole-8"
+    },
+    {
+      "holeId": "9",
+      "file": "kungsbacka-nya-hole-9"
+    }
+  ],
+  "teeSets": [
+    {
+      "teeSetId": "white",
+      "name": "White",
+      "isDefault": true
+    },
+    {
+      "teeSetId": "red",
+      "name": "Red",
+      "isDefault": false
+    },
+    {
+      "teeSetId": "orange",
+      "name": "Orange",
+      "isDefault": false
+    },
+    {
+      "teeSetId": "yellow",
+      "name": "Yellow",
+      "isDefault": false
+    },
+    {
+      "teeSetId": "blue",
+      "name": "Blue",
+      "isDefault": false
+    }
+  ]
+}

@@ -1,9 +1,11 @@
 # Pilot Data
 
-Pilot data snapshots live here when we want source inputs inside the repo.
+Pilot data snapshots live here so Course Studio can publish reproducible bundles from repo-local inputs.
 
-The first publisher can also read from the original TrueCaddie project path:
+The current pilot course is stored under:
 
-`C:\Projekt\TrueCaddie\Sources\TrueCaddieAppSupport\Resources\Courses`
+- `shared/pilot-data/kungsbacka-nya/`
 
-The canonical runtime artifact is not the raw source data. It is the published bundle in `shared/sample-bundles/`.
+That folder contains the manifest plus holes 1-9 from the prototype course JSON.
+
+The canonical runtime artifact is still not the raw source data. It is the published bundle in `shared/sample-bundles/`.

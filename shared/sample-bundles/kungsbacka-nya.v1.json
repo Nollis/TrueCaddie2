@@ -3,10 +3,10 @@
   "bundle_version": "kungsbacka-nya.v1.foundation",
   "course_id": "kungsbacka-nya",
   "course_name": "Kungsbacka Nya",
-  "published_at": "2026-05-11T09:23:43.574Z",
+  "published_at": "2026-05-11T11:34:51.729Z",
   "provenance": {
     "source_system": "truecaddie-pilot-json",
-    "source_path": "C:\\Projekt\\TrueCaddie\\Sources\\TrueCaddieAppSupport\\Resources\\Courses",
+    "source_path": "C:\\Users\\niklasb\\Documents\\New project 2\\shared\\pilot-data\\kungsbacka-nya",
     "source_file": "kungsbacka-nya-manifest.json",
     "source_updated_at": "2026-04-13T09:55:40.272Z",
     "derivation_version": "course-studio-foundation-v2"
