@@ -467,8 +467,12 @@ private struct HoleSketchLayout {
         }
 
         let bounds = Self.makeBounds(from: allCoordinates, size: size)
-        let centerline = Self.linePoints(from: hole.baseMappingData.centerline, in: bounds, size: drawingSize)
-        let outOfBounds = hole.baseMappingData.outOfBoundsLines.compactMap { line in
+        let centerline: [CGPoint] = Self.linePoints(
+            from: hole.baseMappingData.centerline,
+            in: bounds,
+            size: drawingSize
+        )
+        let outOfBounds: [[CGPoint]] = hole.baseMappingData.outOfBoundsLines.compactMap { line in
             guard let geometry = line.geometry else {
                 return nil
             }
@@ -476,8 +480,14 @@ private struct HoleSketchLayout {
             let points = Self.linePoints(from: geometry, in: bounds, size: drawingSize)
             return points.isEmpty ? nil : points
         }
-        let teePoints = hole.tees.map { Self.project($0.teeCoordinate, in: bounds, size: drawingSize) }
-        let greenCenter = Self.projectOptional(hole.baseMappingData.green.center, in: bounds, size: drawingSize)
+        let teePoints: [CGPoint] = hole.tees.map {
+            Self.project($0.teeCoordinate, in: bounds, size: drawingSize)
+        }
+        let greenCenter: CGPoint? = Self.projectOptional(
+            hole.baseMappingData.green.center,
+            in: bounds,
+            size: drawingSize
+        )
 
         self.featuresByType = featuresByType
         self.drawingSize = drawingSize
