@@ -64,7 +64,7 @@
         },
         "coordinates": {}
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "provenance": {
       "type": "object",
@@ -89,7 +89,7 @@
           "type": "string"
         }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "hole": {
       "type": "object",
@@ -114,11 +114,11 @@
           "type": "integer"
         },
         "default_play_direction": {
-          "type": "object",
-          "additionalProperties": true
+          "$ref": "#/$defs/defaultPlayDirection"
         },
         "tees": {
           "type": "array",
+          "minItems": 1,
           "items": {
             "$ref": "#/$defs/tee"
           }
@@ -134,6 +134,18 @@
         },
         "provenance": {
           "$ref": "#/$defs/provenance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "defaultPlayDirection": {
+      "type": "object",
+      "required": [
+        "bearingDeg"
+      ],
+      "properties": {
+        "bearingDeg": {
+          "type": "number"
         }
       },
       "additionalProperties": true
@@ -162,7 +174,8 @@
         "is_default": {
           "type": "boolean"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "baseMappingData": {
       "type": "object",
@@ -178,8 +191,7 @@
           "$ref": "#/$defs/geometry"
         },
         "green": {
-          "type": "object",
-          "additionalProperties": true
+          "$ref": "#/$defs/greenReference"
         },
         "features": {
           "type": "array",
@@ -211,16 +223,121 @@
                 "type": "object",
                 "additionalProperties": true
               }
-            }
+            },
+            "additionalProperties": false
           }
         },
         "out_of_bounds_lines": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/geoJsonFeature"
+          }
         },
         "context_points": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/geoJsonFeature"
+          }
         }
-      }
+      },
+      "additionalProperties": false
+    },
+    "greenReference": {
+      "type": "object",
+      "required": [
+        "center",
+        "front_center",
+        "back_center",
+        "center_elevation_m",
+        "front_elevation_m",
+        "back_elevation_m",
+        "polygon_feature_id"
+      ],
+      "properties": {
+        "center": {
+          "$ref": "#/$defs/position"
+        },
+        "front_center": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/position"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "back_center": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/position"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "center_elevation_m": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "front_elevation_m": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "back_elevation_m": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "polygon_feature_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "geoJsonFeature": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/geometry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "properties": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
     },
     "strategyOverlays": {
       "type": "object",
@@ -245,9 +362,193 @@
           "type": "array"
         },
         "hazard_severity": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/hazardSeverityOverlay"
+          }
         }
-      }
+      },
+      "additionalProperties": false
+    },
+    "hazardSeverityOverlay": {
+      "type": "object",
+      "required": [
+        "overlay_id",
+        "overlay_type",
+        "course_id",
+        "hole_id",
+        "tee_set_id",
+        "shot_phase",
+        "geometry",
+        "properties",
+        "confidence",
+        "rationale",
+        "constraints",
+        "provenance"
+      ],
+      "properties": {
+        "overlay_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "overlay_type": {
+          "const": "hazard_severity"
+        },
+        "course_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hole_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tee_set_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shot_phase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "geometry": {
+          "$ref": "#/$defs/geometry"
+        },
+        "properties": {
+          "$ref": "#/$defs/hazardSeverityProperties"
+        },
+        "confidence": {
+          "$ref": "#/$defs/overlayConfidence"
+        },
+        "rationale": {
+          "$ref": "#/$defs/overlayRationale"
+        },
+        "constraints": {
+          "$ref": "#/$defs/overlayConstraints"
+        },
+        "provenance": {
+          "$ref": "#/$defs/overlayProvenance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "hazardSeverityProperties": {
+      "type": "object",
+      "required": [
+        "hazard_ref_id",
+        "hazard_kind",
+        "severity_band",
+        "severity_score",
+        "context_relevance_score",
+        "penalty_kind",
+        "landing_conflict",
+        "blocks_recovery"
+      ],
+      "properties": {
+        "hazard_ref_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hazard_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "severity_band": {
+          "enum": [
+            "critical",
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "severity_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "context_relevance_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "penalty_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "landing_conflict": {
+          "type": "boolean"
+        },
+        "blocks_recovery": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "overlayConfidence": {
+      "type": "object",
+      "required": [
+        "band",
+        "score"
+      ],
+      "properties": {
+        "band": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "overlayRationale": {
+      "type": "object",
+      "required": [
+        "primary_reason"
+      ],
+      "properties": {
+        "primary_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "overlayConstraints": {
+      "type": "object",
+      "required": [
+        "derived_from"
+      ],
+      "properties": {
+        "derived_from": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "overlayProvenance": {
+      "type": "object",
+      "required": [
+        "derivation_version"
+      ],
+      "properties": {
+        "source_file": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "derivation_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
     },
     "qualityConfidence": {
       "type": "object",
@@ -281,7 +582,8 @@
             "type": "string"
           }
         }
-      }
+      },
+      "additionalProperties": false
     }
   }
 }

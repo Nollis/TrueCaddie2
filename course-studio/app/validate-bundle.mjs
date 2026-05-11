@@ -1,69 +1,72 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
+import Ajv2020 from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 
-const requiredOverlayKeys = [
-  "tee_target_corridors",
-  "aggressive_tee_corridors",
-  "layup_candidates",
-  "preferred_miss",
-  "hazard_severity"
-];
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, "..", "..");
+const schemaFile = path.join(
+  repoRoot,
+  "shared",
+  "course-bundle-schema",
+  "course-bundle.v1.schema.json"
+);
 
-function hasPosition(value) {
-  return Array.isArray(value)
-    && value.length === 2
-    && value.every((coordinate) => typeof coordinate === "number");
+const ajv = new Ajv2020({
+  allErrors: true,
+  strict: false
+});
+
+addFormats(ajv);
+
+let validatorPromise;
+
+function formatInstancePath(instancePath) {
+  return instancePath ? instancePath.replaceAll("/", ".").replace(/^\./, "") : "bundle";
 }
 
-function pushIf(errors, condition, message) {
-  if (condition) {
-    errors.push(message);
+function formatError(error) {
+  const location = formatInstancePath(error.instancePath);
+
+  switch (error.keyword) {
+    case "required":
+      return `${location}: missing required property '${error.params.missingProperty}'`;
+    case "additionalProperties":
+      return `${location}: unexpected property '${error.params.additionalProperty}'`;
+    case "type":
+      return `${location}: ${error.message}`;
+    case "enum":
+    case "const":
+    case "format":
+    case "minItems":
+    case "maxItems":
+    case "minimum":
+    case "maximum":
+    case "minLength":
+      return `${location}: ${error.message}`;
+    default:
+      return `${location}: ${error.message ?? error.keyword}`;
   }
 }
 
-export function validateCourseBundle(bundle) {
-  const errors = [];
-
-  pushIf(errors, bundle?.schema_version !== "v1", "schema_version must be v1");
-  pushIf(errors, !bundle?.bundle_version, "bundle_version is required");
-  pushIf(errors, !bundle?.course_id, "course_id is required");
-  pushIf(errors, !bundle?.course_name, "course_name is required");
-  pushIf(errors, !Array.isArray(bundle?.holes), "holes must be an array");
-
-  for (const hole of bundle?.holes ?? []) {
-    const label = `hole ${hole?.hole_id ?? "unknown"}`;
-
-    pushIf(errors, !hole.hole_id, `${label}: hole_id is required`);
-    pushIf(errors, typeof hole.hole_number !== "number", `${label}: hole_number must be numeric`);
-    pushIf(errors, typeof hole.par !== "number", `${label}: par must be numeric`);
-    pushIf(errors, !Array.isArray(hole.tees) || hole.tees.length === 0, `${label}: tees are required`);
-    pushIf(errors, !hole.base_mapping_data?.centerline?.coordinates, `${label}: centerline is required`);
-    pushIf(errors, !hasPosition(hole.base_mapping_data?.green?.center), `${label}: green center is required`);
-    pushIf(errors, !Array.isArray(hole.base_mapping_data?.features), `${label}: features must be an array`);
-
-    for (const tee of hole.tees ?? []) {
-      pushIf(errors, !tee.tee_set_id, `${label}: tee_set_id is required`);
-      pushIf(errors, !hasPosition(tee.tee_coordinate), `${label}: tee ${tee.tee_set_id} has invalid coordinate`);
-      pushIf(errors, typeof tee.tee_length_m !== "number", `${label}: tee ${tee.tee_set_id} has invalid length`);
-    }
-
-    for (const key of requiredOverlayKeys) {
-      pushIf(
-        errors,
-        !Array.isArray(hole.strategy_overlays?.[key]),
-        `${label}: strategy_overlays.${key} must be an array`
-      );
-    }
-
-    pushIf(errors, !hole.quality_confidence?.hole_publish_confidence, `${label}: confidence band is required`);
-    pushIf(errors, typeof hole.quality_confidence?.hole_publish_score !== "number", `${label}: confidence score is required`);
-    pushIf(errors, !Array.isArray(hole.quality_confidence?.notes), `${label}: quality notes must be an array`);
-    pushIf(errors, !hole.provenance?.source_file, `${label}: provenance.source_file is required`);
+async function loadValidator() {
+  if (!validatorPromise) {
+    validatorPromise = readFile(schemaFile, "utf8")
+      .then((contents) => JSON.parse(contents))
+      .then((schema) => ajv.compile(schema));
   }
+
+  return validatorPromise;
+}
+
+export async function validateCourseBundle(bundle) {
+  const validator = await loadValidator();
+  const valid = validator(bundle);
 
   return {
-    valid: errors.length === 0,
-    errors
+    valid: Boolean(valid),
+    errors: (validator.errors ?? []).map(formatError)
   };
 }
 
@@ -77,7 +80,7 @@ async function main() {
   }
 
   const bundle = JSON.parse(await readFile(filePath, "utf8"));
-  const validation = validateCourseBundle(bundle);
+  const validation = await validateCourseBundle(bundle);
 
   if (!validation.valid) {
     for (const error of validation.errors) {

@@ -332,7 +332,7 @@ async function main() {
   const sourceDir = path.resolve(argValue("--source", defaultSourceDir));
   const outFile = path.resolve(argValue("--out", defaultOutFile));
   const bundle = await buildBundle(sourceDir);
-  const validation = validateCourseBundle(bundle);
+  const validation = await validateCourseBundle(bundle);
 
   if (!validation.valid) {
     for (const error of validation.errors) {
