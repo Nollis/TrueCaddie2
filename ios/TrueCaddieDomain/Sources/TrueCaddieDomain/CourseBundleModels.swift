@@ -123,7 +123,7 @@ public struct StrategyOverlays: Decodable, Sendable {
     public let aggressiveTeeCorridors: [JSONValue]
     public let layupCandidates: [JSONValue]
     public let preferredMiss: [JSONValue]
-    public let hazardSeverity: [JSONValue]
+    public let hazardSeverity: [HazardSeverityOverlay]
 
     private enum CodingKeys: String, CodingKey {
         case teeTargetCorridors = "tee_target_corridors"
@@ -131,6 +131,91 @@ public struct StrategyOverlays: Decodable, Sendable {
         case layupCandidates = "layup_candidates"
         case preferredMiss = "preferred_miss"
         case hazardSeverity = "hazard_severity"
+    }
+}
+
+public struct HazardSeverityOverlay: Decodable, Identifiable, Sendable {
+    public let overlayId: String
+    public let overlayType: String
+    public let courseId: String
+    public let holeId: String
+    public let teeSetId: String
+    public let shotPhase: String
+    public let geometry: GeoJSONGeometry
+    public let properties: HazardSeverityProperties
+    public let confidence: OverlayConfidence
+    public let rationale: OverlayRationale
+    public let constraints: OverlayConstraints
+    public let provenance: OverlayProvenance
+
+    public var id: String { overlayId }
+
+    private enum CodingKeys: String, CodingKey {
+        case overlayId = "overlay_id"
+        case overlayType = "overlay_type"
+        case courseId = "course_id"
+        case holeId = "hole_id"
+        case teeSetId = "tee_set_id"
+        case shotPhase = "shot_phase"
+        case geometry
+        case properties
+        case confidence
+        case rationale
+        case constraints
+        case provenance
+    }
+}
+
+public struct HazardSeverityProperties: Decodable, Sendable {
+    public let hazardRefId: String
+    public let hazardKind: String
+    public let severityBand: String
+    public let severityScore: Double
+    public let contextRelevanceScore: Double
+    public let penaltyKind: String
+    public let landingConflict: Bool
+    public let blocksRecovery: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case hazardRefId = "hazard_ref_id"
+        case hazardKind = "hazard_kind"
+        case severityBand = "severity_band"
+        case severityScore = "severity_score"
+        case contextRelevanceScore = "context_relevance_score"
+        case penaltyKind = "penalty_kind"
+        case landingConflict = "landing_conflict"
+        case blocksRecovery = "blocks_recovery"
+    }
+}
+
+public struct OverlayConfidence: Decodable, Sendable {
+    public let band: String
+    public let score: Double
+}
+
+public struct OverlayRationale: Decodable, Sendable {
+    public let primaryReason: String
+
+    private enum CodingKeys: String, CodingKey {
+        case primaryReason = "primary_reason"
+    }
+}
+
+public struct OverlayConstraints: Decodable, Sendable {
+    public let derivedFrom: String
+
+    private enum CodingKeys: String, CodingKey {
+        case derivedFrom = "derived_from"
+    }
+}
+
+public struct OverlayProvenance: Decodable, Sendable {
+    public let sourceFile: String?
+    public let derivationVersion: String
+
+    private enum CodingKeys: String, CodingKey {
+        case sourceFile = "source_file"
+        case derivationVersion = "derivation_version"
     }
 }
 

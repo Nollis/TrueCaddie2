@@ -55,15 +55,14 @@ private struct HoleInspectorDetail: View {
     let snapshot: HoleInspectionSnapshot
     let hole: CourseHole
 
-    private var hazardSeverityOverlays: [HazardSeveritySummary] {
+    private var hazardSeverityOverlays: [HazardSeverityOverlay] {
         hole.strategyOverlays.hazardSeverity
-            .compactMap(HazardSeveritySummary.init)
             .sorted { lhs, rhs in
-                if lhs.severityScore == rhs.severityScore {
-                    return lhs.hazardKind < rhs.hazardKind
+                if lhs.properties.severityScore == rhs.properties.severityScore {
+                    return lhs.properties.hazardKind < rhs.properties.hazardKind
                 }
 
-                return lhs.severityScore > rhs.severityScore
+                return lhs.properties.severityScore > rhs.properties.severityScore
             }
     }
 
@@ -136,29 +135,32 @@ private struct HoleInspectorDetail: View {
                     ForEach(hazardSeverityOverlays) { hazard in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(alignment: .firstTextBaseline) {
-                                Label(hazard.hazardKind.capitalized, systemImage: hazard.iconName)
+                                Label(
+                                    hazard.properties.hazardKind.capitalized,
+                                    systemImage: iconName(for: hazard.properties.hazardKind)
+                                )
                                     .font(.headline)
 
                                 Spacer()
 
-                                Text(hazard.severityLabel)
+                                Text(severityLabel(for: hazard))
                                     .font(.caption.weight(.semibold))
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(hazard.bandColor.opacity(0.18), in: Capsule())
-                                    .foregroundStyle(hazard.bandColor)
+                                    .background(bandColor(for: hazard).opacity(0.18), in: Capsule())
+                                    .foregroundStyle(bandColor(for: hazard))
                             }
 
-                            Text(hazard.primaryReason)
+                            Text(hazard.rationale.primaryReason)
                                 .font(.subheadline)
 
                             HStack(spacing: 12) {
-                                Text("Score \(hazard.scoreText)")
-                                Text(hazard.penaltyKind.replacingOccurrences(of: "_", with: " "))
-                                if hazard.landingConflict {
+                                Text("Score \(format(number: hazard.properties.severityScore))")
+                                Text(hazard.properties.penaltyKind.replacingOccurrences(of: "_", with: " "))
+                                if hazard.properties.landingConflict {
                                     Text("Landing conflict")
                                 }
-                                if hazard.blocksRecovery {
+                                if hazard.properties.blocksRecovery {
                                     Text("Recovery blocker")
                                 }
                             }
@@ -281,6 +283,38 @@ private struct HoleInspectorDetail: View {
 
         return String(format: "%.2f", number)
     }
+
+    private func severityLabel(for hazard: HazardSeverityOverlay) -> String {
+        "\(hazard.properties.severityBand.capitalized) \(format(number: hazard.properties.severityScore))"
+    }
+
+    private func bandColor(for hazard: HazardSeverityOverlay) -> Color {
+        switch hazard.properties.severityBand {
+        case "critical":
+            return .red
+        case "high":
+            return .orange
+        case "medium":
+            return .yellow
+        default:
+            return .secondary
+        }
+    }
+
+    private func iconName(for hazardKind: String) -> String {
+        switch hazardKind {
+        case "water":
+            return "drop.fill"
+        case "bunker":
+            return "oval.bottomhalf.filled"
+        case "woods":
+            return "tree.fill"
+        case "rough":
+            return "leaf.fill"
+        default:
+            return "exclamationmark.triangle.fill"
+        }
+    }
 }
 
 private struct HoleSketchView: View {
@@ -359,78 +393,6 @@ private struct HoleSketchView: View {
         }
         .frame(height: 240)
         .accessibilityLabel("Simplified hole sketch")
-    }
-}
-
-private struct HazardSeveritySummary: Identifiable {
-    let id: String
-    let hazardKind: String
-    let severityBand: String
-    let severityScore: Double
-    let penaltyKind: String
-    let landingConflict: Bool
-    let blocksRecovery: Bool
-    let primaryReason: String
-
-    init?(jsonValue: JSONValue) {
-        guard
-            let overlay = jsonValue.objectValue,
-            let id = overlay["overlay_id"]?.stringValue,
-            let properties = overlay["properties"]?.objectValue,
-            let rationale = overlay["rationale"]?.objectValue,
-            let hazardKind = properties["hazard_kind"]?.stringValue,
-            let severityBand = properties["severity_band"]?.stringValue,
-            let severityScore = properties["severity_score"]?.numberValue,
-            let penaltyKind = properties["penalty_kind"]?.stringValue,
-            let primaryReason = rationale["primary_reason"]?.stringValue
-        else {
-            return nil
-        }
-
-        self.id = id
-        self.hazardKind = hazardKind
-        self.severityBand = severityBand
-        self.severityScore = severityScore
-        self.penaltyKind = penaltyKind
-        self.landingConflict = properties["landing_conflict"]?.boolValue ?? false
-        self.blocksRecovery = properties["blocks_recovery"]?.boolValue ?? false
-        self.primaryReason = primaryReason
-    }
-
-    var severityLabel: String {
-        "\(severityBand.capitalized) \(scoreText)"
-    }
-
-    var scoreText: String {
-        String(format: "%.2f", severityScore)
-    }
-
-    var bandColor: Color {
-        switch severityBand {
-        case "critical":
-            return .red
-        case "high":
-            return .orange
-        case "medium":
-            return .yellow
-        default:
-            return .secondary
-        }
-    }
-
-    var iconName: String {
-        switch hazardKind {
-        case "water":
-            return "drop.fill"
-        case "bunker":
-            return "oval.bottomhalf.filled"
-        case "woods":
-            return "tree.fill"
-        case "rough":
-            return "leaf.fill"
-        default:
-            return "exclamationmark.triangle.fill"
-        }
     }
 }
 
