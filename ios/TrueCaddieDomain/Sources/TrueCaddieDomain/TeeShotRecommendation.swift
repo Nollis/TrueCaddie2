@@ -114,7 +114,7 @@ public enum TeeShotRecommendationEngine {
             return nil
         }
 
-        let carryBias: Double
+        var carryBias: Double
         switch (playerContext.riskTolerance, riskLevel) {
         case (.conservative, _), (_, "high"):
             carryBias = -10
