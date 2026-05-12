@@ -5,8 +5,10 @@ public struct ApproachShotRecommendationPacket: Equatable, Sendable {
     public let holeId: String
     public let holeNumber: Int
     public let shotPhase: String
+    public let recommendationType: String
     public let strategyPreference: String?
-    public let approachDistanceM: Double
+    public let shotDistanceM: Double
+    public let plannedLeaveDistanceM: Double?
     public let targetLabel: String
     public let recommendedClub: String?
     public let clubCarryDistanceM: Double?
@@ -61,7 +63,9 @@ public enum ApproachShotRecommendationEngine {
             roundContext: roundContext
         )
         let adjustedApproachDistance = max(45, baseApproachDistance + target.distanceAdjustmentM)
-        let clubRecommendation = chooseClub(
+        let shotPlan = shotPlan(
+            hole: hole,
+            targetLabel: target.label,
             approachDistanceM: adjustedApproachDistance,
             playerContext: playerContext,
             roundContext: roundContext
@@ -77,25 +81,32 @@ public enum ApproachShotRecommendationEngine {
             courseId: courseId,
             holeId: hole.holeId,
             holeNumber: hole.holeNumber,
-            shotPhase: "approach",
+            shotPhase: shotPlan.recommendationType,
+            recommendationType: shotPlan.recommendationType,
             strategyPreference: roundContext?.strategyPreference.rawValue,
-            approachDistanceM: adjustedApproachDistance,
-            targetLabel: target.label,
-            recommendedClub: clubRecommendation?.name,
-            clubCarryDistanceM: clubRecommendation?.carryDistanceM,
+            shotDistanceM: shotPlan.shotDistanceM,
+            plannedLeaveDistanceM: shotPlan.plannedLeaveDistanceM,
+            targetLabel: shotPlan.targetLabel,
+            recommendedClub: shotPlan.clubRecommendation?.name,
+            clubCarryDistanceM: shotPlan.clubRecommendation?.carryDistanceM,
             preferredMissDirection: missGuidance?.preferredDirection,
             avoidDirection: missGuidance?.avoidDirection,
             riskLevel: approachRisk,
             confidenceBand: confidenceBand(for: confidenceScore),
             confidenceScore: confidenceScore,
             primaryReason: primaryReason(
-                targetLabel: target.label,
+                targetLabel: shotPlan.targetLabel,
+                recommendationType: shotPlan.recommendationType,
+                plannedLeaveDistanceM: shotPlan.plannedLeaveDistanceM,
                 greensideHazards: greensideHazards,
                 missGuidance: missGuidance
             ),
             supportingReason: supportingReason(
-                targetLabel: target.label,
-                clubRecommendation: clubRecommendation,
+                recommendationType: shotPlan.recommendationType,
+                targetLabel: shotPlan.targetLabel,
+                shotDistanceM: shotPlan.shotDistanceM,
+                plannedLeaveDistanceM: shotPlan.plannedLeaveDistanceM,
+                clubRecommendation: shotPlan.clubRecommendation,
                 roundContext: roundContext
             ),
             hazardSummary: Array(greensideHazards.prefix(2).map(\.summary))
@@ -171,7 +182,7 @@ public enum ApproachShotRecommendationEngine {
     }
 
     private static func chooseClub(
-        approachDistanceM: Double,
+        shotDistanceM: Double,
         playerContext: PlayerContext?,
         roundContext: RoundContext?
     ) -> PlayerClub? {
@@ -179,7 +190,7 @@ public enum ApproachShotRecommendationEngine {
             return nil
         }
 
-        let desiredCarry = approachDistanceM + approachCarryBias(roundContext: roundContext)
+        let desiredCarry = shotDistanceM + approachCarryBias(roundContext: roundContext)
 
         return playerContext.clubs.min { lhs, rhs in
             let lhsDelta = abs(lhs.carryDistanceM - desiredCarry)
@@ -271,9 +282,16 @@ public enum ApproachShotRecommendationEngine {
 
     private static func primaryReason(
         targetLabel: String,
+        recommendationType: String,
+        plannedLeaveDistanceM: Double?,
         greensideHazards: [GreensideHazard],
         missGuidance: MissGuidance?
     ) -> String {
+        if recommendationType == "layup",
+           let plannedLeaveDistanceM {
+            return "Lay up to leave about \(format(number: plannedLeaveDistanceM))m in. Reaching the green cleanly is not a strong percentage play from here."
+        }
+
         if let missGuidance,
            let avoidedHazard = greensideHazards.first(where: { $0.side == missGuidance.avoidDirection }) {
             return "Favor \(missGuidance.preferredDirection). \(avoidedHazard.kind) \(avoidedHazard.side) is the miss to avoid around the green."
@@ -287,12 +305,24 @@ public enum ApproachShotRecommendationEngine {
     }
 
     private static func supportingReason(
+        recommendationType: String,
         targetLabel: String,
+        shotDistanceM: Double,
+        plannedLeaveDistanceM: Double?,
         clubRecommendation: PlayerClub?,
         roundContext: RoundContext?
     ) -> String? {
         guard let clubRecommendation else {
             return nil
+        }
+
+        if recommendationType == "layup",
+           let plannedLeaveDistanceM {
+            if let wind = roundContext?.wind {
+                return "\(clubRecommendation.name) carry \(format(number: clubRecommendation.carryDistanceM))m leaves about \(format(number: plannedLeaveDistanceM))m with \(windSupportText(wind))."
+            }
+
+            return "\(clubRecommendation.name) carry \(format(number: clubRecommendation.carryDistanceM))m leaves about \(format(number: plannedLeaveDistanceM))m in."
         }
 
         if let wind = roundContext?.wind {
@@ -335,6 +365,73 @@ public enum ApproachShotRecommendationEngine {
             return "\(speed)m/s crosswind"
         }
     }
+
+    private static func shotPlan(
+        hole: CourseHole,
+        targetLabel: String,
+        approachDistanceM: Double,
+        playerContext: PlayerContext?,
+        roundContext: RoundContext?
+    ) -> ShotPlan {
+        let longestCarry = playerContext?.clubs.first?.carryDistanceM ?? 0
+        let reachableThreshold = max(155, longestCarry - 20 + reachableWindAdjustment(roundContext: roundContext))
+
+        if hole.par == 5, approachDistanceM > reachableThreshold {
+            let preferredLeave = preferredLeaveDistance(roundContext: roundContext)
+            let layupDistance = max(70, approachDistanceM - preferredLeave)
+            let layupClub = chooseClub(
+                shotDistanceM: layupDistance,
+                playerContext: playerContext,
+                roundContext: roundContext
+            )
+
+            return ShotPlan(
+                recommendationType: "layup",
+                targetLabel: "Lay up for wedge number",
+                shotDistanceM: layupDistance,
+                plannedLeaveDistanceM: max(55, approachDistanceM - (layupClub?.carryDistanceM ?? layupDistance)),
+                clubRecommendation: layupClub
+            )
+        }
+
+        return ShotPlan(
+            recommendationType: "approach",
+            targetLabel: targetLabel,
+            shotDistanceM: approachDistanceM,
+            plannedLeaveDistanceM: nil,
+            clubRecommendation: chooseClub(
+                shotDistanceM: approachDistanceM,
+                playerContext: playerContext,
+                roundContext: roundContext
+            )
+        )
+    }
+
+    private static func preferredLeaveDistance(roundContext: RoundContext?) -> Double {
+        switch roundContext?.strategyPreference {
+        case .conservative:
+            return 110
+        case .aggressive:
+            return 85
+        default:
+            return 100
+        }
+    }
+
+    private static func reachableWindAdjustment(roundContext: RoundContext?) -> Double {
+        guard let wind = roundContext?.wind else {
+            return 0
+        }
+
+        switch wind.relativeDirection {
+        case .helping:
+            return 5
+        case .hurting:
+            return -10
+        case .cross:
+            return 0
+        }
+    }
 }
 
 private struct GreensideHazard {
@@ -352,6 +449,14 @@ private struct ApproachTarget {
 private struct MissGuidance {
     let preferredDirection: String
     let avoidDirection: String
+}
+
+private struct ShotPlan {
+    let recommendationType: String
+    let targetLabel: String
+    let shotDistanceM: Double
+    let plannedLeaveDistanceM: Double?
+    let clubRecommendation: PlayerClub?
 }
 
 private func format(number: Double) -> String {

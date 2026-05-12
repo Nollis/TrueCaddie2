@@ -339,11 +339,17 @@ private struct HoleInspectorDetail: View {
                         }
 
                         HStack(spacing: 12) {
-                            Text("Approach \(format(number: approachShotRecommendation.approachDistanceM)) m")
+                            Text("\(approachShotRecommendation.recommendationType.capitalized) \(format(number: approachShotRecommendation.shotDistanceM)) m")
                             Text("Risk \(approachShotRecommendation.riskLevel.capitalized)")
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                        if let plannedLeaveDistanceM = approachShotRecommendation.plannedLeaveDistanceM {
+                            Text("Leave \(format(number: plannedLeaveDistanceM)) m")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
                         if let recommendedClub = approachShotRecommendation.recommendedClub,
                            let clubCarryDistanceM = approachShotRecommendation.clubCarryDistanceM {
