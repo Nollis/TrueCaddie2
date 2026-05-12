@@ -62,22 +62,13 @@ private struct HoleInspectorDetail: View {
     let roundContext: RoundContext
     @State private var selectedScenarioId = ""
 
-    private var teeShotRecommendation: TeeShotRecommendationPacket? {
-        TeeShotRecommendationEngine.build(
-            courseId: snapshot.courseId,
+    private var nextShotRecommendation: NextShotRecommendationPacket? {
+        HoleInspectorModel.nextShotRecommendation(
             for: hole,
-            playerContext: playerContext,
-            roundContext: roundContext
-        )
-    }
-
-    private var approachShotRecommendation: ApproachShotRecommendationPacket? {
-        ApproachShotRecommendationEngine.build(
             courseId: snapshot.courseId,
-            for: hole,
             playerContext: playerContext,
             roundContext: roundContext,
-            shotStateContext: shotStateContext
+            selectedScenarioId: selectedScenarioId
         )
     }
 
@@ -111,104 +102,16 @@ private struct HoleInspectorDetail: View {
     }
 
     private var shotStateScenarios: [ShotStateScenario] {
-        guard let tee = selectedTee(in: hole) else {
-            return []
-        }
-
-        if hole.par == 3 {
-            return [
-                ShotStateScenario(
-                    id: "tee",
-                    name: "Tee shot",
-                    detail: "Standard par-3 tee ball",
-                    shotStateContext: ShotStateContext(
-                        shotNumber: 1,
-                        remainingDistanceM: tee.teeLengthM,
-                        lie: .tee
-                    )
-                ),
-                ShotStateScenario(
-                    id: "rough",
-                    name: "Missed rough",
-                    detail: "Light rough approach after a loose swing",
-                    shotStateContext: ShotStateContext(
-                        shotNumber: 2,
-                        remainingDistanceM: max(45, tee.teeLengthM - 8),
-                        lie: .rough
-                    )
-                )
-            ]
-        }
-
-        guard let teeShotRecommendation else {
-            return []
-        }
-
-        let baseRemainingDistance = max(55, tee.teeLengthM - teeShotRecommendation.targetDistanceM)
-        var scenarios = [
-            ShotStateScenario(
-                id: "default",
-                name: "Fairway result",
-                detail: "Stock tee ball in the short grass",
-                shotStateContext: ShotStateContext(
-                    shotNumber: 2,
-                    remainingDistanceM: baseRemainingDistance,
-                    lie: .fairway
-                )
-            ),
-            ShotStateScenario(
-                id: "rough",
-                name: "Missed right rough",
-                detail: "Same line, tougher contact from light rough",
-                shotStateContext: ShotStateContext(
-                    shotNumber: 2,
-                    remainingDistanceM: baseRemainingDistance + 12,
-                    lie: .rough
-                )
-            ),
-            ShotStateScenario(
-                id: "recovery",
-                name: "Recovery miss",
-                detail: "Blocked or awkward stance after a bigger miss",
-                shotStateContext: ShotStateContext(
-                    shotNumber: 2,
-                    remainingDistanceM: baseRemainingDistance + 22,
-                    lie: .recovery
-                )
-            )
-        ]
-
-        if hole.par == 5 {
-            scenarios.append(
-                ShotStateScenario(
-                    id: "layup",
-                    name: "Layup leave",
-                    detail: "Third shot from a comfortable wedge number",
-                    shotStateContext: ShotStateContext(
-                        shotNumber: 3,
-                        remainingDistanceM: preferredLeaveDistanceM,
-                        lie: .fairway
-                    )
-                )
-            )
-        }
-
-        return scenarios
+        HoleInspectorModel.makeShotStateScenarios(
+            for: hole,
+            courseId: snapshot.courseId,
+            playerContext: playerContext,
+            roundContext: roundContext
+        )
     }
 
     private var selectedScenario: ShotStateScenario? {
         shotStateScenarios.first(where: { $0.id == selectedScenarioId }) ?? shotStateScenarios.first
-    }
-
-    private var preferredLeaveDistanceM: Double {
-        switch roundContext.strategyPreference {
-        case .conservative:
-            return 110
-        case .aggressive:
-            return 85
-        case .balanced:
-            return 100
-        }
     }
 
     var body: some View {
@@ -355,158 +258,83 @@ private struct HoleInspectorDetail: View {
                 }
             }
 
-            Section("Tee Shot Recommendation") {
-                if let teeShotRecommendation {
+            Section("Next Shot Recommendation") {
+                if let nextShotRecommendation {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text(teeShotRecommendation.targetLabel)
+                            Text(nextShotRecommendation.headline)
                                 .font(.headline)
                             Spacer()
-                            Text(teeShotRecommendation.confidenceBand.capitalized)
+                            Text(nextShotRecommendation.confidenceBand.capitalized)
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.secondary)
                         }
 
-                        Text(teeShotRecommendation.primaryReason)
+                        Text(nextShotRecommendation.primaryReason)
                             .font(.subheadline)
 
-                        if let supportingReason = teeShotRecommendation.supportingReason {
-                            Text(supportingReason)
+                        Text(nextShotRecommendation.executionNote)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if let missNote = nextShotRecommendation.missNote {
+                            Text(missNote)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let fallbackNote = nextShotRecommendation.fallbackNote {
+                            Text(fallbackNote)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
                         HStack(spacing: 12) {
-                            Text("Target \(format(number: teeShotRecommendation.targetDistanceM)) m")
-                            Text("Risk \(teeShotRecommendation.riskLevel.capitalized)")
+                            Text("\(nextShotRecommendation.recommendationType.capitalized) \(format(number: nextShotRecommendation.shotDistanceM)) m")
+                            Text("Risk \(nextShotRecommendation.riskLevel.capitalized)")
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                        Text("Selected branch: \(teeShotRecommendation.selectedBranch.rawValue.capitalized)")
+                        Text("Shot \(nextShotRecommendation.shotNumber) • \(nextShotRecommendation.lie.rawValue.capitalized)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        if let strategyPreference = teeShotRecommendation.strategyPreference {
+                        if let strategyPreference = nextShotRecommendation.strategyPreference {
                             Text("Today's plan: \(strategyPreference.capitalized)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let recommendedClub = teeShotRecommendation.recommendedClub,
-                           let clubCarryDistanceM = teeShotRecommendation.clubCarryDistanceM {
-                            Text("\(recommendedClub) • carry \(format(number: clubCarryDistanceM)) m")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let preferredMissDirection = teeShotRecommendation.preferredMissDirection,
-                           let avoidDirection = teeShotRecommendation.avoidDirection {
-                            Text("Favor \(preferredMissDirection.capitalized), avoid \(avoidDirection.capitalized)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if !teeShotRecommendation.hazardSummary.isEmpty {
-                            Text(teeShotRecommendation.hazardSummary.joined(separator: " • "))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if !teeShotRecommendation.branchOptions.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Branches")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-
-                                ForEach(teeShotRecommendation.branchOptions) { option in
-                                    HStack(alignment: .top, spacing: 8) {
-                                        Text(option.branch.rawValue.capitalized)
-                                            .font(.caption.weight(option.branch == teeShotRecommendation.selectedBranch ? .bold : .regular))
-                                            .frame(width: 88, alignment: .leading)
-
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            if let recommendedClub = option.recommendedClub,
-                                               let carryDistance = option.clubCarryDistanceM {
-                                                Text("\(recommendedClub) • \(format(number: carryDistance)) m")
-                                                    .font(.caption)
-                                            }
-
-                                            Text(option.summary)
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                        }
-
-                                        Spacer()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.vertical, 2)
-                } else {
-                    Text("No tee-shot recommendation packet yet")
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Approach Recommendation") {
-                if let approachShotRecommendation {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(approachShotRecommendation.targetLabel)
-                                .font(.headline)
-                            Spacer()
-                            Text(approachShotRecommendation.confidenceBand.capitalized)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Text(approachShotRecommendation.primaryReason)
-                            .font(.subheadline)
-
-                        if let supportingReason = approachShotRecommendation.supportingReason {
-                            Text(supportingReason)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        HStack(spacing: 12) {
-                            Text("\(approachShotRecommendation.recommendationType.capitalized) \(format(number: approachShotRecommendation.shotDistanceM)) m")
-                            Text("Risk \(approachShotRecommendation.riskLevel.capitalized)")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                        if let plannedLeaveDistanceM = approachShotRecommendation.plannedLeaveDistanceM {
+                        if let plannedLeaveDistanceM = nextShotRecommendation.plannedLeaveDistanceM {
                             Text("Leave \(format(number: plannedLeaveDistanceM)) m")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let recommendedClub = approachShotRecommendation.recommendedClub,
-                           let clubCarryDistanceM = approachShotRecommendation.clubCarryDistanceM {
+                        if let recommendedClub = nextShotRecommendation.recommendedClub,
+                           let clubCarryDistanceM = nextShotRecommendation.clubCarryDistanceM {
                             Text("\(recommendedClub) • carry \(format(number: clubCarryDistanceM)) m")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        if let preferredMissDirection = approachShotRecommendation.preferredMissDirection,
-                           let avoidDirection = approachShotRecommendation.avoidDirection {
+                        if let preferredMissDirection = nextShotRecommendation.preferredMissDirection,
+                           let avoidDirection = nextShotRecommendation.avoidDirection {
                             Text("Favor \(preferredMissDirection.capitalized), avoid \(avoidDirection.capitalized)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
 
-                        if !approachShotRecommendation.hazardSummary.isEmpty {
-                            Text(approachShotRecommendation.hazardSummary.joined(separator: " • "))
+                        if !nextShotRecommendation.hazardSummary.isEmpty {
+                            Text(nextShotRecommendation.hazardSummary.joined(separator: " • "))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 2)
                 } else {
-                    Text("No approach recommendation packet yet")
+                    Text("No next-shot recommendation packet yet")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -671,18 +499,6 @@ private struct HoleInspectorDetail: View {
 
     private func windLabel(_ wind: WindContext) -> String {
         "\(wind.relativeDirection.rawValue.capitalized) • \(format(number: wind.speedMps)) m/s"
-    }
-
-    private func selectedTee(in hole: CourseHole) -> Tee? {
-        if let matchedTee = hole.tees.first(where: { $0.teeSetId == roundContext.teeSetId }) {
-            return matchedTee
-        }
-
-        if let defaultTee = hole.tees.first(where: { $0.isDefault == true }) {
-            return defaultTee
-        }
-
-        return hole.tees.first
     }
 
     private var defaultBearingText: String? {
@@ -908,14 +724,6 @@ private struct FeatureHighlight: Identifiable {
     let title: String
     let detail: String
 }
-
-private struct ShotStateScenario: Identifiable {
-    let id: String
-    let name: String
-    let detail: String
-    let shotStateContext: ShotStateContext
-}
-
 #if DEBUG
 private enum BundleInspectorPreviewSupport {
     static func loadBundle() throws -> CourseBundle {
