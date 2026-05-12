@@ -6,6 +6,7 @@ public struct TeeShotRecommendationPacket: Equatable, Sendable {
     public let holeNumber: Int
     public let shotPhase: String
     public let strategyMode: String
+    public let strategyPreference: String?
     public let recommendedClub: String?
     public let clubCarryDistanceM: Double?
     public let targetLabel: String
@@ -24,13 +25,22 @@ public struct TeeShotRecommendationPacket: Equatable, Sendable {
 
 public enum TeeShotRecommendationEngine {
     public static func build(courseId: String, for hole: CourseHole) -> TeeShotRecommendationPacket? {
-        build(courseId: courseId, for: hole, playerContext: nil)
+        build(courseId: courseId, for: hole, playerContext: nil, roundContext: nil)
     }
 
     public static func build(
         courseId: String,
         for hole: CourseHole,
         playerContext: PlayerContext?
+    ) -> TeeShotRecommendationPacket? {
+        build(courseId: courseId, for: hole, playerContext: playerContext, roundContext: nil)
+    }
+
+    public static func build(
+        courseId: String,
+        for hole: CourseHole,
+        playerContext: PlayerContext?,
+        roundContext: RoundContext?
     ) -> TeeShotRecommendationPacket? {
         guard
             hole.par > 3,
@@ -60,12 +70,14 @@ public enum TeeShotRecommendationEngine {
         let clubRecommendation = chooseClub(
             for: corridor,
             playerContext: playerContext,
+            roundContext: roundContext,
             riskLevel: riskLevel(for: riskReference)
         )
         let supportingReason = supportingReason(
             corridor: corridor,
             preferredMiss: preferredMiss,
-            clubRecommendation: clubRecommendation
+            clubRecommendation: clubRecommendation,
+            roundContext: roundContext
         )
 
         return TeeShotRecommendationPacket(
@@ -74,6 +86,7 @@ public enum TeeShotRecommendationEngine {
             holeNumber: hole.holeNumber,
             shotPhase: "tee",
             strategyMode: corridor.properties.strategyMode,
+            strategyPreference: roundContext?.strategyPreference.rawValue,
             recommendedClub: clubRecommendation?.name,
             clubCarryDistanceM: clubRecommendation?.carryDistanceM,
             targetLabel: corridor.properties.targetLabel,
@@ -94,6 +107,7 @@ public enum TeeShotRecommendationEngine {
     private static func chooseClub(
         for corridor: TeeTargetCorridorOverlay,
         playerContext: PlayerContext?,
+        roundContext: RoundContext?,
         riskLevel: String
     ) -> PlayerClub? {
         guard let playerContext else {
@@ -108,6 +122,10 @@ public enum TeeShotRecommendationEngine {
             carryBias = 5
         default:
             carryBias = 0
+        }
+
+        if let roundContext {
+            carryBias += carryBiasForRoundContext(roundContext)
         }
 
         let desiredCarry = corridor.properties.targetDistanceM + carryBias
@@ -173,9 +191,19 @@ public enum TeeShotRecommendationEngine {
     private static func supportingReason(
         corridor: TeeTargetCorridorOverlay,
         preferredMiss: PreferredMissOverlay?,
-        clubRecommendation: PlayerClub?
+        clubRecommendation: PlayerClub?,
+        roundContext: RoundContext?
     ) -> String? {
         if let clubRecommendation {
+            let windText = windSupportText(roundContext?.wind)
+            if let windText {
+                return "\(clubRecommendation.name) carry \(format(number: clubRecommendation.carryDistanceM))m matches the stock landing window with \(windText)."
+            }
+
+            if let roundContext, roundContext.strategyPreference != .balanced {
+                return "\(clubRecommendation.name) carry \(format(number: clubRecommendation.carryDistanceM))m fits today's \(roundContext.strategyPreference.rawValue) plan."
+            }
+
             return "\(clubRecommendation.name) carry \(format(number: clubRecommendation.carryDistanceM))m matches the stock landing window."
         }
 
@@ -205,6 +233,61 @@ public enum TeeShotRecommendationEngine {
             return "medium"
         default:
             return "low"
+        }
+    }
+
+    private static func carryBiasForRoundContext(_ roundContext: RoundContext) -> Double {
+        var bias = 0.0
+
+        switch roundContext.strategyPreference {
+        case .conservative:
+            bias -= 10
+        case .balanced:
+            break
+        case .aggressive:
+            bias += 10
+        }
+
+        guard let wind = roundContext.wind else {
+            return bias
+        }
+
+        switch wind.relativeDirection {
+        case .helping:
+            bias -= windBias(for: wind.speedMps)
+        case .hurting:
+            bias += windBias(for: wind.speedMps)
+        case .cross:
+            break
+        }
+
+        return bias
+    }
+
+    private static func windBias(for speedMps: Double) -> Double {
+        switch speedMps {
+        case 6...:
+            return 10
+        case 3...:
+            return 5
+        default:
+            return 0
+        }
+    }
+
+    private static func windSupportText(_ wind: WindContext?) -> String? {
+        guard let wind else {
+            return nil
+        }
+
+        let speed = format(number: wind.speedMps)
+        switch wind.relativeDirection {
+        case .helping:
+            return "\(speed)m/s helping wind"
+        case .hurting:
+            return "\(speed)m/s headwind"
+        case .cross:
+            return "\(speed)m/s crosswind"
         }
     }
 }

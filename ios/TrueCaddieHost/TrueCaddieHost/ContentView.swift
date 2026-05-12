@@ -13,11 +13,12 @@ struct ContentView: View {
         try HostCourseBundleStore.loadKungsbackaNya()
     }
     private let playerContext = PlayerContext.pilotSample
+    private let roundContext = RoundContext.pilotSample
 
     var body: some View {
         switch bundleResult {
         case .success(let bundle):
-            BundleInspectorView(bundle: bundle, playerContext: playerContext)
+            BundleInspectorView(bundle: bundle, playerContext: playerContext, roundContext: roundContext)
         case .failure(let error):
             ContentUnavailableView(
                 "Course Bundle Missing",
