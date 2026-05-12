@@ -60,6 +60,7 @@ private struct HoleInspectorDetail: View {
     let hole: CourseHole
     let playerContext: PlayerContext
     let roundContext: RoundContext
+    @State private var selectedScenarioId = ""
 
     private var teeShotRecommendation: TeeShotRecommendationPacket? {
         TeeShotRecommendationEngine.build(
@@ -81,27 +82,7 @@ private struct HoleInspectorDetail: View {
     }
 
     private var shotStateContext: ShotStateContext? {
-        guard let tee = selectedTee(in: hole) else {
-            return nil
-        }
-
-        if hole.par == 3 {
-            return ShotStateContext(
-                shotNumber: 1,
-                remainingDistanceM: tee.teeLengthM,
-                lie: .tee
-            )
-        }
-
-        guard let teeShotRecommendation else {
-            return nil
-        }
-
-        return ShotStateContext(
-            shotNumber: 2,
-            remainingDistanceM: max(55, tee.teeLengthM - teeShotRecommendation.targetDistanceM),
-            lie: .fairway
-        )
+        selectedScenario?.shotStateContext
     }
 
     private var teeTargetCorridors: [TeeTargetCorridorOverlay] {
@@ -127,6 +108,107 @@ private struct HoleInspectorDetail: View {
             .sorted { lhs, rhs in
                 lhs.properties.riskGapScore > rhs.properties.riskGapScore
             }
+    }
+
+    private var shotStateScenarios: [ShotStateScenario] {
+        guard let tee = selectedTee(in: hole) else {
+            return []
+        }
+
+        if hole.par == 3 {
+            return [
+                ShotStateScenario(
+                    id: "tee",
+                    name: "Tee shot",
+                    detail: "Standard par-3 tee ball",
+                    shotStateContext: ShotStateContext(
+                        shotNumber: 1,
+                        remainingDistanceM: tee.teeLengthM,
+                        lie: .tee
+                    )
+                ),
+                ShotStateScenario(
+                    id: "rough",
+                    name: "Missed rough",
+                    detail: "Light rough approach after a loose swing",
+                    shotStateContext: ShotStateContext(
+                        shotNumber: 2,
+                        remainingDistanceM: max(45, tee.teeLengthM - 8),
+                        lie: .rough
+                    )
+                )
+            ]
+        }
+
+        guard let teeShotRecommendation else {
+            return []
+        }
+
+        let baseRemainingDistance = max(55, tee.teeLengthM - teeShotRecommendation.targetDistanceM)
+        var scenarios = [
+            ShotStateScenario(
+                id: "default",
+                name: "Fairway result",
+                detail: "Stock tee ball in the short grass",
+                shotStateContext: ShotStateContext(
+                    shotNumber: 2,
+                    remainingDistanceM: baseRemainingDistance,
+                    lie: .fairway
+                )
+            ),
+            ShotStateScenario(
+                id: "rough",
+                name: "Missed right rough",
+                detail: "Same line, tougher contact from light rough",
+                shotStateContext: ShotStateContext(
+                    shotNumber: 2,
+                    remainingDistanceM: baseRemainingDistance + 12,
+                    lie: .rough
+                )
+            ),
+            ShotStateScenario(
+                id: "recovery",
+                name: "Recovery miss",
+                detail: "Blocked or awkward stance after a bigger miss",
+                shotStateContext: ShotStateContext(
+                    shotNumber: 2,
+                    remainingDistanceM: baseRemainingDistance + 22,
+                    lie: .recovery
+                )
+            )
+        ]
+
+        if hole.par == 5 {
+            scenarios.append(
+                ShotStateScenario(
+                    id: "layup",
+                    name: "Layup leave",
+                    detail: "Third shot from a comfortable wedge number",
+                    shotStateContext: ShotStateContext(
+                        shotNumber: 3,
+                        remainingDistanceM: preferredLeaveDistanceM,
+                        lie: .fairway
+                    )
+                )
+            )
+        }
+
+        return scenarios
+    }
+
+    private var selectedScenario: ShotStateScenario? {
+        shotStateScenarios.first(where: { $0.id == selectedScenarioId }) ?? shotStateScenarios.first
+    }
+
+    private var preferredLeaveDistanceM: Double {
+        switch roundContext.strategyPreference {
+        case .conservative:
+            return 110
+        case .aggressive:
+            return 85
+        case .balanced:
+            return 100
+        }
     }
 
     var body: some View {
@@ -210,6 +292,21 @@ private struct HoleInspectorDetail: View {
             }
 
             Section("Shot State") {
+                if !shotStateScenarios.isEmpty {
+                    Picker("Scenario", selection: $selectedScenarioId) {
+                        ForEach(shotStateScenarios) { scenario in
+                            Text(scenario.name).tag(scenario.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                if let selectedScenario {
+                    Text(selectedScenario.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 if let shotStateContext {
                     LabeledContent("Shot", value: "\(shotStateContext.shotNumber)")
                     LabeledContent("Lie", value: shotStateContext.lie.rawValue.capitalized)
@@ -538,6 +635,11 @@ private struct HoleInspectorDetail: View {
             }
         }
         .navigationTitle("Hole \(snapshot.holeNumber)")
+        .onAppear {
+            if selectedScenarioId.isEmpty, let firstScenario = shotStateScenarios.first {
+                selectedScenarioId = firstScenario.id
+            }
+        }
     }
 
     private var featureTypeCounts: [(name: String, count: Int)] {
@@ -805,6 +907,13 @@ private struct FeatureHighlight: Identifiable {
     let id: String
     let title: String
     let detail: String
+}
+
+private struct ShotStateScenario: Identifiable {
+    let id: String
+    let name: String
+    let detail: String
+    let shotStateContext: ShotStateContext
 }
 
 #if DEBUG
