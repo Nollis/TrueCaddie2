@@ -192,17 +192,23 @@ final class TeeShotRecommendationEngineTests: XCTestCase {
         }
         """)
 
-        let packet = TeeShotRecommendationEngine.build(courseId: bundle.courseId, for: try XCTUnwrap(bundle.holes.first))
+        let packet = TeeShotRecommendationEngine.build(
+            courseId: bundle.courseId,
+            for: try XCTUnwrap(bundle.holes.first),
+            playerContext: .pilotSample
+        )
 
         XCTAssertEqual(packet?.courseId, "test-course")
         XCTAssertEqual(packet?.holeId, "1")
         XCTAssertEqual(packet?.targetLabel, "Primary stock corridor")
+        XCTAssertEqual(packet?.recommendedClub, "5 Wood")
+        XCTAssertEqual(packet?.clubCarryDistanceM, 200)
         XCTAssertEqual(packet?.preferredMissDirection, "left")
         XCTAssertEqual(packet?.avoidDirection, "right")
         XCTAssertEqual(packet?.riskLevel, "high")
         XCTAssertEqual(packet?.confidenceBand, "medium")
         XCTAssertEqual(packet?.hazardSummary, ["Water right"])
-        XCTAssertEqual(packet?.supportingReason, "corridor follows the broadest stock landing area")
+        XCTAssertEqual(packet?.supportingReason, "5 Wood carry 200m matches the stock landing window.")
         XCTAssertEqual(
             packet?.primaryReason,
             "Favor left. right side carries more risk: water on the right at 200m along with 18m from centerline"

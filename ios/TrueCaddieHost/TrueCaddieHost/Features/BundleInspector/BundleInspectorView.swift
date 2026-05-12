@@ -3,6 +3,7 @@ import TrueCaddieDomain
 
 struct BundleInspectorView: View {
     let bundle: CourseBundle
+    let playerContext: PlayerContext
 
     var body: some View {
         NavigationStack {
@@ -22,7 +23,8 @@ struct BundleInspectorView: View {
                         NavigationLink {
                             HoleInspectorDetail(
                                 snapshot: HoleInspectionSnapshot(bundle: bundle, hole: hole),
-                                hole: hole
+                                hole: hole,
+                                playerContext: playerContext
                             )
                         } label: {
                             HStack(spacing: 12) {
@@ -54,9 +56,10 @@ struct BundleInspectorView: View {
 private struct HoleInspectorDetail: View {
     let snapshot: HoleInspectionSnapshot
     let hole: CourseHole
+    let playerContext: PlayerContext
 
     private var teeShotRecommendation: TeeShotRecommendationPacket? {
-        TeeShotRecommendationEngine.build(courseId: snapshot.courseId, for: hole)
+        TeeShotRecommendationEngine.build(courseId: snapshot.courseId, for: hole, playerContext: playerContext)
     }
 
     private var teeTargetCorridors: [TeeTargetCorridorOverlay] {
@@ -145,6 +148,17 @@ private struct HoleInspectorDetail: View {
                 }
             }
 
+            Section("Player Context") {
+                LabeledContent("Player", value: playerContext.displayName)
+                if let handicapIndex = playerContext.handicapIndex {
+                    LabeledContent("Handicap", value: format(number: handicapIndex))
+                }
+                LabeledContent("Risk", value: playerContext.riskTolerance.rawValue.capitalized)
+                if let longestClub = playerContext.clubs.first {
+                    LabeledContent("Top Club", value: "\(longestClub.name) • \(format(number: longestClub.carryDistanceM)) m")
+                }
+            }
+
             Section("Tee Target Corridors") {
                 if teeTargetCorridors.isEmpty {
                     Text("No derived tee corridors yet")
@@ -210,6 +224,13 @@ private struct HoleInspectorDetail: View {
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                        if let recommendedClub = teeShotRecommendation.recommendedClub,
+                           let clubCarryDistanceM = teeShotRecommendation.clubCarryDistanceM {
+                            Text("\(recommendedClub) • carry \(format(number: clubCarryDistanceM)) m")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
                         if let preferredMissDirection = teeShotRecommendation.preferredMissDirection,
                            let avoidDirection = teeShotRecommendation.avoidDirection {
@@ -617,7 +638,7 @@ private enum BundleInspectorPreviewSupport {
 
 #Preview("Kungsbacka Nya Bundle") {
     if let bundle = try? BundleInspectorPreviewSupport.loadBundle() {
-        BundleInspectorView(bundle: bundle)
+        BundleInspectorView(bundle: bundle, playerContext: .pilotSample)
     } else {
         ContentUnavailableView(
             "Preview Bundle Missing",

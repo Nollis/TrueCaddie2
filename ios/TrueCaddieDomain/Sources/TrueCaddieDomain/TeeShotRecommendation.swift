@@ -6,6 +6,8 @@ public struct TeeShotRecommendationPacket: Equatable, Sendable {
     public let holeNumber: Int
     public let shotPhase: String
     public let strategyMode: String
+    public let recommendedClub: String?
+    public let clubCarryDistanceM: Double?
     public let targetLabel: String
     public let targetDistanceM: Double
     public let targetWidthM: Double
@@ -22,6 +24,14 @@ public struct TeeShotRecommendationPacket: Equatable, Sendable {
 
 public enum TeeShotRecommendationEngine {
     public static func build(courseId: String, for hole: CourseHole) -> TeeShotRecommendationPacket? {
+        build(courseId: courseId, for: hole, playerContext: nil)
+    }
+
+    public static func build(
+        courseId: String,
+        for hole: CourseHole,
+        playerContext: PlayerContext?
+    ) -> TeeShotRecommendationPacket? {
         guard
             hole.par > 3,
             let corridor = hole.strategyOverlays.teeTargetCorridors.first
@@ -47,9 +57,15 @@ public enum TeeShotRecommendationEngine {
             preferredMiss: preferredMiss,
             relevantHazards: relevantHazards
         )
+        let clubRecommendation = chooseClub(
+            for: corridor,
+            playerContext: playerContext,
+            riskLevel: riskLevel(for: riskReference)
+        )
         let supportingReason = supportingReason(
             corridor: corridor,
-            preferredMiss: preferredMiss
+            preferredMiss: preferredMiss,
+            clubRecommendation: clubRecommendation
         )
 
         return TeeShotRecommendationPacket(
@@ -58,6 +74,8 @@ public enum TeeShotRecommendationEngine {
             holeNumber: hole.holeNumber,
             shotPhase: "tee",
             strategyMode: corridor.properties.strategyMode,
+            recommendedClub: clubRecommendation?.name,
+            clubCarryDistanceM: clubRecommendation?.carryDistanceM,
             targetLabel: corridor.properties.targetLabel,
             targetDistanceM: corridor.properties.targetDistanceM,
             targetWidthM: corridor.properties.corridorWidthM,
@@ -71,6 +89,37 @@ public enum TeeShotRecommendationEngine {
             supportingReason: supportingReason,
             hazardSummary: Array(relevantHazards.prefix(2).map(\.summary))
         )
+    }
+
+    private static func chooseClub(
+        for corridor: TeeTargetCorridorOverlay,
+        playerContext: PlayerContext?,
+        riskLevel: String
+    ) -> PlayerClub? {
+        guard let playerContext else {
+            return nil
+        }
+
+        let carryBias: Double
+        switch (playerContext.riskTolerance, riskLevel) {
+        case (.conservative, _), (_, "high"):
+            carryBias = -10
+        case (.aggressive, "low"), (.aggressive, "medium"):
+            carryBias = 5
+        default:
+            carryBias = 0
+        }
+
+        let desiredCarry = corridor.properties.targetDistanceM + carryBias
+
+        return playerContext.clubs.min { lhs, rhs in
+            let lhsDelta = abs(lhs.carryDistanceM - desiredCarry)
+            let rhsDelta = abs(rhs.carryDistanceM - desiredCarry)
+            if lhsDelta == rhsDelta {
+                return lhs.carryDistanceM < rhs.carryDistanceM
+            }
+            return lhsDelta < rhsDelta
+        }
     }
 
     private static func hazardsRelevantToLanding(
@@ -123,8 +172,13 @@ public enum TeeShotRecommendationEngine {
 
     private static func supportingReason(
         corridor: TeeTargetCorridorOverlay,
-        preferredMiss: PreferredMissOverlay?
+        preferredMiss: PreferredMissOverlay?,
+        clubRecommendation: PlayerClub?
     ) -> String? {
+        if let clubRecommendation {
+            return "\(clubRecommendation.name) carry \(format(number: clubRecommendation.carryDistanceM))m matches the stock landing window."
+        }
+
         if let preferredMiss, preferredMiss.rationale.primaryReason != corridor.rationale.primaryReason {
             return corridor.rationale.primaryReason
         }
@@ -166,4 +220,12 @@ private extension Double {
         let divisor = pow(10.0, Double(places))
         return (self * divisor).rounded() / divisor
     }
+}
+
+private func format(number: Double) -> String {
+    if number.rounded() == number {
+        return String(Int(number))
+    }
+
+    return String(format: "%.1f", number)
 }
