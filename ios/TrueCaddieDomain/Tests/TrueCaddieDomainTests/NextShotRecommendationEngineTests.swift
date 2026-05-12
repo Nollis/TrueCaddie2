@@ -207,7 +207,8 @@ final class NextShotRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(packet?.headline, "8 Iron to Center green")
         XCTAssertEqual(packet?.executionNote, "8 Iron carry 144m fits a center green number.")
         XCTAssertNil(packet?.missNote)
-        XCTAssertNil(packet?.fallbackNote)
+        XCTAssertEqual(packet?.confidenceBand, "low")
+        XCTAssertEqual(packet?.fallbackNote, "If the picture looks different, default to the safer stock target.")
     }
 
     func testResolvesSaferApproachPacketFromRoughShot() throws {
@@ -245,7 +246,8 @@ final class NextShotRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(packet?.headline, "9 Iron to Front-center green")
         XCTAssertEqual(packet?.executionNote, "9 Iron carry 132m fits a front-center green number.")
         XCTAssertNil(packet?.missNote)
-        XCTAssertNil(packet?.fallbackNote)
+        XCTAssertEqual(packet?.confidenceBand, "low")
+        XCTAssertEqual(packet?.fallbackNote, "If the picture looks different, default to the safer stock target.")
     }
 
     func testResolvesLayupPacketForSecondShotShelf() throws {
