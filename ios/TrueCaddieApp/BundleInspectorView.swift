@@ -249,7 +249,7 @@ private struct HoleInspectorDetail: View {
     }
 
     private var defaultBearingText: String? {
-        guard let bearing = hole.defaultPlayDirection?["bearingDeg"]?.numberValue else {
+        guard let bearing = hole.defaultPlayDirection?.bearingDeg else {
             return nil
         }
 

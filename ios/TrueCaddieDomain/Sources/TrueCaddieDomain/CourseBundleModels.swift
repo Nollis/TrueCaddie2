@@ -24,7 +24,7 @@ public struct CourseHole: Decodable, Identifiable, Sendable {
     public let holeId: String
     public let holeNumber: Int
     public let par: Int
-    public let defaultPlayDirection: [String: JSONValue]?
+    public let defaultPlayDirection: DefaultPlayDirection?
     public let tees: [Tee]
     public let baseMappingData: BaseMappingData
     public let strategyOverlays: StrategyOverlays
@@ -44,6 +44,13 @@ public struct CourseHole: Decodable, Identifiable, Sendable {
         case qualityConfidence = "quality_confidence"
         case provenance
     }
+}
+
+public struct DefaultPlayDirection: Decodable, Sendable {
+    public let bearingDeg: Double
+    public let source: String?
+    public let from: [Double]?
+    public let to: [Double]?
 }
 
 public struct Tee: Decodable, Identifiable, Sendable {
