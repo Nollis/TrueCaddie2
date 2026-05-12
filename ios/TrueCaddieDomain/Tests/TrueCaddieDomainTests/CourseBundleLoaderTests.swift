@@ -86,7 +86,41 @@ final class CourseBundleLoaderTests: XCTestCase {
                 ],
                 "aggressive_tee_corridors": [],
                 "layup_candidates": [],
-                "preferred_miss": [],
+                "preferred_miss": [
+                  {
+                    "overlay_id": "preferred-miss-1",
+                    "overlay_type": "preferred_miss",
+                    "course_id": "test-course",
+                    "hole_id": "1",
+                    "tee_set_id": "all",
+                    "shot_phase": "tee",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.02, 57.0], [11.02, 57.01], [11.0, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "preferred_direction": "left",
+                      "avoid_direction": "right",
+                      "preferred_risk_score": 0.18,
+                      "avoid_risk_score": 0.62,
+                      "risk_gap_score": 0.44
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.73
+                    },
+                    "rationale": {
+                      "primary_reason": "right side carries more risk: water on the right at 180m along with 18m from centerline"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ],
                 "hazard_severity": [
                   {
                     "overlay_id": "hazard-1",
@@ -150,6 +184,9 @@ final class CourseBundleLoaderTests: XCTestCase {
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.count, 1)
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.first?.teeSetId, "all")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.first?.properties.targetLabel, "Primary stock corridor")
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.preferredMiss.count, 1)
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.preferredMiss.first?.properties.preferredDirection, "left")
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.preferredMiss.first?.properties.avoidDirection, "right")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.hazardSeverity.count, 1)
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.hazardSeverity.first?.properties.hazardKind, "water")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.hazardSeverity.first?.rationale.primaryReason, "water right is the main problem")

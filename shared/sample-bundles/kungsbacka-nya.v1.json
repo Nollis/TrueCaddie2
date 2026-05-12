@@ -3,7 +3,7 @@
   "bundle_version": "kungsbacka-nya.v1.foundation",
   "course_id": "kungsbacka-nya",
   "course_name": "Kungsbacka Nya",
-  "published_at": "2026-05-12T10:07:15.074Z",
+  "published_at": "2026-05-12T10:36:40.004Z",
   "provenance": {
     "source_system": "truecaddie-pilot-json",
     "source_path": "C:\\Users\\niklasb\\Documents\\New project 2\\shared\\pilot-data\\kungsbacka-nya",
@@ -1431,7 +1431,64 @@
         ],
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
-        "preferred_miss": [],
+        "preferred_miss": [
+          {
+            "overlay_id": "preferred-miss-1",
+            "overlay_type": "preferred_miss",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "1",
+            "tee_set_id": "all",
+            "shot_phase": "tee",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.989949347285307,
+                    57.49234008968983
+                  ],
+                  [
+                    11.9904266941182,
+                    57.492257517438794
+                  ],
+                  [
+                    11.990549612601392,
+                    57.492462742763394
+                  ],
+                  [
+                    11.990072265768498,
+                    57.49254531501443
+                  ],
+                  [
+                    11.989949347285307,
+                    57.49234008968983
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "preferred_direction": "right",
+              "avoid_direction": "left",
+              "preferred_risk_score": 0.14,
+              "avoid_risk_score": 0.39,
+              "risk_gap_score": 0.25
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.73
+            },
+            "rationale": {
+              "primary_reason": "left side carries more risk: bunker on the left at 240.11m along adds recovery cost"
+            },
+            "constraints": {
+              "derived_from": "course_studio_preferred_miss_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-1.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ],
         "hazard_severity": [
           {
             "overlay_id": "hazard-severity-02966659-d47f-4c28-8f68-19ea68bcc41d",
@@ -2257,7 +2314,7 @@
         "hole_publish_score": 0.64,
         "overlay_scores": {
           "tee_target_corridor": 0.67,
-          "preferred_miss": 0,
+          "preferred_miss": 0.76,
           "layup_candidates": 0,
           "hazard_severity": 0.73
         },
@@ -3880,7 +3937,64 @@
         ],
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
-        "preferred_miss": [],
+        "preferred_miss": [
+          {
+            "overlay_id": "preferred-miss-3",
+            "overlay_type": "preferred_miss",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "3",
+            "tee_set_id": "all",
+            "shot_phase": "tee",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.993808948675888,
+                    57.48700372083206
+                  ],
+                  [
+                    11.993353820077989,
+                    57.48689065643698
+                  ],
+                  [
+                    11.993522104106287,
+                    57.48669495362619
+                  ],
+                  [
+                    11.993977232704186,
+                    57.48680801802127
+                  ],
+                  [
+                    11.993808948675888,
+                    57.48700372083206
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "preferred_direction": "right",
+              "avoid_direction": "left",
+              "preferred_risk_score": 0.24,
+              "avoid_risk_score": 0.52,
+              "risk_gap_score": 0.28
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.74
+            },
+            "rationale": {
+              "primary_reason": "left side carries more risk: water on the left at 196.42m along with 12.18m from centerline"
+            },
+            "constraints": {
+              "derived_from": "course_studio_preferred_miss_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-3.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ],
         "hazard_severity": [
           {
             "overlay_id": "hazard-severity-c2faf4d5-aa20-4731-8e7e-18affac5e655",
@@ -4448,7 +4562,7 @@
         "hole_publish_score": 0.73,
         "overlay_scores": {
           "tee_target_corridor": 0.67,
-          "preferred_miss": 0,
+          "preferred_miss": 0.68,
           "layup_candidates": 0,
           "hazard_severity": 0.65
         },
@@ -5317,7 +5431,7 @@
         "hole_publish_score": 0.82,
         "overlay_scores": {
           "tee_target_corridor": 0.67,
-          "preferred_miss": 0,
+          "preferred_miss": 0.52,
           "layup_candidates": 0,
           "hazard_severity": 0.49
         },
@@ -6224,7 +6338,64 @@
         ],
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
-        "preferred_miss": [],
+        "preferred_miss": [
+          {
+            "overlay_id": "preferred-miss-5",
+            "overlay_type": "preferred_miss",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "5",
+            "tee_set_id": "all",
+            "shot_phase": "tee",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.983495134511022,
+                    57.48752085956007
+                  ],
+                  [
+                    11.983070518086338,
+                    57.48766417847345
+                  ],
+                  [
+                    11.982857199697419,
+                    57.48748159898964
+                  ],
+                  [
+                    11.983281816122103,
+                    57.48733828007626
+                  ],
+                  [
+                    11.983495134511022,
+                    57.48752085956007
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "preferred_direction": "left",
+              "avoid_direction": "right",
+              "preferred_risk_score": 0,
+              "avoid_risk_score": 0.52,
+              "risk_gap_score": 0.52
+            },
+            "confidence": {
+              "band": "high",
+              "score": 0.82
+            },
+            "rationale": {
+              "primary_reason": "right side carries more risk: woods on the right at 227.96m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_preferred_miss_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-5.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ],
         "hazard_severity": [
           {
             "overlay_id": "hazard-severity-80bd88df-3c1b-4153-8e1d-a51be6085152",
@@ -6553,7 +6724,7 @@
         "hole_publish_score": 0.73,
         "overlay_scores": {
           "tee_target_corridor": 0.67,
-          "preferred_miss": 0,
+          "preferred_miss": 0.64,
           "layup_candidates": 0,
           "hazard_severity": 0.61
         },
@@ -7419,7 +7590,7 @@
         "hole_publish_score": 0.73,
         "overlay_scores": {
           "tee_target_corridor": 0.67,
-          "preferred_miss": 0,
+          "preferred_miss": 0.56,
           "layup_candidates": 0,
           "hazard_severity": 0.53
         },
@@ -8760,7 +8931,64 @@
         ],
         "aggressive_tee_corridors": [],
         "layup_candidates": [],
-        "preferred_miss": [],
+        "preferred_miss": [
+          {
+            "overlay_id": "preferred-miss-7",
+            "overlay_type": "preferred_miss",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "tee",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.990920027925226,
+                    57.4873753044685
+                  ],
+                  [
+                    11.991419472892057,
+                    57.487351542064566
+                  ],
+                  [
+                    11.991454841242136,
+                    57.48756629701731
+                  ],
+                  [
+                    11.990955396275305,
+                    57.487590059421244
+                  ],
+                  [
+                    11.990920027925226,
+                    57.4873753044685
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "preferred_direction": "left",
+              "avoid_direction": "right",
+              "preferred_risk_score": 0.27,
+              "avoid_risk_score": 0.4,
+              "risk_gap_score": 0.13
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.69
+            },
+            "rationale": {
+              "primary_reason": "right side carries more risk: woods on the right at 293.37m along can turn a miss into recovery golf"
+            },
+            "constraints": {
+              "derived_from": "course_studio_preferred_miss_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ],
         "hazard_severity": [
           {
             "overlay_id": "hazard-severity-102e8807-a7c0-48c7-b1af-d44f8d35d278",
@@ -9745,7 +9973,7 @@
         "hole_publish_score": 0.64,
         "overlay_scores": {
           "tee_target_corridor": 0.67,
-          "preferred_miss": 0,
+          "preferred_miss": 0.78,
           "layup_candidates": 0,
           "hazard_severity": 0.85
         },
@@ -11700,7 +11928,7 @@
         "hole_publish_score": 0.64,
         "overlay_scores": {
           "tee_target_corridor": 0.67,
-          "preferred_miss": 0,
+          "preferred_miss": 0.56,
           "layup_candidates": 0,
           "hazard_severity": 0.53
         },

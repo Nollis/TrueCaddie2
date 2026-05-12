@@ -145,7 +145,9 @@ function qualityForHole(sourceHole) {
     hole_publish_score: score,
     overlay_scores: {
       tee_target_corridor: teeTargetCorridorScore,
-      preferred_miss: 0,
+      preferred_miss: sourceHole.par > 3 && hazardCoverage > 0
+        ? Number(Math.max(0.5, Math.min(0.78, 0.48 + hazardCoverage * 0.04)).toFixed(2))
+        : 0,
       layup_candidates: 0,
       hazard_severity: hazardCoverage > 0 ? Number(Math.min(0.85, 0.45 + hazardCoverage * 0.04).toFixed(2)) : 0
     },
@@ -310,6 +312,127 @@ function teeCorridorReason(pressures) {
   }
 
   return "corridor follows the broadest stock landing area on the hole centerline";
+}
+
+function relevantHazardsNearLanding(sourceHole, landingAlongMeters) {
+  return (sourceHole.features ?? [])
+    .filter((feature) => ["water", "woods", "bunker", "rough"].includes(feature.properties?.featureType))
+    .map((feature) => {
+      const along = numericValue(feature.properties?.centerline_along_m);
+      const distance = numericValue(feature.properties?.centerline_distance_m);
+      const side = feature.properties?.centerline_side ?? null;
+
+      if (along === null || side === null) {
+        return null;
+      }
+
+      const alongDelta = Math.abs(along - landingAlongMeters);
+      if (alongDelta > 60) {
+        return null;
+      }
+
+      const proximityWeight = Math.max(0.25, 1 - alongDelta / 75);
+      const distanceWeight = Math.max(0.35, 1 - Math.min(distance ?? 40, 40) / 65);
+      const hazardWeight = hazardBaseScores[feature.properties?.featureType] ?? 0.3;
+      const riskScore = Number((hazardWeight * proximityWeight * distanceWeight).toFixed(2));
+
+      return {
+        feature,
+        side,
+        riskScore
+      };
+    })
+    .filter(Boolean);
+}
+
+function strongestHazardReason(sideSummary) {
+  const strongest = sideSummary.strongest?.feature;
+  if (!strongest) {
+    return null;
+  }
+
+  const featureType = strongest.properties?.featureType ?? "hazard";
+  const side = strongest.properties?.centerline_side ?? sideSummary.side;
+  const along = numericValue(strongest.properties?.centerline_along_m);
+  const distance = numericValue(strongest.properties?.centerline_distance_m);
+
+  return hazardReason(featureType, side, along, distance);
+}
+
+function derivePreferredMiss(sourceHole, teeTargetCorridors, sourceFile) {
+  const corridor = teeTargetCorridors[0];
+  if (!corridor) {
+    return [];
+  }
+
+  const landingAlongMeters = corridor.properties.target_distance_m;
+  const nearbyHazards = relevantHazardsNearLanding(sourceHole, landingAlongMeters);
+
+  if (nearbyHazards.length === 0) {
+    return [];
+  }
+
+  const sideSummaries = ["left", "right"].map((side) => {
+    const hazards = nearbyHazards.filter((item) => item.side === side);
+    const totalRisk = Number(hazards.reduce((total, item) => total + item.riskScore, 0).toFixed(2));
+    const strongest = hazards.sort((lhs, rhs) => rhs.riskScore - lhs.riskScore)[0] ?? null;
+
+    return {
+      side,
+      totalRisk,
+      strongest
+    };
+  });
+
+  const left = sideSummaries.find((item) => item.side === "left");
+  const right = sideSummaries.find((item) => item.side === "right");
+
+  if (!left || !right) {
+    return [];
+  }
+
+  const riskGap = Number(Math.abs(left.totalRisk - right.totalRisk).toFixed(2));
+  if (riskGap < 0.08) {
+    return [];
+  }
+
+  const preferred = left.totalRisk <= right.totalRisk ? left : right;
+  const avoid = preferred.side === "left" ? right : left;
+  const confidenceScore = Number(Math.min(0.88, 0.64 + riskGap * 0.35).toFixed(2));
+  const rationaleDetail = strongestHazardReason(avoid);
+
+  return [{
+    overlay_id: `preferred-miss-${sourceHole.holeId ?? sourceHole.hole}`,
+    overlay_type: "preferred_miss",
+    course_id: sourceHole.courseId,
+    hole_id: String(sourceHole.holeId ?? sourceHole.hole),
+    tee_set_id: "all",
+    shot_phase: "tee",
+    geometry: corridor.geometry,
+    properties: {
+      preferred_direction: preferred.side,
+      avoid_direction: avoid.side,
+      preferred_risk_score: preferred.totalRisk,
+      avoid_risk_score: avoid.totalRisk,
+      risk_gap_score: riskGap
+    },
+    confidence: {
+      band: confidenceScore >= 0.8 ? "high" : confidenceScore >= 0.65 ? "medium" : "low",
+      score: confidenceScore
+    },
+    rationale: {
+      primary_reason: rationaleDetail
+        ? `${avoid.side} side carries more risk: ${rationaleDetail}`
+        : `${preferred.side} is the safer miss around the stock landing area`
+    },
+    constraints: {
+      derived_from: "course_studio_preferred_miss_v1"
+    },
+    provenance: {
+      source_file: sourceFile,
+      derivation_version: derivationVersion
+    }
+  }];
 }
 
 function deriveTeeTargetCorridors(sourceHole, tees, sourceFile) {
@@ -480,6 +603,7 @@ function normalizeHole(sourceHole, teeSets, sourceFile, sourceUpdatedAt) {
     .filter(Boolean);
   const hazardSeverity = deriveHazardSeverity(sourceHole, sourceFile);
   const teeTargetCorridors = deriveTeeTargetCorridors(sourceHole, tees, sourceFile);
+  const preferredMiss = derivePreferredMiss(sourceHole, teeTargetCorridors, sourceFile);
 
   return {
     hole_id: String(sourceHole.holeId ?? sourceHole.hole),
@@ -508,7 +632,7 @@ function normalizeHole(sourceHole, teeSets, sourceFile, sourceUpdatedAt) {
       tee_target_corridors: teeTargetCorridors,
       aggressive_tee_corridors: [],
       layup_candidates: [],
-      preferred_miss: [],
+      preferred_miss: preferredMiss,
       hazard_severity: hazardSeverity
     },
     quality_confidence: qualityForHole(sourceHole),

@@ -362,7 +362,10 @@
           "type": "array"
         },
         "preferred_miss": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/preferredMissOverlay"
+          }
         },
         "hazard_severity": {
           "type": "array",
@@ -528,6 +531,100 @@
         "strategy_mode": {
           "type": "string",
           "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "preferredMissOverlay": {
+      "type": "object",
+      "required": [
+        "overlay_id",
+        "overlay_type",
+        "course_id",
+        "hole_id",
+        "tee_set_id",
+        "shot_phase",
+        "geometry",
+        "properties",
+        "confidence",
+        "rationale",
+        "constraints",
+        "provenance"
+      ],
+      "properties": {
+        "overlay_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "overlay_type": {
+          "const": "preferred_miss"
+        },
+        "course_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hole_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tee_set_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shot_phase": {
+          "const": "tee"
+        },
+        "geometry": {
+          "$ref": "#/$defs/geometry"
+        },
+        "properties": {
+          "$ref": "#/$defs/preferredMissProperties"
+        },
+        "confidence": {
+          "$ref": "#/$defs/overlayConfidence"
+        },
+        "rationale": {
+          "$ref": "#/$defs/overlayRationale"
+        },
+        "constraints": {
+          "$ref": "#/$defs/overlayConstraints"
+        },
+        "provenance": {
+          "$ref": "#/$defs/overlayProvenance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "preferredMissProperties": {
+      "type": "object",
+      "required": [
+        "preferred_direction",
+        "avoid_direction",
+        "preferred_risk_score",
+        "avoid_risk_score",
+        "risk_gap_score"
+      ],
+      "properties": {
+        "preferred_direction": {
+          "enum": ["left", "right"]
+        },
+        "avoid_direction": {
+          "enum": ["left", "right"]
+        },
+        "preferred_risk_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "avoid_risk_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "risk_gap_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
         }
       },
       "additionalProperties": false

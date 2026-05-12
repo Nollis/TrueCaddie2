@@ -129,7 +129,7 @@ public struct StrategyOverlays: Decodable, Sendable {
     public let teeTargetCorridors: [TeeTargetCorridorOverlay]
     public let aggressiveTeeCorridors: [JSONValue]
     public let layupCandidates: [JSONValue]
-    public let preferredMiss: [JSONValue]
+    public let preferredMiss: [PreferredMissOverlay]
     public let hazardSeverity: [HazardSeverityOverlay]
 
     private enum CodingKeys: String, CodingKey {
@@ -138,6 +138,54 @@ public struct StrategyOverlays: Decodable, Sendable {
         case layupCandidates = "layup_candidates"
         case preferredMiss = "preferred_miss"
         case hazardSeverity = "hazard_severity"
+    }
+}
+
+public struct PreferredMissOverlay: Decodable, Identifiable, Sendable {
+    public let overlayId: String
+    public let overlayType: String
+    public let courseId: String
+    public let holeId: String
+    public let teeSetId: String
+    public let shotPhase: String
+    public let geometry: GeoJSONGeometry
+    public let properties: PreferredMissProperties
+    public let confidence: OverlayConfidence
+    public let rationale: OverlayRationale
+    public let constraints: OverlayConstraints
+    public let provenance: OverlayProvenance
+
+    public var id: String { overlayId }
+
+    private enum CodingKeys: String, CodingKey {
+        case overlayId = "overlay_id"
+        case overlayType = "overlay_type"
+        case courseId = "course_id"
+        case holeId = "hole_id"
+        case teeSetId = "tee_set_id"
+        case shotPhase = "shot_phase"
+        case geometry
+        case properties
+        case confidence
+        case rationale
+        case constraints
+        case provenance
+    }
+}
+
+public struct PreferredMissProperties: Decodable, Sendable {
+    public let preferredDirection: String
+    public let avoidDirection: String
+    public let preferredRiskScore: Double
+    public let avoidRiskScore: Double
+    public let riskGapScore: Double
+
+    private enum CodingKeys: String, CodingKey {
+        case preferredDirection = "preferred_direction"
+        case avoidDirection = "avoid_direction"
+        case preferredRiskScore = "preferred_risk_score"
+        case avoidRiskScore = "avoid_risk_score"
+        case riskGapScore = "risk_gap_score"
     }
 }
 

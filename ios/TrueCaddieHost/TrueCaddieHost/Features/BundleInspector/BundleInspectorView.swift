@@ -73,6 +73,13 @@ private struct HoleInspectorDetail: View {
             }
     }
 
+    private var preferredMissOverlays: [PreferredMissOverlay] {
+        hole.strategyOverlays.preferredMiss
+            .sorted { lhs, rhs in
+                lhs.properties.riskGapScore > rhs.properties.riskGapScore
+            }
+    }
+
     var body: some View {
         List {
             Section("Hole Sketch") {
@@ -163,6 +170,38 @@ private struct HoleInspectorDetail: View {
                                 Text("Target \(format(number: corridor.properties.targetDistanceM)) m")
                                 Text("W \(format(number: corridor.properties.corridorWidthM))")
                                 Text("D \(format(number: corridor.properties.corridorDepthM))")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+
+            Section("Preferred Miss") {
+                if preferredMissOverlays.isEmpty {
+                    Text("No preferred miss guidance yet")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(preferredMissOverlays) { preferredMiss in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(preferredMissLabel(for: preferredMiss))
+                                    .font(.headline)
+                                Spacer()
+                                Text(preferredMiss.confidence.band.capitalized)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text(preferredMiss.rationale.primaryReason)
+                                .font(.subheadline)
+
+                            HStack(spacing: 12) {
+                                Text("Safer \(format(number: preferredMiss.properties.preferredRiskScore))")
+                                Text("Avoid \(format(number: preferredMiss.properties.avoidRiskScore))")
+                                Text("Gap \(format(number: preferredMiss.properties.riskGapScore))")
                             }
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -333,6 +372,10 @@ private struct HoleInspectorDetail: View {
         "\(hazard.properties.severityBand.capitalized) \(format(number: hazard.properties.severityScore))"
     }
 
+    private func preferredMissLabel(for preferredMiss: PreferredMissOverlay) -> String {
+        "Favor \(preferredMiss.properties.preferredDirection.capitalized)"
+    }
+
     private func corridorLabel(for corridor: TeeTargetCorridorOverlay) -> String {
         if corridor.teeSetId == "all" {
             return corridor.properties.targetLabel
@@ -383,6 +426,12 @@ private extension HoleSketchLayout {
 
 private struct HoleSketchView: View {
     let hole: CourseHole
+
+    private var preferredMiss: PreferredMissOverlay? {
+        hole.strategyOverlays.preferredMiss.max { lhs, rhs in
+            lhs.properties.riskGapScore < rhs.properties.riskGapScore
+        }
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -470,10 +519,34 @@ private struct HoleSketchView: View {
                     }
                 }
                 .padding(10)
+
+                if let preferredMiss {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            missBadge(for: preferredMiss)
+                            Spacer()
+                        }
+                        .padding(16)
+                    }
+                }
             }
         }
         .frame(height: 240)
         .accessibilityLabel("Simplified hole sketch")
+    }
+
+    @ViewBuilder
+    private func missBadge(for preferredMiss: PreferredMissOverlay) -> some View {
+        let direction = preferredMiss.properties.preferredDirection
+        let symbol = direction == "left" ? "arrowshape.left.fill" : "arrowshape.right.fill"
+
+        Label("Favor \(direction.capitalized)", systemImage: symbol)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.thinMaterial, in: Capsule())
+            .foregroundStyle(.primary)
     }
 }
 
