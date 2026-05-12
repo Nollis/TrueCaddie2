@@ -412,3 +412,34 @@ private struct FeatureHighlight: Identifiable {
     let title: String
     let detail: String
 }
+
+#if DEBUG
+private enum BundleInspectorPreviewSupport {
+    static func loadBundle() throws -> CourseBundle {
+        let sourceFile = URL(fileURLWithPath: #filePath)
+        let repoRoot = sourceFile
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let bundleURL = repoRoot
+            .appendingPathComponent("shared", isDirectory: true)
+            .appendingPathComponent("sample-bundles", isDirectory: true)
+            .appendingPathComponent("kungsbacka-nya.v1.json")
+
+        let data = try Data(contentsOf: bundleURL)
+        return try CourseBundleLoader().load(data: data)
+    }
+}
+
+#Preview("Kungsbacka Nya Bundle") {
+    if let bundle = try? BundleInspectorPreviewSupport.loadBundle() {
+        BundleInspectorView(bundle: bundle)
+    } else {
+        ContentUnavailableView(
+            "Preview Bundle Missing",
+            systemImage: "exclamationmark.triangle",
+            description: Text("Could not load shared/sample-bundles/kungsbacka-nya.v1.json from the repo.")
+        )
+    }
+}
+#endif
