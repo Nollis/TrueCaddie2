@@ -273,6 +273,17 @@ private struct HoleInspectorDetail: View {
                         Text(nextShotRecommendation.primaryReason)
                             .font(.subheadline)
 
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Voice Preview")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            Text(HoleInspectorModel.voicePreviewText(for: nextShotRecommendation))
+                                .font(.callout)
+                        }
+                        .padding(12)
+                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
                         Text(nextShotRecommendation.executionNote)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -851,6 +862,27 @@ enum HoleInspectorModel {
             roundContext: roundContext,
             shotStateContext: selectedScenario?.shotStateContext
         )
+    }
+
+    static func voicePreviewText(for packet: NextShotRecommendationPacket) -> String {
+        [packet.headline, packet.executionNote, packet.missNote, packet.fallbackNote]
+            .compactMap { fragment in
+                guard let fragment else {
+                    return nil
+                }
+
+                let trimmed = fragment.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else {
+                    return nil
+                }
+
+                if trimmed.hasSuffix(".") || trimmed.hasSuffix("!") || trimmed.hasSuffix("?") {
+                    return trimmed
+                }
+
+                return "\(trimmed)."
+            }
+            .joined(separator: " ")
     }
 
     private static func selectedTee(in hole: CourseHole, roundContext: RoundContext) -> Tee? {

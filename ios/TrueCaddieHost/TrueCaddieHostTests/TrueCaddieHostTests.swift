@@ -57,4 +57,61 @@ struct TrueCaddieHostTests {
         #expect(packet?.headline == "PW to Center green")
         #expect(packet?.executionNote == "PW carry 118m fits a center green number with 5m/s helping wind.")
     }
+
+    @Test func voicePreviewUsesDeterministicPacketFields() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let hole = try #require(bundle.holes.first(where: { $0.holeNumber == 1 }))
+        let packet = try #require(
+            HoleInspectorModel.nextShotRecommendation(
+                for: hole,
+                courseId: bundle.courseId,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                selectedScenarioId: "layup"
+            )
+        )
+
+        let voicePreview = HoleInspectorModel.voicePreviewText(for: packet)
+
+        #expect(
+            voicePreview ==
+            "PW to Center green. PW carry 118m fits a center green number with 5m/s helping wind. Favor left. Avoid right."
+        )
+    }
+
+    @Test func voicePreviewIncludesFallbackWhenPresent() {
+        let packet = NextShotRecommendationPacket(
+            courseId: "course",
+            holeId: "hole-1",
+            holeNumber: 1,
+            shotPhase: "layup",
+            recommendationType: "layup",
+            shotNumber: 2,
+            remainingDistanceM: 180,
+            lie: .fairway,
+            strategyPreference: "balanced",
+            targetLabel: "Right-center layup shelf",
+            recommendedClub: "7I",
+            clubCarryDistanceM: 150,
+            shotDistanceM: 150,
+            plannedLeaveDistanceM: 100,
+            preferredMissDirection: "left",
+            avoidDirection: "right",
+            riskLevel: "medium",
+            confidenceBand: "medium",
+            confidenceScore: 0.8,
+            primaryReason: "Keep the next wedge simple.",
+            supportingReason: "7I puts the ball on the shelf without bringing the front bunker in.",
+            hazardSummary: [],
+            headline: "7I to Right-center layup shelf",
+            executionNote: "7I puts the ball on the shelf without bringing the front bunker in.",
+            missNote: "Favor left. Avoid right.",
+            fallbackNote: "If the green light is not there, leave yourself about 100m in."
+        )
+
+        #expect(
+            HoleInspectorModel.voicePreviewText(for: packet) ==
+            "7I to Right-center layup shelf. 7I puts the ball on the shelf without bringing the front bunker in. Favor left. Avoid right. If the green light is not there, leave yourself about 100m in."
+        )
+    }
 }
