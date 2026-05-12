@@ -3,7 +3,7 @@
   "bundle_version": "kungsbacka-nya.v1.foundation",
   "course_id": "kungsbacka-nya",
   "course_name": "Kungsbacka Nya",
-  "published_at": "2026-05-12T09:48:15.532Z",
+  "published_at": "2026-05-12T10:07:15.074Z",
   "provenance": {
     "source_system": "truecaddie-pilot-json",
     "source_path": "C:\\Users\\niklasb\\Documents\\New project 2\\shared\\pilot-data\\kungsbacka-nya",
@@ -11261,30 +11261,30 @@
               "coordinates": [
                 [
                   [
-                    11.987243510092918,
-                    57.49248627595004
+                    11.988038287948013,
+                    57.4923256084606
                   ],
                   [
-                    11.986774152394336,
-                    57.4925811583257
+                    11.987568932314778,
+                    57.49242049083625
                   ],
                   [
-                    11.986632908724912,
-                    57.49237936793651
+                    11.987427689266879,
+                    57.49221870044706
                   ],
                   [
-                    11.987102266423495,
-                    57.49228448556085
+                    11.987897044900114,
+                    57.492123818071406
                   ],
                   [
-                    11.987243510092918,
-                    57.49248627595004
+                    11.988038287948013,
+                    57.4923256084606
                   ]
                 ]
               ]
             },
             "properties": {
-              "target_distance_m": 232,
+              "target_distance_m": 181.2,
               "corridor_width_m": 24,
               "corridor_depth_m": 30,
               "target_label": "Primary stock corridor",

@@ -266,7 +266,7 @@ function fairwayFeatureForHole(sourceHole) {
   return (sourceHole.features ?? []).find((feature) => feature.properties?.featureType === "fairway") ?? null;
 }
 
-function targetDistanceForHole(sourceHole, referenceTee) {
+function targetDistanceForHole(sourceHole, referenceTee, fairway) {
   const totalHoleLength = numericValue(referenceTee?.tee_length_m, 0);
 
   if (sourceHole.par <= 3 || totalHoleLength <= 0) {
@@ -277,6 +277,12 @@ function targetDistanceForHole(sourceHole, referenceTee) {
   const rawTarget = totalHoleLength * baseRatio;
   const minTarget = 140;
   const maxTarget = Math.max(minTarget, totalHoleLength - 110);
+  const fairwayAlong = numericValue(fairway?.properties?.centerline_along_m);
+
+  if (sourceHole.par === 4 && fairwayAlong !== null) {
+    const cappedTarget = Math.min(rawTarget, fairwayAlong + teeCorridorDefaults.depthM / 2);
+    return Math.max(minTarget, Math.min(cappedTarget, maxTarget));
+  }
 
   return Math.max(minTarget, Math.min(rawTarget, maxTarget));
 }
@@ -317,7 +323,7 @@ function deriveTeeTargetCorridors(sourceHole, tees, sourceFile) {
 
   const referenceTee = [...tees]
     .sort((lhs, rhs) => numericValue(rhs.tee_length_m, 0) - numericValue(lhs.tee_length_m, 0))[0];
-  const landingDistance = targetDistanceForHole(sourceHole, referenceTee);
+  const landingDistance = targetDistanceForHole(sourceHole, referenceTee, fairway);
 
   if (landingDistance === null) {
     return [];
