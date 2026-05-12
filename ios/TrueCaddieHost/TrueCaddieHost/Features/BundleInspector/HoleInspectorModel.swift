@@ -2,6 +2,13 @@ import Foundation
 import TrueCaddieDomain
 
 struct HoleInspectorModel {
+    struct ShotStateScenario: Identifiable, Equatable {
+        let id: String
+        let name: String
+        let detail: String
+        let shotStateContext: ShotStateContext
+    }
+
     static func makeShotStateScenarios(
         for hole: CourseHole,
         courseId: String,
@@ -144,11 +151,4 @@ struct HoleInspectorModel {
             return 100
         }
     }
-}
-
-struct ShotStateScenario: Identifiable, Equatable {
-    let id: String
-    let name: String
-    let detail: String
-    let shotStateContext: ShotStateContext
 }

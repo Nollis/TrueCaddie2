@@ -101,7 +101,7 @@ private struct HoleInspectorDetail: View {
             }
     }
 
-    private var shotStateScenarios: [ShotStateScenario] {
+    private var shotStateScenarios: [HoleInspectorModel.ShotStateScenario] {
         HoleInspectorModel.makeShotStateScenarios(
             for: hole,
             courseId: snapshot.courseId,
@@ -110,7 +110,7 @@ private struct HoleInspectorDetail: View {
         )
     }
 
-    private var selectedScenario: ShotStateScenario? {
+    private var selectedScenario: HoleInspectorModel.ShotStateScenario? {
         shotStateScenarios.first(where: { $0.id == selectedScenarioId }) ?? shotStateScenarios.first
     }
 
