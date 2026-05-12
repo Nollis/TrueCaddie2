@@ -70,6 +70,15 @@ private struct HoleInspectorDetail: View {
         )
     }
 
+    private var approachShotRecommendation: ApproachShotRecommendationPacket? {
+        ApproachShotRecommendationEngine.build(
+            courseId: snapshot.courseId,
+            for: hole,
+            playerContext: playerContext,
+            roundContext: roundContext
+        )
+    }
+
     private var teeTargetCorridors: [TeeTargetCorridorOverlay] {
         hole.strategyOverlays.teeTargetCorridors
             .sorted { lhs, rhs in
@@ -304,6 +313,61 @@ private struct HoleInspectorDetail: View {
                     .padding(.vertical, 2)
                 } else {
                     Text("No tee-shot recommendation packet yet")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Approach Recommendation") {
+                if let approachShotRecommendation {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(approachShotRecommendation.targetLabel)
+                                .font(.headline)
+                            Spacer()
+                            Text(approachShotRecommendation.confidenceBand.capitalized)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Text(approachShotRecommendation.primaryReason)
+                            .font(.subheadline)
+
+                        if let supportingReason = approachShotRecommendation.supportingReason {
+                            Text(supportingReason)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 12) {
+                            Text("Approach \(format(number: approachShotRecommendation.approachDistanceM)) m")
+                            Text("Risk \(approachShotRecommendation.riskLevel.capitalized)")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                        if let recommendedClub = approachShotRecommendation.recommendedClub,
+                           let clubCarryDistanceM = approachShotRecommendation.clubCarryDistanceM {
+                            Text("\(recommendedClub) • carry \(format(number: clubCarryDistanceM)) m")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let preferredMissDirection = approachShotRecommendation.preferredMissDirection,
+                           let avoidDirection = approachShotRecommendation.avoidDirection {
+                            Text("Favor \(preferredMissDirection.capitalized), avoid \(avoidDirection.capitalized)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if !approachShotRecommendation.hazardSummary.isEmpty {
+                            Text(approachShotRecommendation.hazardSummary.joined(separator: " • "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                } else {
+                    Text("No approach recommendation packet yet")
                         .foregroundStyle(.secondary)
                 }
             }
