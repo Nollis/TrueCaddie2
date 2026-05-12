@@ -67,6 +67,7 @@ public enum ApproachShotRecommendationEngine {
             hole: hole,
             targetLabel: target.label,
             approachDistanceM: adjustedApproachDistance,
+            greensideHazards: greensideHazards,
             playerContext: playerContext,
             roundContext: roundContext
         )
@@ -370,13 +371,21 @@ public enum ApproachShotRecommendationEngine {
         hole: CourseHole,
         targetLabel: String,
         approachDistanceM: Double,
+        greensideHazards: [GreensideHazard],
         playerContext: PlayerContext?,
         roundContext: RoundContext?
     ) -> ShotPlan {
         let longestCarry = playerContext?.clubs.first?.carryDistanceM ?? 0
         let reachableThreshold = max(155, longestCarry - 20 + reachableWindAdjustment(roundContext: roundContext))
 
-        if hole.par == 5, approachDistanceM > reachableThreshold {
+        if hole.par == 5,
+           shouldLayUpOnParFive(
+                approachDistanceM: approachDistanceM,
+                reachableThreshold: reachableThreshold,
+                greensideHazards: greensideHazards,
+                playerContext: playerContext,
+                roundContext: roundContext
+           ) {
             let preferredLeave = preferredLeaveDistance(roundContext: roundContext)
             let layupDistance = max(70, approachDistanceM - preferredLeave)
             let layupClub = chooseClub(
@@ -431,6 +440,72 @@ public enum ApproachShotRecommendationEngine {
         case .cross:
             return 0
         }
+    }
+
+    private static func shouldLayUpOnParFive(
+        approachDistanceM: Double,
+        reachableThreshold: Double,
+        greensideHazards: [GreensideHazard],
+        playerContext: PlayerContext?,
+        roundContext: RoundContext?
+    ) -> Bool {
+        if approachDistanceM > reachableThreshold {
+            return true
+        }
+
+        let greensideSeverity = greensideHazards.first?.severity ?? 0
+        guard greensideSeverity >= 0.55 else {
+            return false
+        }
+
+        let aggressionAllowance = parFiveAggressionAllowance(
+            playerContext: playerContext,
+            roundContext: roundContext
+        )
+
+        return approachDistanceM > (reachableThreshold - aggressionAllowance)
+    }
+
+    private static func parFiveAggressionAllowance(
+        playerContext: PlayerContext?,
+        roundContext: RoundContext?
+    ) -> Double {
+        var allowance = 0.0
+
+        if let playerContext {
+            switch playerContext.riskTolerance {
+            case .conservative:
+                allowance -= 10
+            case .balanced:
+                break
+            case .aggressive:
+                allowance += 10
+            }
+
+            if let handicapIndex = playerContext.handicapIndex {
+                switch handicapIndex {
+                case ..<8:
+                    allowance += 10
+                case 18...:
+                    allowance -= 10
+                default:
+                    break
+                }
+            }
+        }
+
+        if let roundContext {
+            switch roundContext.strategyPreference {
+            case .conservative:
+                allowance -= 10
+            case .balanced:
+                break
+            case .aggressive:
+                allowance += 10
+            }
+        }
+
+        return allowance
     }
 }
 
