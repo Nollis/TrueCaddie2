@@ -55,21 +55,10 @@ private struct HoleInspectorDetail: View {
     let snapshot: HoleInspectionSnapshot
     let hole: CourseHole
 
-    private var defaultTeeSetId: String? {
-        hole.tees.first(where: { $0.isDefault == true })?.teeSetId
-    }
-
     private var teeTargetCorridors: [TeeTargetCorridorOverlay] {
         hole.strategyOverlays.teeTargetCorridors
             .sorted { lhs, rhs in
-                switch (lhs.teeSetId == defaultTeeSetId, rhs.teeSetId == defaultTeeSetId) {
-                case (true, false):
-                    return true
-                case (false, true):
-                    return false
-                default:
-                    return lhs.properties.targetDistanceM < rhs.properties.targetDistanceM
-                }
+                lhs.properties.targetDistanceM < rhs.properties.targetDistanceM
             }
     }
 
@@ -163,6 +152,12 @@ private struct HoleInspectorDetail: View {
 
                             Text(corridor.rationale.primaryReason)
                                 .font(.subheadline)
+
+                            if corridor.teeSetId == "all" {
+                                Text("Applies across all tees")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
 
                             HStack(spacing: 12) {
                                 Text("Target \(format(number: corridor.properties.targetDistanceM)) m")
@@ -339,11 +334,11 @@ private struct HoleInspectorDetail: View {
     }
 
     private func corridorLabel(for corridor: TeeTargetCorridorOverlay) -> String {
-        if corridor.teeSetId == defaultTeeSetId {
-            return "\(corridor.properties.targetLabel) • Default"
+        if corridor.teeSetId == "all" {
+            return corridor.properties.targetLabel
         }
 
-        return corridor.properties.targetLabel
+        return "\(corridor.properties.targetLabel) • \(corridor.teeSetId.capitalized)"
     }
 
     private func bandColor(for hazard: HazardSeverityOverlay) -> Color {
@@ -392,18 +387,7 @@ private struct HoleSketchView: View {
     var body: some View {
         GeometryReader { proxy in
             let layout = HoleSketchLayout(hole: hole, size: proxy.size)
-            let defaultTeeSetId = hole.tees.first(where: { $0.isDefault == true })?.teeSetId
             let teeCorridors = hole.strategyOverlays.teeTargetCorridors
-                .sorted { lhs, rhs in
-                    switch (lhs.teeSetId == defaultTeeSetId, rhs.teeSetId == defaultTeeSetId) {
-                    case (true, false):
-                        return false
-                    case (false, true):
-                        return true
-                    default:
-                        return lhs.properties.targetDistanceM < rhs.properties.targetDistanceM
-                    }
-                }
 
             ZStack {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -446,18 +430,11 @@ private struct HoleSketchView: View {
                             }
                         }
 
-                        let strokeColor: Color = corridor.teeSetId == defaultTeeSetId
-                            ? Color.orange
-                            : Color.orange.opacity(0.45)
-                        let fillColor: Color = corridor.teeSetId == defaultTeeSetId
-                            ? Color.orange.opacity(0.12)
-                            : Color.orange.opacity(0.05)
-
-                        context.fill(path, with: .color(fillColor))
+                        context.fill(path, with: .color(Color.orange.opacity(0.12)))
                         context.stroke(
                             path,
-                            with: .color(strokeColor),
-                            style: StrokeStyle(lineWidth: corridor.teeSetId == defaultTeeSetId ? 3 : 2, dash: [8, 5])
+                            with: .color(.orange),
+                            style: StrokeStyle(lineWidth: 3, dash: [8, 5])
                         )
                     }
 

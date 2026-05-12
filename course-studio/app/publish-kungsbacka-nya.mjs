@@ -266,8 +266,8 @@ function fairwayFeatureForHole(sourceHole) {
   return (sourceHole.features ?? []).find((feature) => feature.properties?.featureType === "fairway") ?? null;
 }
 
-function targetDistanceForTee(sourceHole, tee) {
-  const totalHoleLength = numericValue(tee.tee_length_m, 0);
+function targetDistanceForHole(sourceHole, referenceTee) {
+  const totalHoleLength = numericValue(referenceTee?.tee_length_m, 0);
 
   if (sourceHole.par <= 3 || totalHoleLength <= 0) {
     return null;
@@ -315,60 +315,60 @@ function deriveTeeTargetCorridors(sourceHole, tees, sourceFile) {
     return [];
   }
 
-  return tees.flatMap((tee) => {
-    const landingDistance = targetDistanceForTee(sourceHole, tee);
+  const referenceTee = [...tees]
+    .sort((lhs, rhs) => numericValue(rhs.tee_length_m, 0) - numericValue(lhs.tee_length_m, 0))[0];
+  const landingDistance = targetDistanceForHole(sourceHole, referenceTee);
 
-    if (landingDistance === null) {
-      return [];
+  if (landingDistance === null) {
+    return [];
+  }
+
+  const targetAlong = Math.max(0, Math.min(landingDistance, centerlineLength - 35));
+  const centerlineTarget = interpolateLineAtDistance(coordinates, targetAlong);
+
+  if (!centerlineTarget) {
+    return [];
+  }
+
+  const nearbyHazards = hazardPressureNearLanding(sourceHole, targetAlong);
+  const confidenceScore = Number(Math.max(0.55, 0.82 - Math.min(0.18, nearbyHazards.length * 0.04)).toFixed(2));
+
+  return [{
+    overlay_id: `tee-target-${sourceHole.holeId ?? sourceHole.hole}`,
+    overlay_type: "tee_target_corridor",
+    course_id: sourceHole.courseId,
+    hole_id: String(sourceHole.holeId ?? sourceHole.hole),
+    tee_set_id: "all",
+    shot_phase: "tee",
+    geometry: corridorPolygon(
+      centerlineTarget.coordinate,
+      centerlineTarget.forwardUnit,
+      teeCorridorDefaults.widthM,
+      teeCorridorDefaults.depthM
+    ),
+    properties: {
+      target_distance_m: Number(targetAlong.toFixed(2)),
+      corridor_width_m: teeCorridorDefaults.widthM,
+      corridor_depth_m: teeCorridorDefaults.depthM,
+      target_label: "Primary stock corridor",
+      fairway_feature_id: fairway.id,
+      strategy_mode: "stock"
+    },
+    confidence: {
+      band: confidenceScore >= 0.8 ? "high" : confidenceScore >= 0.65 ? "medium" : "low",
+      score: confidenceScore
+    },
+    rationale: {
+      primary_reason: teeCorridorReason(nearbyHazards)
+    },
+    constraints: {
+      derived_from: "course_studio_tee_corridor_v1"
+    },
+    provenance: {
+      source_file: sourceFile,
+      derivation_version: derivationVersion
     }
-
-    const targetAlong = Math.max(0, Math.min(landingDistance, centerlineLength - 35));
-    const centerlineTarget = interpolateLineAtDistance(coordinates, targetAlong);
-
-    if (!centerlineTarget) {
-      return [];
-    }
-
-    const nearbyHazards = hazardPressureNearLanding(sourceHole, targetAlong);
-    const confidenceScore = Number(Math.max(0.55, 0.82 - Math.min(0.18, nearbyHazards.length * 0.04)).toFixed(2));
-
-    return [{
-      overlay_id: `tee-target-${tee.tee_set_id}`,
-      overlay_type: "tee_target_corridor",
-      course_id: sourceHole.courseId,
-      hole_id: String(sourceHole.holeId ?? sourceHole.hole),
-      tee_set_id: tee.tee_set_id,
-      shot_phase: "tee",
-      geometry: corridorPolygon(
-        centerlineTarget.coordinate,
-        centerlineTarget.forwardUnit,
-        teeCorridorDefaults.widthM,
-        teeCorridorDefaults.depthM
-      ),
-      properties: {
-        target_distance_m: Number(targetAlong.toFixed(2)),
-        corridor_width_m: teeCorridorDefaults.widthM,
-        corridor_depth_m: teeCorridorDefaults.depthM,
-        target_label: `${tee.name} stock corridor`,
-        fairway_feature_id: fairway.id,
-        strategy_mode: "stock"
-      },
-      confidence: {
-        band: confidenceScore >= 0.8 ? "high" : confidenceScore >= 0.65 ? "medium" : "low",
-        score: confidenceScore
-      },
-      rationale: {
-        primary_reason: teeCorridorReason(nearbyHazards)
-      },
-      constraints: {
-        derived_from: "course_studio_tee_corridor_v1"
-      },
-      provenance: {
-        source_file: sourceFile,
-        derivation_version: derivationVersion
-      }
-    }];
-  });
+  }];
 }
 
 function severityBand(score) {

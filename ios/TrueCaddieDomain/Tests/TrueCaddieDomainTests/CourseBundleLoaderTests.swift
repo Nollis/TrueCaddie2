@@ -54,7 +54,7 @@ final class CourseBundleLoaderTests: XCTestCase {
                     "overlay_type": "tee_target_corridor",
                     "course_id": "test-course",
                     "hole_id": "1",
-                    "tee_set_id": "white",
+                    "tee_set_id": "all",
                     "shot_phase": "tee",
                     "geometry": {
                       "type": "Polygon",
@@ -64,7 +64,7 @@ final class CourseBundleLoaderTests: XCTestCase {
                       "target_distance_m": 210,
                       "corridor_width_m": 24,
                       "corridor_depth_m": 30,
-                      "target_label": "White stock corridor",
+                      "target_label": "Primary stock corridor",
                       "fairway_feature_id": "fairway-1",
                       "strategy_mode": "stock"
                     },
@@ -148,7 +148,8 @@ final class CourseBundleLoaderTests: XCTestCase {
         XCTAssertEqual(bundle.bundleVersion, "test-bundle")
         XCTAssertEqual(bundle.holes.first?.holeId, "1")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.count, 1)
-        XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.first?.properties.targetLabel, "White stock corridor")
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.first?.teeSetId, "all")
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.first?.properties.targetLabel, "Primary stock corridor")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.hazardSeverity.count, 1)
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.hazardSeverity.first?.properties.hazardKind, "water")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.hazardSeverity.first?.rationale.primaryReason, "water right is the main problem")
