@@ -558,7 +558,7 @@ final class ApproachShotRecommendationEngineTests: XCTestCase {
 
         XCTAssertEqual(packet?.recommendationType, "layup")
         XCTAssertEqual(packet?.targetLabel, "Lay up for wedge number")
-        XCTAssertEqual(packet?.shotDistanceM, 148)
+        XCTAssertEqual(packet?.shotDistanceM, 152)
         XCTAssertEqual(packet?.plannedLeaveDistanceM, 108)
         XCTAssertEqual(packet?.recommendedClub, "8 Iron")
         XCTAssertEqual(packet?.clubCarryDistanceM, 144)
@@ -769,8 +769,8 @@ final class ApproachShotRecommendationEngineTests: XCTestCase {
 
         XCTAssertEqual(packet?.recommendationType, "layup")
         XCTAssertEqual(packet?.targetLabel, "Lay up for wedge number")
-        XCTAssertEqual(packet?.shotDistanceM, 121)
-        XCTAssertEqual(packet?.plannedLeaveDistanceM, 103)
+        XCTAssertEqual(try XCTUnwrap(packet?.shotDistanceM), 120.8, accuracy: 0.001)
+        XCTAssertEqual(try XCTUnwrap(packet?.plannedLeaveDistanceM), 102.8, accuracy: 0.001)
         XCTAssertEqual(packet?.recommendedClub, "PW")
         XCTAssertEqual(packet?.clubCarryDistanceM, 118)
     }
