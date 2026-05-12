@@ -71,6 +71,10 @@ public struct HoleSketchLayout: Sendable {
             .flatMap { Self.polygonRings(from: $0.geometry, in: bounds, size: drawingSize) }
     }
 
+    public func projectedRings(from geometry: GeoJSONGeometry) -> [[CGPoint]] {
+        Self.polygonRings(from: geometry, in: bounds, size: drawingSize)
+    }
+
     private static func makeBounds(from coordinates: [[Double]], size: CGSize) -> CGRect {
         let valid = coordinates.filter { $0.count == 2 }
         let fallback = CGRect(x: 0, y: 0, width: max(size.width, 1), height: max(size.height, 1))

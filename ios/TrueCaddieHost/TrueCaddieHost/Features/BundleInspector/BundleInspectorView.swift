@@ -55,6 +55,24 @@ private struct HoleInspectorDetail: View {
     let snapshot: HoleInspectionSnapshot
     let hole: CourseHole
 
+    private var defaultTeeSetId: String? {
+        hole.tees.first(where: { $0.isDefault == true })?.teeSetId
+    }
+
+    private var teeTargetCorridors: [TeeTargetCorridorOverlay] {
+        hole.strategyOverlays.teeTargetCorridors
+            .sorted { lhs, rhs in
+                switch (lhs.teeSetId == defaultTeeSetId, rhs.teeSetId == defaultTeeSetId) {
+                case (true, false):
+                    return true
+                case (false, true):
+                    return false
+                default:
+                    return lhs.properties.targetDistanceM < rhs.properties.targetDistanceM
+                }
+            }
+    }
+
     private var hazardSeverityOverlays: [HazardSeverityOverlay] {
         hole.strategyOverlays.hazardSeverity
             .sorted { lhs, rhs in
@@ -123,6 +141,38 @@ private struct HoleInspectorDetail: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                }
+            }
+
+            Section("Tee Target Corridors") {
+                if teeTargetCorridors.isEmpty {
+                    Text("No derived tee corridors yet")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(teeTargetCorridors) { corridor in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(corridorLabel(for: corridor))
+                                    .font(.headline)
+                                Spacer()
+                                Text(corridor.confidence.band.capitalized)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Text(corridor.rationale.primaryReason)
+                                .font(.subheadline)
+
+                            HStack(spacing: 12) {
+                                Text("Target \(format(number: corridor.properties.targetDistanceM)) m")
+                                Text("W \(format(number: corridor.properties.corridorWidthM))")
+                                Text("D \(format(number: corridor.properties.corridorDepthM))")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
                     }
                 }
             }
@@ -288,6 +338,14 @@ private struct HoleInspectorDetail: View {
         "\(hazard.properties.severityBand.capitalized) \(format(number: hazard.properties.severityScore))"
     }
 
+    private func corridorLabel(for corridor: TeeTargetCorridorOverlay) -> String {
+        if corridor.teeSetId == defaultTeeSetId {
+            return "\(corridor.properties.targetLabel) • Default"
+        }
+
+        return corridor.properties.targetLabel
+    }
+
     private func bandColor(for hazard: HazardSeverityOverlay) -> Color {
         switch hazard.properties.severityBand {
         case "critical":
@@ -334,6 +392,18 @@ private struct HoleSketchView: View {
     var body: some View {
         GeometryReader { proxy in
             let layout = HoleSketchLayout(hole: hole, size: proxy.size)
+            let defaultTeeSetId = hole.tees.first(where: { $0.isDefault == true })?.teeSetId
+            let teeCorridors = hole.strategyOverlays.teeTargetCorridors
+                .sorted { lhs, rhs in
+                    switch (lhs.teeSetId == defaultTeeSetId, rhs.teeSetId == defaultTeeSetId) {
+                    case (true, false):
+                        return false
+                    case (false, true):
+                        return true
+                    default:
+                        return lhs.properties.targetDistanceM < rhs.properties.targetDistanceM
+                    }
+                }
 
             ZStack {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -366,6 +436,29 @@ private struct HoleSketchView: View {
 
                     for polygon in layout.polygons(for: "bunker") {
                         context.fill(polygon, with: .color(Color(red: 0.89, green: 0.80, blue: 0.61)))
+                    }
+
+                    for corridor in teeCorridors {
+                        let path = Path { path in
+                            for ring in layout.projectedRings(from: corridor.geometry) {
+                                path.addLines(ring)
+                                path.closeSubpath()
+                            }
+                        }
+
+                        let strokeColor: Color = corridor.teeSetId == defaultTeeSetId
+                            ? Color.orange
+                            : Color.orange.opacity(0.45)
+                        let fillColor: Color = corridor.teeSetId == defaultTeeSetId
+                            ? Color.orange.opacity(0.12)
+                            : Color.orange.opacity(0.05)
+
+                        context.fill(path, with: .color(fillColor))
+                        context.stroke(
+                            path,
+                            with: .color(strokeColor),
+                            style: StrokeStyle(lineWidth: corridor.teeSetId == defaultTeeSetId ? 3 : 2, dash: [8, 5])
+                        )
                     }
 
                     for line in layout.outOfBounds {

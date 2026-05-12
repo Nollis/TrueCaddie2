@@ -16,6 +16,11 @@ const hazardBaseScores = {
   rough: 0.35
 };
 
+const teeCorridorDefaults = {
+  widthM: 24,
+  depthM: 30
+};
+
 function argValue(flag, fallback) {
   const index = process.argv.indexOf(flag);
   return index === -1 ? fallback : process.argv[index + 1];
@@ -130,12 +135,16 @@ function qualityForHole(sourceHole) {
   const hazardCoverage = (sourceHole.features ?? []).filter((feature) =>
     ["water", "bunker", "woods", "rough"].includes(feature.properties?.featureType)
   ).length;
+  const hasFairway = Boolean(fairwayFeatureForHole(sourceHole));
+  const teeTargetCorridorScore = sourceHole.par > 3 && hasFairway
+    ? Number(Math.max(0.5, Math.min(0.8, 0.62 + Math.max(0, centerlinePoints - 2) * 0.05)).toFixed(2))
+    : 0;
 
   return {
     hole_publish_confidence: confidence,
     hole_publish_score: score,
     overlay_scores: {
-      tee_target_corridor: 0,
+      tee_target_corridor: teeTargetCorridorScore,
       preferred_miss: 0,
       layup_candidates: 0,
       hazard_severity: hazardCoverage > 0 ? Number(Math.min(0.85, 0.45 + hazardCoverage * 0.04).toFixed(2)) : 0
@@ -146,6 +155,220 @@ function qualityForHole(sourceHole) {
 
 function numericValue(value, fallback = null) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function distanceMeters(from, to) {
+  if (!Array.isArray(from) || !Array.isArray(to) || from.length !== 2 || to.length !== 2) {
+    return 0;
+  }
+
+  const avgLatRad = ((from[1] + to[1]) / 2) * Math.PI / 180;
+  const metersPerLon = 111320 * Math.cos(avgLatRad);
+  const metersPerLat = 111320;
+  const dx = (to[0] - from[0]) * metersPerLon;
+  const dy = (to[1] - from[1]) * metersPerLat;
+
+  return Math.hypot(dx, dy);
+}
+
+function lineLengthMeters(coordinates) {
+  let total = 0;
+
+  for (let index = 1; index < coordinates.length; index += 1) {
+    total += distanceMeters(coordinates[index - 1], coordinates[index]);
+  }
+
+  return total;
+}
+
+function metersToCoordinateOffset(origin, eastMeters, northMeters) {
+  const metersPerLat = 111320;
+  const metersPerLon = 111320 * Math.cos(origin[1] * Math.PI / 180);
+
+  return [
+    origin[0] + eastMeters / Math.max(metersPerLon, 0.000001),
+    origin[1] + northMeters / metersPerLat
+  ];
+}
+
+function interpolateLineAtDistance(coordinates, targetMeters) {
+  if (!Array.isArray(coordinates) || coordinates.length === 0) {
+    return null;
+  }
+
+  if (coordinates.length === 1) {
+    return {
+      coordinate: coordinates[0],
+      forwardUnit: [1, 0]
+    };
+  }
+
+  let traversed = 0;
+
+  for (let index = 1; index < coordinates.length; index += 1) {
+    const start = coordinates[index - 1];
+    const end = coordinates[index];
+    const segmentLength = distanceMeters(start, end);
+
+    if (segmentLength === 0) {
+      continue;
+    }
+
+    if (targetMeters <= traversed + segmentLength || index === coordinates.length - 1) {
+      const remaining = Math.max(0, Math.min(segmentLength, targetMeters - traversed));
+      const ratio = remaining / segmentLength;
+      const coordinate = [
+        start[0] + (end[0] - start[0]) * ratio,
+        start[1] + (end[1] - start[1]) * ratio
+      ];
+      const avgLatRad = ((start[1] + end[1]) / 2) * Math.PI / 180;
+      const metersPerLon = 111320 * Math.cos(avgLatRad);
+      const metersPerLat = 111320;
+      const eastMeters = (end[0] - start[0]) * metersPerLon;
+      const northMeters = (end[1] - start[1]) * metersPerLat;
+      const magnitude = Math.hypot(eastMeters, northMeters) || 1;
+
+      return {
+        coordinate,
+        forwardUnit: [eastMeters / magnitude, northMeters / magnitude]
+      };
+    }
+
+    traversed += segmentLength;
+  }
+
+  return null;
+}
+
+function corridorPolygon(centerCoordinate, forwardUnit, widthM, depthM) {
+  const halfWidth = widthM / 2;
+  const halfDepth = depthM / 2;
+  const lateralUnit = [-forwardUnit[1], forwardUnit[0]];
+
+  const corners = [
+    [-halfDepth, -halfWidth],
+    [halfDepth, -halfWidth],
+    [halfDepth, halfWidth],
+    [-halfDepth, halfWidth]
+  ].map(([forwardMeters, lateralMeters]) => {
+    const eastMeters = forwardUnit[0] * forwardMeters + lateralUnit[0] * lateralMeters;
+    const northMeters = forwardUnit[1] * forwardMeters + lateralUnit[1] * lateralMeters;
+    return metersToCoordinateOffset(centerCoordinate, eastMeters, northMeters);
+  });
+
+  return {
+    type: "Polygon",
+    coordinates: [[...corners, corners[0]]]
+  };
+}
+
+function fairwayFeatureForHole(sourceHole) {
+  return (sourceHole.features ?? []).find((feature) => feature.properties?.featureType === "fairway") ?? null;
+}
+
+function targetDistanceForTee(sourceHole, tee) {
+  const totalHoleLength = numericValue(tee.tee_length_m, 0);
+
+  if (sourceHole.par <= 3 || totalHoleLength <= 0) {
+    return null;
+  }
+
+  const baseRatio = sourceHole.par === 5 ? 0.52 : 0.58;
+  const rawTarget = totalHoleLength * baseRatio;
+  const minTarget = 140;
+  const maxTarget = Math.max(minTarget, totalHoleLength - 110);
+
+  return Math.max(minTarget, Math.min(rawTarget, maxTarget));
+}
+
+function hazardPressureNearLanding(sourceHole, landingAlongMeters) {
+  return (sourceHole.features ?? [])
+    .filter((feature) => ["water", "woods", "bunker"].includes(feature.properties?.featureType))
+    .filter((feature) => {
+      const along = numericValue(feature.properties?.centerline_along_m);
+      return along !== null && Math.abs(along - landingAlongMeters) <= 45;
+    });
+}
+
+function teeCorridorReason(pressures) {
+  if (pressures.some((feature) => feature.properties?.featureType === "water")) {
+    return "corridor stays short of the strongest water pressure near the landing zone";
+  }
+
+  if (pressures.some((feature) => feature.properties?.featureType === "woods")) {
+    return "corridor favors the side with less tree pressure around the stock landing";
+  }
+
+  if (pressures.some((feature) => feature.properties?.featureType === "bunker")) {
+    return "corridor avoids the nearest fairway bunker pressure";
+  }
+
+  return "corridor follows the broadest stock landing area on the hole centerline";
+}
+
+function deriveTeeTargetCorridors(sourceHole, tees, sourceFile) {
+  const coordinates = sourceHole.centerline?.coordinates ?? [];
+  const centerlineLength = lineLengthMeters(coordinates);
+  const fairway = fairwayFeatureForHole(sourceHole);
+
+  if (sourceHole.par <= 3 || coordinates.length < 2 || centerlineLength <= 0 || !fairway) {
+    return [];
+  }
+
+  return tees.flatMap((tee) => {
+    const landingDistance = targetDistanceForTee(sourceHole, tee);
+
+    if (landingDistance === null) {
+      return [];
+    }
+
+    const targetAlong = Math.max(0, Math.min(landingDistance, centerlineLength - 35));
+    const centerlineTarget = interpolateLineAtDistance(coordinates, targetAlong);
+
+    if (!centerlineTarget) {
+      return [];
+    }
+
+    const nearbyHazards = hazardPressureNearLanding(sourceHole, targetAlong);
+    const confidenceScore = Number(Math.max(0.55, 0.82 - Math.min(0.18, nearbyHazards.length * 0.04)).toFixed(2));
+
+    return [{
+      overlay_id: `tee-target-${tee.tee_set_id}`,
+      overlay_type: "tee_target_corridor",
+      course_id: sourceHole.courseId,
+      hole_id: String(sourceHole.holeId ?? sourceHole.hole),
+      tee_set_id: tee.tee_set_id,
+      shot_phase: "tee",
+      geometry: corridorPolygon(
+        centerlineTarget.coordinate,
+        centerlineTarget.forwardUnit,
+        teeCorridorDefaults.widthM,
+        teeCorridorDefaults.depthM
+      ),
+      properties: {
+        target_distance_m: Number(targetAlong.toFixed(2)),
+        corridor_width_m: teeCorridorDefaults.widthM,
+        corridor_depth_m: teeCorridorDefaults.depthM,
+        target_label: `${tee.name} stock corridor`,
+        fairway_feature_id: fairway.id,
+        strategy_mode: "stock"
+      },
+      confidence: {
+        band: confidenceScore >= 0.8 ? "high" : confidenceScore >= 0.65 ? "medium" : "low",
+        score: confidenceScore
+      },
+      rationale: {
+        primary_reason: teeCorridorReason(nearbyHazards)
+      },
+      constraints: {
+        derived_from: "course_studio_tee_corridor_v1"
+      },
+      provenance: {
+        source_file: sourceFile,
+        derivation_version: derivationVersion
+      }
+    }];
+  });
 }
 
 function severityBand(score) {
@@ -250,6 +473,7 @@ function normalizeHole(sourceHole, teeSets, sourceFile, sourceUpdatedAt) {
     .map((teeSet) => normalizeTee(teeSet, sourceHole))
     .filter(Boolean);
   const hazardSeverity = deriveHazardSeverity(sourceHole, sourceFile);
+  const teeTargetCorridors = deriveTeeTargetCorridors(sourceHole, tees, sourceFile);
 
   return {
     hole_id: String(sourceHole.holeId ?? sourceHole.hole),
@@ -275,7 +499,7 @@ function normalizeHole(sourceHole, teeSets, sourceFile, sourceUpdatedAt) {
       context_points: sourceHole.contextPoints ?? []
     },
     strategy_overlays: {
-      tee_target_corridors: [],
+      tee_target_corridors: teeTargetCorridors,
       aggressive_tee_corridors: [],
       layup_candidates: [],
       preferred_miss: [],

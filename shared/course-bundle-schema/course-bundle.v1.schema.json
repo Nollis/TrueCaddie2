@@ -350,7 +350,10 @@
       ],
       "properties": {
         "tee_target_corridors": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/teeTargetCorridorOverlay"
+          }
         },
         "aggressive_tee_corridors": {
           "type": "array"
@@ -427,6 +430,104 @@
         },
         "provenance": {
           "$ref": "#/$defs/overlayProvenance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "teeTargetCorridorOverlay": {
+      "type": "object",
+      "required": [
+        "overlay_id",
+        "overlay_type",
+        "course_id",
+        "hole_id",
+        "tee_set_id",
+        "shot_phase",
+        "geometry",
+        "properties",
+        "confidence",
+        "rationale",
+        "constraints",
+        "provenance"
+      ],
+      "properties": {
+        "overlay_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "overlay_type": {
+          "const": "tee_target_corridor"
+        },
+        "course_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hole_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tee_set_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shot_phase": {
+          "const": "tee"
+        },
+        "geometry": {
+          "$ref": "#/$defs/geometry"
+        },
+        "properties": {
+          "$ref": "#/$defs/teeTargetCorridorProperties"
+        },
+        "confidence": {
+          "$ref": "#/$defs/overlayConfidence"
+        },
+        "rationale": {
+          "$ref": "#/$defs/overlayRationale"
+        },
+        "constraints": {
+          "$ref": "#/$defs/overlayConstraints"
+        },
+        "provenance": {
+          "$ref": "#/$defs/overlayProvenance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "teeTargetCorridorProperties": {
+      "type": "object",
+      "required": [
+        "target_distance_m",
+        "corridor_width_m",
+        "corridor_depth_m",
+        "target_label",
+        "fairway_feature_id",
+        "strategy_mode"
+      ],
+      "properties": {
+        "target_distance_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "corridor_width_m": {
+          "type": "number",
+          "minimum": 1
+        },
+        "corridor_depth_m": {
+          "type": "number",
+          "minimum": 1
+        },
+        "target_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fairway_feature_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strategy_mode": {
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false

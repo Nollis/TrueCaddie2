@@ -48,7 +48,42 @@ final class CourseBundleLoaderTests: XCTestCase {
                 "context_points": []
               },
               "strategy_overlays": {
-                "tee_target_corridors": [],
+                "tee_target_corridors": [
+                  {
+                    "overlay_id": "tee-corridor-1",
+                    "overlay_type": "tee_target_corridor",
+                    "course_id": "test-course",
+                    "hole_id": "1",
+                    "tee_set_id": "white",
+                    "shot_phase": "tee",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.02, 57.0], [11.02, 57.01], [11.0, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "target_distance_m": 210,
+                      "corridor_width_m": 24,
+                      "corridor_depth_m": 30,
+                      "target_label": "White stock corridor",
+                      "fairway_feature_id": "fairway-1",
+                      "strategy_mode": "stock"
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.74
+                    },
+                    "rationale": {
+                      "primary_reason": "corridor follows the broadest stock landing area"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ],
                 "aggressive_tee_corridors": [],
                 "layup_candidates": [],
                 "preferred_miss": [],
@@ -112,6 +147,8 @@ final class CourseBundleLoaderTests: XCTestCase {
         XCTAssertEqual(bundle.courseId, "test-course")
         XCTAssertEqual(bundle.bundleVersion, "test-bundle")
         XCTAssertEqual(bundle.holes.first?.holeId, "1")
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.count, 1)
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.first?.properties.targetLabel, "White stock corridor")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.hazardSeverity.count, 1)
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.hazardSeverity.first?.properties.hazardKind, "water")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.hazardSeverity.first?.rationale.primaryReason, "water right is the main problem")
