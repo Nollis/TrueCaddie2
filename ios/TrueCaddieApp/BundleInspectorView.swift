@@ -317,6 +317,17 @@ private struct HoleInspectorDetail: View {
     }
 }
 
+private extension HoleSketchLayout {
+    func polygons(for featureType: String) -> [Path] {
+        polygonRings(for: featureType).map { ring in
+            Path { path in
+                path.addLines(ring)
+                path.closeSubpath()
+            }
+        }
+    }
+}
+
 private struct HoleSketchView: View {
     let hole: CourseHole
 
@@ -393,202 +404,6 @@ private struct HoleSketchView: View {
         }
         .frame(height: 240)
         .accessibilityLabel("Simplified hole sketch")
-    }
-}
-
-private struct HoleSketchLayout {
-    private let featuresByType: [String: [CourseFeature]]
-    let centerline: [CGPoint]
-    let outOfBounds: [[CGPoint]]
-    let teePoints: [CGPoint]
-    let greenCenter: CGPoint?
-    private let bounds: CGRect
-    private let drawingSize: CGSize
-
-    init(hole: CourseHole, size: CGSize) {
-        let featuresByType = Dictionary(grouping: hole.baseMappingData.features, by: \.featureType)
-        let drawingSize = CGSize(width: max(size.width - 20, 1), height: max(size.height - 20, 1))
-
-        var allCoordinates = [[Double]]()
-        allCoordinates.append(contentsOf: Self.collectCoordinates(from: hole.baseMappingData.centerline))
-        for feature in hole.baseMappingData.features {
-            allCoordinates.append(contentsOf: Self.collectCoordinates(from: feature.geometry))
-        }
-        for line in hole.baseMappingData.outOfBoundsLines {
-            if let geometry = line.geometry {
-                allCoordinates.append(contentsOf: Self.collectCoordinates(from: geometry))
-            }
-        }
-        allCoordinates.append(contentsOf: hole.tees.map(\.teeCoordinate))
-        allCoordinates.append(hole.baseMappingData.green.center)
-        if let point = hole.baseMappingData.green.frontCenter {
-            allCoordinates.append(point)
-        }
-        if let point = hole.baseMappingData.green.backCenter {
-            allCoordinates.append(point)
-        }
-
-        let bounds = Self.makeBounds(from: allCoordinates, size: size)
-        let centerline: [CGPoint] = Self.linePoints(
-            from: hole.baseMappingData.centerline,
-            in: bounds,
-            size: drawingSize
-        )
-        let outOfBounds: [[CGPoint]] = hole.baseMappingData.outOfBoundsLines.compactMap { line in
-            guard let geometry = line.geometry else {
-                return nil
-            }
-
-            let points = Self.linePoints(from: geometry, in: bounds, size: drawingSize)
-            return points.isEmpty ? nil : points
-        }
-        let teePoints: [CGPoint] = hole.tees.map {
-            Self.project($0.teeCoordinate, in: bounds, size: drawingSize)
-        }
-        let greenCenter: CGPoint? = Self.projectOptional(
-            hole.baseMappingData.green.center,
-            in: bounds,
-            size: drawingSize
-        )
-
-        self.featuresByType = featuresByType
-        self.drawingSize = drawingSize
-        self.bounds = bounds
-        self.centerline = centerline
-        self.outOfBounds = outOfBounds
-        self.teePoints = teePoints
-        self.greenCenter = greenCenter
-    }
-
-    func polygons(for featureType: String) -> [Path] {
-        (featuresByType[featureType] ?? [])
-            .flatMap { Self.polygonPaths(from: $0.geometry, in: bounds, size: drawingSize) }
-    }
-
-    private static func makeBounds(from coordinates: [[Double]], size: CGSize) -> CGRect {
-        let valid = coordinates.filter { $0.count == 2 }
-        let fallback = CGRect(x: 0, y: 0, width: max(size.width, 1), height: max(size.height, 1))
-
-        guard
-            let minLon = valid.map({ $0[0] }).min(),
-            let maxLon = valid.map({ $0[0] }).max(),
-            let minLat = valid.map({ $0[1] }).min(),
-            let maxLat = valid.map({ $0[1] }).max()
-        else {
-            return fallback
-        }
-
-        let lonPadding = max((maxLon - minLon) * 0.12, 0.00012)
-        let latPadding = max((maxLat - minLat) * 0.12, 0.00012)
-
-        return CGRect(
-            x: minLon - lonPadding,
-            y: minLat - latPadding,
-            width: max((maxLon - minLon) + lonPadding * 2, 0.0002),
-            height: max((maxLat - minLat) + latPadding * 2, 0.0002)
-        )
-    }
-
-    private static func collectCoordinates(from geometry: GeoJSONGeometry) -> [[Double]] {
-        switch geometry.type {
-        case "LineString":
-            return coordinatePairs(from: geometry.coordinates)
-        case "Polygon":
-            return polygonRings(from: geometry.coordinates).flatMap { $0 }
-        case "MultiPolygon":
-            return multiPolygonRings(from: geometry.coordinates).flatMap { $0 }.flatMap { $0 }
-        case "Point":
-            return coordinatePairs(from: .array([geometry.coordinates])).flatMap { [$0] }
-        default:
-            return []
-        }
-    }
-
-    private static func polygonPaths(from geometry: GeoJSONGeometry, in bounds: CGRect, size: CGSize) -> [Path] {
-        switch geometry.type {
-        case "Polygon":
-            return polygonRings(from: geometry.coordinates).compactMap { ring in
-                path(for: ring, in: bounds, size: size)
-            }
-        case "MultiPolygon":
-            return multiPolygonRings(from: geometry.coordinates)
-                .flatMap { polygon in
-                    polygon.compactMap { ring in
-                        path(for: ring, in: bounds, size: size)
-                    }
-                }
-        default:
-            return []
-        }
-    }
-
-    private static func linePoints(from geometry: GeoJSONGeometry, in bounds: CGRect, size: CGSize) -> [CGPoint] {
-        guard geometry.type == "LineString" else {
-            return []
-        }
-
-        return coordinatePairs(from: geometry.coordinates).map { project($0, in: bounds, size: size) }
-    }
-
-    private static func path(for ring: [[Double]], in bounds: CGRect, size: CGSize) -> Path? {
-        let points = ring
-            .filter { $0.count == 2 }
-            .map { project($0, in: bounds, size: size) }
-
-        guard points.count >= 3 else {
-            return nil
-        }
-
-        return Path { path in
-            path.addLines(points)
-            path.closeSubpath()
-        }
-    }
-
-    private static func coordinatePairs(from value: JSONValue) -> [[Double]] {
-        value.arrayValue?.compactMap { point in
-            guard
-                let values = point.arrayValue?.compactMap(\.numberValue),
-                values.count == 2
-            else {
-                return nil
-            }
-
-            return values
-        } ?? []
-    }
-
-    private static func polygonRings(from value: JSONValue) -> [[[Double]]] {
-        value.arrayValue?.compactMap { ringValue in
-            let points = coordinatePairs(from: ringValue)
-            return points.isEmpty ? nil : points
-        } ?? []
-    }
-
-    private static func multiPolygonRings(from value: JSONValue) -> [[[[Double]]]] {
-        value.arrayValue?.compactMap { polygonValue in
-            let rings = polygonRings(from: polygonValue)
-            return rings.isEmpty ? nil : rings
-        } ?? []
-    }
-
-    private static func projectOptional(_ coordinate: [Double]?, in bounds: CGRect, size: CGSize) -> CGPoint? {
-        guard let coordinate else {
-            return nil
-        }
-
-        return project(coordinate, in: bounds, size: size)
-    }
-
-    private static func project(_ coordinate: [Double], in bounds: CGRect, size: CGSize) -> CGPoint {
-        guard coordinate.count == 2 else {
-            return .zero
-        }
-
-        let x = (coordinate[0] - bounds.minX) / bounds.width
-        let y = 1 - (coordinate[1] - bounds.minY) / bounds.height
-
-        return CGPoint(x: x * size.width, y: y * size.height)
     }
 }
 
