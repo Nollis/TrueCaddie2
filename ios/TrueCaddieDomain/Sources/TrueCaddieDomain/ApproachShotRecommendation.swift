@@ -24,7 +24,13 @@ public struct ApproachShotRecommendationPacket: Equatable, Sendable {
 
 public enum ApproachShotRecommendationEngine {
     public static func build(courseId: String, for hole: CourseHole) -> ApproachShotRecommendationPacket? {
-        build(courseId: courseId, for: hole, playerContext: nil, roundContext: nil)
+        build(
+            courseId: courseId,
+            for: hole,
+            playerContext: nil,
+            roundContext: nil,
+            shotStateContext: nil
+        )
     }
 
     public static func build(
@@ -32,6 +38,22 @@ public enum ApproachShotRecommendationEngine {
         for hole: CourseHole,
         playerContext: PlayerContext?,
         roundContext: RoundContext?
+    ) -> ApproachShotRecommendationPacket? {
+        build(
+            courseId: courseId,
+            for: hole,
+            playerContext: playerContext,
+            roundContext: roundContext,
+            shotStateContext: nil
+        )
+    }
+
+    public static func build(
+        courseId: String,
+        for hole: CourseHole,
+        playerContext: PlayerContext?,
+        roundContext: RoundContext?,
+        shotStateContext: ShotStateContext?
     ) -> ApproachShotRecommendationPacket? {
         guard let tee = selectedTee(in: hole, roundContext: roundContext) else {
             return nil
@@ -45,22 +67,32 @@ public enum ApproachShotRecommendationEngine {
             roundContext: roundContext
         )
         let baseApproachDistance: Double
-        switch hole.par {
-        case 3:
-            baseApproachDistance = holeLength
-        default:
-            guard let teeShot else {
-                return nil
+        if let shotStateContext {
+            baseApproachDistance = max(35, shotStateContext.remainingDistanceM)
+        } else {
+            switch hole.par {
+            case 3:
+                baseApproachDistance = holeLength
+            default:
+                guard let teeShot else {
+                    return nil
+                }
+                baseApproachDistance = max(55, holeLength - teeShot.targetDistanceM)
             }
-            baseApproachDistance = max(55, holeLength - teeShot.targetDistanceM)
         }
 
         let greensideHazards = greensideHazards(in: hole, holeLength: holeLength)
-        let approachRisk = riskLevel(for: greensideHazards.first?.severity ?? 0)
+        let approachRisk = riskLevel(
+            for: max(
+                greensideHazards.first?.severity ?? 0,
+                lieRiskFloor(for: shotStateContext?.lie)
+            )
+        )
         let target = approachTarget(
             for: hole.baseMappingData.green,
             riskLevel: approachRisk,
-            roundContext: roundContext
+            roundContext: roundContext,
+            shotStateContext: shotStateContext
         )
         let adjustedApproachDistance = max(45, baseApproachDistance + target.distanceAdjustmentM)
         let shotPlan = shotPlan(
@@ -69,13 +101,15 @@ public enum ApproachShotRecommendationEngine {
             approachDistanceM: adjustedApproachDistance,
             greensideHazards: greensideHazards,
             playerContext: playerContext,
-            roundContext: roundContext
+            roundContext: roundContext,
+            shotStateContext: shotStateContext
         )
         let missGuidance = missGuidance(for: greensideHazards)
         let confidenceScore = confidenceScore(
             hole: hole,
             teeShot: teeShot,
-            greensideHazards: greensideHazards
+            greensideHazards: greensideHazards,
+            shotStateContext: shotStateContext
         )
 
         return ApproachShotRecommendationPacket(
@@ -169,11 +203,13 @@ public enum ApproachShotRecommendationEngine {
     private static func approachTarget(
         for green: GreenReference,
         riskLevel: String,
-        roundContext: RoundContext?
+        roundContext: RoundContext?,
+        shotStateContext: ShotStateContext?
     ) -> ApproachTarget {
         let wantsSaferTarget =
             riskLevel == "high" ||
-            roundContext?.strategyPreference == .conservative
+            roundContext?.strategyPreference == .conservative ||
+            requiresSaferApproachTarget(for: shotStateContext?.lie)
 
         if wantsSaferTarget, green.frontCenter != nil {
             return ApproachTarget(label: "Front-center green", distanceAdjustmentM: -6)
@@ -185,13 +221,17 @@ public enum ApproachShotRecommendationEngine {
     private static func chooseClub(
         shotDistanceM: Double,
         playerContext: PlayerContext?,
-        roundContext: RoundContext?
+        roundContext: RoundContext?,
+        shotStateContext: ShotStateContext?
     ) -> PlayerClub? {
         guard let playerContext else {
             return nil
         }
 
-        let desiredCarry = shotDistanceM + approachCarryBias(roundContext: roundContext)
+        let desiredCarry =
+            shotDistanceM +
+            approachCarryBias(roundContext: roundContext) +
+            lieCarryBias(for: shotStateContext?.lie)
 
         return playerContext.clubs.min { lhs, rhs in
             let lhsDelta = abs(lhs.carryDistanceM - desiredCarry)
@@ -269,7 +309,8 @@ public enum ApproachShotRecommendationEngine {
     private static func confidenceScore(
         hole: CourseHole,
         teeShot: TeeShotRecommendationPacket?,
-        greensideHazards: [GreensideHazard]
+        greensideHazards: [GreensideHazard],
+        shotStateContext: ShotStateContext?
     ) -> Double {
         var score = hole.baseMappingData.green.frontCenter != nil ? 0.76 : 0.72
         if hole.par > 3, teeShot == nil {
@@ -278,6 +319,7 @@ public enum ApproachShotRecommendationEngine {
         if greensideHazards.isEmpty {
             score -= 0.04
         }
+        score -= lieConfidencePenalty(for: shotStateContext?.lie)
         return max(0.55, score)
     }
 
@@ -373,10 +415,16 @@ public enum ApproachShotRecommendationEngine {
         approachDistanceM: Double,
         greensideHazards: [GreensideHazard],
         playerContext: PlayerContext?,
-        roundContext: RoundContext?
+        roundContext: RoundContext?,
+        shotStateContext: ShotStateContext?
     ) -> ShotPlan {
         let longestCarry = playerContext?.clubs.first?.carryDistanceM ?? 0
-        let reachableThreshold = max(155, longestCarry - 20 + reachableWindAdjustment(roundContext: roundContext))
+        let reachableThreshold = max(
+            155,
+            longestCarry - 20 +
+            reachableWindAdjustment(roundContext: roundContext) -
+            lieReachPenalty(for: shotStateContext?.lie)
+        )
 
         if hole.par == 5,
            shouldLayUpOnParFive(
@@ -391,7 +439,8 @@ public enum ApproachShotRecommendationEngine {
             let layupClub = chooseClub(
                 shotDistanceM: layupDistance,
                 playerContext: playerContext,
-                roundContext: roundContext
+                roundContext: roundContext,
+                shotStateContext: shotStateContext
             )
 
             return ShotPlan(
@@ -411,9 +460,69 @@ public enum ApproachShotRecommendationEngine {
             clubRecommendation: chooseClub(
                 shotDistanceM: approachDistanceM,
                 playerContext: playerContext,
-                roundContext: roundContext
+                roundContext: roundContext,
+                shotStateContext: shotStateContext
             )
         )
+    }
+
+    private static func requiresSaferApproachTarget(for lie: ShotLie?) -> Bool {
+        switch lie {
+        case .rough, .bunker, .recovery:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func lieRiskFloor(for lie: ShotLie?) -> Double {
+        switch lie {
+        case .rough:
+            return 0.52
+        case .bunker, .recovery:
+            return 0.82
+        default:
+            return 0
+        }
+    }
+
+    private static func lieCarryBias(for lie: ShotLie?) -> Double {
+        switch lie {
+        case .rough:
+            return 5
+        case .bunker:
+            return 8
+        case .recovery:
+            return 12
+        default:
+            return 0
+        }
+    }
+
+    private static func lieReachPenalty(for lie: ShotLie?) -> Double {
+        switch lie {
+        case .rough:
+            return 8
+        case .bunker:
+            return 15
+        case .recovery:
+            return 20
+        default:
+            return 0
+        }
+    }
+
+    private static func lieConfidencePenalty(for lie: ShotLie?) -> Double {
+        switch lie {
+        case .rough:
+            return 0.04
+        case .bunker:
+            return 0.08
+        case .recovery:
+            return 0.10
+        default:
+            return 0
+        }
     }
 
     private static func preferredLeaveDistance(roundContext: RoundContext?) -> Double {

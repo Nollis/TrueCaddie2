@@ -75,7 +75,32 @@ private struct HoleInspectorDetail: View {
             courseId: snapshot.courseId,
             for: hole,
             playerContext: playerContext,
-            roundContext: roundContext
+            roundContext: roundContext,
+            shotStateContext: shotStateContext
+        )
+    }
+
+    private var shotStateContext: ShotStateContext? {
+        guard let tee = selectedTee(in: hole) else {
+            return nil
+        }
+
+        if hole.par == 3 {
+            return ShotStateContext(
+                shotNumber: 1,
+                remainingDistanceM: tee.teeLengthM,
+                lie: .tee
+            )
+        }
+
+        guard let teeShotRecommendation else {
+            return nil
+        }
+
+        return ShotStateContext(
+            shotNumber: 2,
+            remainingDistanceM: max(55, tee.teeLengthM - teeShotRecommendation.targetDistanceM),
+            lie: .fairway
         )
     }
 
@@ -181,6 +206,17 @@ private struct HoleInspectorDetail: View {
                 LabeledContent("Strategy", value: roundContext.strategyPreference.rawValue.capitalized)
                 if let wind = roundContext.wind {
                     LabeledContent("Wind", value: windLabel(wind))
+                }
+            }
+
+            Section("Shot State") {
+                if let shotStateContext {
+                    LabeledContent("Shot", value: "\(shotStateContext.shotNumber)")
+                    LabeledContent("Lie", value: shotStateContext.lie.rawValue.capitalized)
+                    LabeledContent("Remaining", value: "\(format(number: shotStateContext.remainingDistanceM)) m")
+                } else {
+                    Text("No sample shot state yet")
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -533,6 +569,18 @@ private struct HoleInspectorDetail: View {
 
     private func windLabel(_ wind: WindContext) -> String {
         "\(wind.relativeDirection.rawValue.capitalized) • \(format(number: wind.speedMps)) m/s"
+    }
+
+    private func selectedTee(in hole: CourseHole) -> Tee? {
+        if let matchedTee = hole.tees.first(where: { $0.teeSetId == roundContext.teeSetId }) {
+            return matchedTee
+        }
+
+        if let defaultTee = hole.tees.first(where: { $0.isDefault == true }) {
+            return defaultTee
+        }
+
+        return hole.tees.first
     }
 
     private var defaultBearingText: String? {
