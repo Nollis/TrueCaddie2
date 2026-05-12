@@ -85,7 +85,40 @@ final class CourseBundleLoaderTests: XCTestCase {
                   }
                 ],
                 "aggressive_tee_corridors": [],
-                "layup_candidates": [],
+                "layup_candidates": [
+                  {
+                    "overlay_id": "layup-1",
+                    "overlay_type": "layup_candidate",
+                    "course_id": "test-course",
+                    "hole_id": "1",
+                    "tee_set_id": "all",
+                    "shot_phase": "layup",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.02, 57.0], [11.02, 57.01], [11.0, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "target_distance_m": 248,
+                      "planned_leave_distance_m": 102,
+                      "target_label": "Left-center layup shelf",
+                      "strategy_mode": "stock"
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.76
+                    },
+                    "rationale": {
+                      "primary_reason": "shelf stays short of the strongest greenside trouble"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ],
                 "preferred_miss": [
                   {
                     "overlay_id": "preferred-miss-1",
@@ -184,6 +217,10 @@ final class CourseBundleLoaderTests: XCTestCase {
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.count, 1)
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.first?.teeSetId, "all")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.teeTargetCorridors.first?.properties.targetLabel, "Primary stock corridor")
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.layupCandidates.count, 1)
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.layupCandidates.first?.properties.targetLabel, "Left-center layup shelf")
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.layupCandidates.first?.properties.targetDistanceM, 248)
+        XCTAssertEqual(bundle.holes.first?.strategyOverlays.layupCandidates.first?.properties.plannedLeaveDistanceM, 102)
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.preferredMiss.count, 1)
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.preferredMiss.first?.properties.preferredDirection, "left")
         XCTAssertEqual(bundle.holes.first?.strategyOverlays.preferredMiss.first?.properties.avoidDirection, "right")

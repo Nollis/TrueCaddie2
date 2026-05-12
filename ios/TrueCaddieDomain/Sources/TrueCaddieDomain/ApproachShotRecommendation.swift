@@ -97,7 +97,9 @@ public enum ApproachShotRecommendationEngine {
         let adjustedApproachDistance = max(45, baseApproachDistance + target.distanceAdjustmentM)
         let shotPlan = shotPlan(
             hole: hole,
+            holeLength: holeLength,
             targetLabel: target.label,
+            remainingDistanceM: baseApproachDistance,
             approachDistanceM: adjustedApproachDistance,
             greensideHazards: greensideHazards,
             playerContext: playerContext,
@@ -411,7 +413,9 @@ public enum ApproachShotRecommendationEngine {
 
     private static func shotPlan(
         hole: CourseHole,
+        holeLength: Double,
         targetLabel: String,
+        remainingDistanceM: Double,
         approachDistanceM: Double,
         greensideHazards: [GreensideHazard],
         playerContext: PlayerContext?,
@@ -428,14 +432,39 @@ public enum ApproachShotRecommendationEngine {
 
         if hole.par == 5,
            shouldLayUpOnParFive(
-                approachDistanceM: approachDistanceM,
+                approachDistanceM: remainingDistanceM,
                 reachableThreshold: reachableThreshold,
                 greensideHazards: greensideHazards,
                 playerContext: playerContext,
                 roundContext: roundContext
            ) {
+            if let layupCandidate = selectLayupCandidate(
+                in: hole,
+                holeLength: holeLength,
+                remainingDistanceM: remainingDistanceM,
+                roundContext: roundContext,
+                shotStateContext: shotStateContext
+            ) {
+                let currentAlongDistance = max(0, holeLength - remainingDistanceM)
+                let layupDistance = max(70, layupCandidate.properties.targetDistanceM - currentAlongDistance)
+                let layupClub = chooseClub(
+                    shotDistanceM: layupDistance,
+                    playerContext: playerContext,
+                    roundContext: roundContext,
+                    shotStateContext: shotStateContext
+                )
+
+                return ShotPlan(
+                    recommendationType: "layup",
+                    targetLabel: layupCandidate.properties.targetLabel,
+                    shotDistanceM: layupDistance,
+                    plannedLeaveDistanceM: layupCandidate.properties.plannedLeaveDistanceM,
+                    clubRecommendation: layupClub
+                )
+            }
+
             let preferredLeave = preferredLeaveDistance(roundContext: roundContext)
-            let layupDistance = max(70, approachDistanceM - preferredLeave)
+            let layupDistance = max(70, remainingDistanceM - preferredLeave)
             let layupClub = chooseClub(
                 shotDistanceM: layupDistance,
                 playerContext: playerContext,
@@ -464,6 +493,38 @@ public enum ApproachShotRecommendationEngine {
                 shotStateContext: shotStateContext
             )
         )
+    }
+
+    private static func selectLayupCandidate(
+        in hole: CourseHole,
+        holeLength: Double,
+        remainingDistanceM: Double,
+        roundContext: RoundContext?,
+        shotStateContext: ShotStateContext?
+    ) -> LayupCandidateOverlay? {
+        guard shotStateContext?.shotNumber != 1 else {
+            return nil
+        }
+
+        let currentAlongDistance = max(0, holeLength - remainingDistanceM)
+        let minimumAdvanceDistance = max(70, remainingDistanceM * 0.25)
+        let preferredLeave = preferredLeaveDistance(roundContext: roundContext)
+
+        return hole.strategyOverlays.layupCandidates
+            .filter { candidate in
+                let layupDistance = candidate.properties.targetDistanceM - currentAlongDistance
+                return layupDistance >= minimumAdvanceDistance &&
+                    candidate.properties.plannedLeaveDistanceM <= max(140, remainingDistanceM - 45)
+            }
+            .sorted { lhs, rhs in
+                let lhsLeaveDelta = abs(lhs.properties.plannedLeaveDistanceM - preferredLeave)
+                let rhsLeaveDelta = abs(rhs.properties.plannedLeaveDistanceM - preferredLeave)
+                if lhsLeaveDelta == rhsLeaveDelta {
+                    return lhs.confidence.score > rhs.confidence.score
+                }
+                return lhsLeaveDelta < rhsLeaveDelta
+            }
+            .first
     }
 
     private static func requiresSaferApproachTarget(for lie: ShotLie?) -> Bool {

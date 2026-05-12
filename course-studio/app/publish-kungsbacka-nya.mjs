@@ -21,6 +21,11 @@ const teeCorridorDefaults = {
   depthM: 30
 };
 
+const layupCandidateDefaults = {
+  widthM: 22,
+  depthM: 26
+};
+
 function argValue(flag, fallback) {
   const index = process.argv.indexOf(flag);
   return index === -1 ? fallback : process.argv[index + 1];
@@ -139,6 +144,9 @@ function qualityForHole(sourceHole) {
   const teeTargetCorridorScore = sourceHole.par > 3 && hasFairway
     ? Number(Math.max(0.5, Math.min(0.8, 0.62 + Math.max(0, centerlinePoints - 2) * 0.05)).toFixed(2))
     : 0;
+  const layupCandidateScore = sourceHole.par === 5 && hasFairway
+    ? Number(Math.max(0.55, Math.min(0.78, 0.63 + Math.max(0, centerlinePoints - 2) * 0.04)).toFixed(2))
+    : 0;
 
   return {
     hole_publish_confidence: confidence,
@@ -148,7 +156,7 @@ function qualityForHole(sourceHole) {
       preferred_miss: sourceHole.par > 3 && hazardCoverage > 0
         ? Number(Math.max(0.5, Math.min(0.78, 0.48 + hazardCoverage * 0.04)).toFixed(2))
         : 0,
-      layup_candidates: 0,
+      layup_candidates: layupCandidateScore,
       hazard_severity: hazardCoverage > 0 ? Number(Math.min(0.85, 0.45 + hazardCoverage * 0.04).toFixed(2)) : 0
     },
     notes
@@ -312,6 +320,148 @@ function teeCorridorReason(pressures) {
   }
 
   return "corridor follows the broadest stock landing area on the hole centerline";
+}
+
+function sideRiskSummary(sourceHole, landingAlongMeters) {
+  const sideScores = relevantHazardsNearLanding(sourceHole, landingAlongMeters)
+    .reduce((summary, item) => {
+      summary[item.side] = Number(((summary[item.side] ?? 0) + item.riskScore).toFixed(2));
+      return summary;
+    }, {});
+
+  const leftRisk = sideScores.left ?? 0;
+  const rightRisk = sideScores.right ?? 0;
+  const riskGap = Number(Math.abs(leftRisk - rightRisk).toFixed(2));
+
+  if (riskGap < 0.08) {
+    return {
+      preferredSide: "center",
+      avoidSide: null
+    };
+  }
+
+  return leftRisk <= rightRisk
+    ? { preferredSide: "left", avoidSide: "right" }
+    : { preferredSide: "right", avoidSide: "left" };
+}
+
+function layupTargetLabel(preferredSide) {
+  switch (preferredSide) {
+    case "left":
+      return "Left-center layup shelf";
+    case "right":
+      return "Right-center layup shelf";
+    default:
+      return "Center layup shelf";
+  }
+}
+
+function preferredLayupLeave(sourceHole) {
+  const greensideHazards = (sourceHole.features ?? [])
+    .filter((feature) => ["water", "woods", "bunker"].includes(feature.properties?.featureType))
+    .filter((feature) => {
+      const along = numericValue(feature.properties?.centerline_along_m);
+      const holeLength = Math.max(...Object.values(sourceHole.tees ?? {}).map((tee) => tee.teeLengthMeters ?? 0));
+      return along !== null && holeLength > 0 && along >= holeLength - 85;
+    });
+
+  if (greensideHazards.some((feature) => feature.properties?.featureType === "water")) {
+    return 110;
+  }
+
+  if (greensideHazards.length >= 2) {
+    return 102;
+  }
+
+  return 96;
+}
+
+function deriveLayupCandidates(sourceHole, tees, teeTargetCorridors, sourceFile) {
+  const coordinates = sourceHole.centerline?.coordinates ?? [];
+  const centerlineLength = lineLengthMeters(coordinates);
+  const teeCorridor = teeTargetCorridors[0];
+
+  if (sourceHole.par !== 5 || coordinates.length < 2 || centerlineLength <= 0 || !teeCorridor) {
+    return [];
+  }
+
+  const referenceTee = [...tees]
+    .sort((lhs, rhs) => numericValue(rhs.tee_length_m, 0) - numericValue(lhs.tee_length_m, 0))[0];
+  const holeLength = numericValue(referenceTee?.tee_length_m, 0);
+
+  if (holeLength <= 0) {
+    return [];
+  }
+
+  const targetAlong = Math.min(
+    centerlineLength - 35,
+    holeLength - preferredLayupLeave(sourceHole)
+  );
+
+  if (targetAlong <= teeCorridor.properties.target_distance_m + 45) {
+    return [];
+  }
+
+  const layupTarget = interpolateLineAtDistance(coordinates, targetAlong);
+  if (!layupTarget) {
+    return [];
+  }
+
+  const sideSummary = sideRiskSummary(sourceHole, targetAlong);
+  const preferredSide = sideSummary.preferredSide;
+  const avoidSide = sideSummary.avoidSide;
+  const plannedLeaveDistance = Number(Math.max(55, holeLength - targetAlong).toFixed(2));
+  const confidenceScore = Number(Math.max(0.64, teeCorridor.confidence.score - 0.02).toFixed(2));
+  const strongestAvoidHazard = avoidSide
+    ? relevantHazardsNearLanding(sourceHole, targetAlong)
+        .filter((item) => item.side === avoidSide)
+        .sort((lhs, rhs) => rhs.riskScore - lhs.riskScore)[0]?.feature
+    : null;
+  const rationaleDetail = strongestAvoidHazard
+    ? hazardReason(
+        strongestAvoidHazard.properties?.featureType,
+        strongestAvoidHazard.properties?.centerline_side ?? avoidSide,
+        numericValue(strongestAvoidHazard.properties?.centerline_along_m),
+        numericValue(strongestAvoidHazard.properties?.centerline_distance_m)
+      )
+    : null;
+
+  return [{
+    overlay_id: `layup-${sourceHole.holeId ?? sourceHole.hole}-stock`,
+    overlay_type: "layup_candidate",
+    course_id: sourceHole.courseId,
+    hole_id: String(sourceHole.holeId ?? sourceHole.hole),
+    tee_set_id: "all",
+    shot_phase: "layup",
+    geometry: corridorPolygon(
+      layupTarget.coordinate,
+      layupTarget.forwardUnit,
+      layupCandidateDefaults.widthM,
+      layupCandidateDefaults.depthM
+    ),
+    properties: {
+      target_distance_m: Number(targetAlong.toFixed(2)),
+      planned_leave_distance_m: plannedLeaveDistance,
+      target_label: layupTargetLabel(preferredSide),
+      strategy_mode: "stock"
+    },
+    confidence: {
+      band: confidenceScore >= 0.8 ? "high" : confidenceScore >= 0.65 ? "medium" : "low",
+      score: confidenceScore
+    },
+    rationale: {
+      primary_reason: rationaleDetail
+        ? `shelf stays clear of ${rationaleDetail} while preserving a full wedge look`
+        : "shelf preserves a full wedge look from the fairway"
+    },
+    constraints: {
+      derived_from: "course_studio_layup_candidate_v1"
+    },
+    provenance: {
+      source_file: sourceFile,
+      derivation_version: derivationVersion
+    }
+  }];
 }
 
 function relevantHazardsNearLanding(sourceHole, landingAlongMeters) {
@@ -603,6 +753,7 @@ function normalizeHole(sourceHole, teeSets, sourceFile, sourceUpdatedAt) {
     .filter(Boolean);
   const hazardSeverity = deriveHazardSeverity(sourceHole, sourceFile);
   const teeTargetCorridors = deriveTeeTargetCorridors(sourceHole, tees, sourceFile);
+  const layupCandidates = deriveLayupCandidates(sourceHole, tees, teeTargetCorridors, sourceFile);
   const preferredMiss = derivePreferredMiss(sourceHole, teeTargetCorridors, sourceFile);
 
   return {
@@ -631,7 +782,7 @@ function normalizeHole(sourceHole, teeSets, sourceFile, sourceUpdatedAt) {
     strategy_overlays: {
       tee_target_corridors: teeTargetCorridors,
       aggressive_tee_corridors: [],
-      layup_candidates: [],
+      layup_candidates: layupCandidates,
       preferred_miss: preferredMiss,
       hazard_severity: hazardSeverity
     },

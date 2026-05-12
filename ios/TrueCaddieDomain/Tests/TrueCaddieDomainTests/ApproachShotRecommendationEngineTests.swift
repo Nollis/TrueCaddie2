@@ -775,6 +775,253 @@ final class ApproachShotRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(packet?.clubCarryDistanceM, 118)
     }
 
+    func testLayupCandidateOverridesGenericParFiveShelfForSecondShot() throws {
+        let bundle = try loadBundle(from: """
+        {
+          "schema_version": "v1",
+          "bundle_version": "test-bundle",
+          "course_id": "test-course",
+          "course_name": "Test Course",
+          "published_at": "2026-05-10T00:00:00Z",
+          "provenance": {
+            "source_system": "test",
+            "derivation_version": "test"
+          },
+          "holes": [
+            {
+              "hole_id": "7",
+              "hole_number": 7,
+              "par": 5,
+              "tees": [
+                {
+                  "tee_set_id": "white",
+                  "name": "White",
+                  "tee_coordinate": [11.0, 57.0],
+                  "tee_length_m": 460,
+                  "is_default": true
+                }
+              ],
+              "base_mapping_data": {
+                "centerline": {
+                  "type": "LineString",
+                  "coordinates": [[11.0, 57.0], [11.1, 57.1]]
+                },
+                "green": {
+                  "center": [11.1, 57.1],
+                  "front_center": [11.09, 57.09],
+                  "back_center": [11.11, 57.11],
+                  "center_elevation_m": null,
+                  "front_elevation_m": null,
+                  "back_elevation_m": null,
+                  "polygon_feature_id": null
+                },
+                "features": [
+                  {
+                    "feature_id": "bunker-left",
+                    "feature_type": "bunker",
+                    "hazard_kind": "bunker",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.01, 57.0], [11.01, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "name": "bunker-left",
+                      "centerline_along_m": 417,
+                      "centerline_distance_m": 3,
+                      "centerline_side": "left"
+                    }
+                  }
+                ],
+                "out_of_bounds_lines": [],
+                "context_points": []
+              },
+              "strategy_overlays": {
+                "tee_target_corridors": [
+                  {
+                    "overlay_id": "tee-corridor-7",
+                    "overlay_type": "tee_target_corridor",
+                    "course_id": "test-course",
+                    "hole_id": "7",
+                    "tee_set_id": "all",
+                    "shot_phase": "tee",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.02, 57.0], [11.02, 57.01], [11.0, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "target_distance_m": 239.2,
+                      "corridor_width_m": 24,
+                      "corridor_depth_m": 30,
+                      "target_label": "Primary stock corridor",
+                      "fairway_feature_id": "fairway-1",
+                      "strategy_mode": "stock"
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.78
+                    },
+                    "rationale": {
+                      "primary_reason": "corridor avoids the nearest fairway bunker pressure"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ],
+                "aggressive_tee_corridors": [],
+                "layup_candidates": [
+                  {
+                    "overlay_id": "layup-7-stock",
+                    "overlay_type": "layup_candidate",
+                    "course_id": "test-course",
+                    "hole_id": "7",
+                    "tee_set_id": "all",
+                    "shot_phase": "layup",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.02, 57.0], [11.02, 57.01], [11.0, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "target_distance_m": 358,
+                      "planned_leave_distance_m": 102,
+                      "target_label": "Left-center layup shelf",
+                      "strategy_mode": "stock"
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.76
+                    },
+                    "rationale": {
+                      "primary_reason": "shelf stays short of the greenside bunker while preserving a full wedge look"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ],
+                "preferred_miss": [
+                  {
+                    "overlay_id": "preferred-miss-1",
+                    "overlay_type": "preferred_miss",
+                    "course_id": "test-course",
+                    "hole_id": "7",
+                    "tee_set_id": "all",
+                    "shot_phase": "tee",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.02, 57.0], [11.02, 57.01], [11.0, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "preferred_direction": "right",
+                      "avoid_direction": "left",
+                      "preferred_risk_score": 0.14,
+                      "avoid_risk_score": 0.39,
+                      "risk_gap_score": 0.25
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.73
+                    },
+                    "rationale": {
+                      "primary_reason": "left side carries more risk: bunker on the left at 240m along adds recovery cost"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ],
+                "hazard_severity": [
+                  {
+                    "overlay_id": "hazard-1",
+                    "overlay_type": "hazard_severity",
+                    "course_id": "test-course",
+                    "hole_id": "7",
+                    "tee_set_id": "all",
+                    "shot_phase": "all",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.01, 57.0], [11.01, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "hazard_ref_id": "bunker-left",
+                      "hazard_kind": "bunker",
+                      "severity_band": "high",
+                      "severity_score": 0.74,
+                      "context_relevance_score": 0.97,
+                      "penalty_kind": "recovery_only",
+                      "landing_conflict": true,
+                      "blocks_recovery": false
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.72
+                    },
+                    "rationale": {
+                      "primary_reason": "bunker on the left at 417m along adds recovery cost"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ]
+              },
+              "quality_confidence": {
+                "hole_publish_confidence": "medium",
+                "hole_publish_score": 0.7,
+                "overlay_scores": {},
+                "notes": []
+              },
+              "provenance": {
+                "source_system": "test",
+                "source_file": "test.json",
+                "derivation_version": "test"
+              }
+            }
+          ]
+        }
+        """)
+
+        let packet = ApproachShotRecommendationEngine.build(
+            courseId: bundle.courseId,
+            for: try XCTUnwrap(bundle.holes.first),
+            playerContext: .pilotSample,
+            roundContext: RoundContext(
+                teeSetId: "white",
+                teeSetName: "White",
+                strategyPreference: .aggressive,
+                wind: nil
+            ),
+            shotStateContext: ShotStateContext(
+                shotNumber: 2,
+                remainingDistanceM: 220,
+                lie: .fairway
+            )
+        )
+
+        XCTAssertEqual(packet?.recommendationType, "layup")
+        XCTAssertEqual(packet?.targetLabel, "Left-center layup shelf")
+        XCTAssertEqual(packet?.shotDistanceM, 118)
+        XCTAssertEqual(packet?.plannedLeaveDistanceM, 102)
+        XCTAssertEqual(packet?.recommendedClub, "PW")
+        XCTAssertEqual(packet?.clubCarryDistanceM, 118)
+    }
+
     func testShotStateContextOverridesInferredApproachDistance() throws {
         let bundle = try loadBundle(from: """
         {

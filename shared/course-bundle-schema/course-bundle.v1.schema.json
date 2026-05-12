@@ -359,7 +359,10 @@
           "type": "array"
         },
         "layup_candidates": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/layupCandidateOverlay"
+          }
         },
         "preferred_miss": {
           "type": "array",
@@ -525,6 +528,94 @@
           "minLength": 1
         },
         "fairway_feature_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "strategy_mode": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "layupCandidateOverlay": {
+      "type": "object",
+      "required": [
+        "overlay_id",
+        "overlay_type",
+        "course_id",
+        "hole_id",
+        "tee_set_id",
+        "shot_phase",
+        "geometry",
+        "properties",
+        "confidence",
+        "rationale",
+        "constraints",
+        "provenance"
+      ],
+      "properties": {
+        "overlay_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "overlay_type": {
+          "const": "layup_candidate"
+        },
+        "course_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hole_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tee_set_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "shot_phase": {
+          "const": "layup"
+        },
+        "geometry": {
+          "$ref": "#/$defs/geometry"
+        },
+        "properties": {
+          "$ref": "#/$defs/layupCandidateProperties"
+        },
+        "confidence": {
+          "$ref": "#/$defs/overlayConfidence"
+        },
+        "rationale": {
+          "$ref": "#/$defs/overlayRationale"
+        },
+        "constraints": {
+          "$ref": "#/$defs/overlayConstraints"
+        },
+        "provenance": {
+          "$ref": "#/$defs/overlayProvenance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "layupCandidateProperties": {
+      "type": "object",
+      "required": [
+        "target_distance_m",
+        "planned_leave_distance_m",
+        "target_label",
+        "strategy_mode"
+      ],
+      "properties": {
+        "target_distance_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "planned_leave_distance_m": {
+          "type": "number",
+          "minimum": 0
+        },
+        "target_label": {
           "type": "string",
           "minLength": 1
         },
