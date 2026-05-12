@@ -55,6 +55,10 @@ private struct HoleInspectorDetail: View {
     let snapshot: HoleInspectionSnapshot
     let hole: CourseHole
 
+    private var teeShotRecommendation: TeeShotRecommendationPacket? {
+        TeeShotRecommendationEngine.build(courseId: snapshot.courseId, for: hole)
+    }
+
     private var teeTargetCorridors: [TeeTargetCorridorOverlay] {
         hole.strategyOverlays.teeTargetCorridors
             .sorted { lhs, rhs in
@@ -176,6 +180,54 @@ private struct HoleInspectorDetail: View {
                         }
                         .padding(.vertical, 2)
                     }
+                }
+            }
+
+            Section("Tee Shot Recommendation") {
+                if let teeShotRecommendation {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(teeShotRecommendation.targetLabel)
+                                .font(.headline)
+                            Spacer()
+                            Text(teeShotRecommendation.confidenceBand.capitalized)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Text(teeShotRecommendation.primaryReason)
+                            .font(.subheadline)
+
+                        if let supportingReason = teeShotRecommendation.supportingReason {
+                            Text(supportingReason)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 12) {
+                            Text("Target \(format(number: teeShotRecommendation.targetDistanceM)) m")
+                            Text("Risk \(teeShotRecommendation.riskLevel.capitalized)")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                        if let preferredMissDirection = teeShotRecommendation.preferredMissDirection,
+                           let avoidDirection = teeShotRecommendation.avoidDirection {
+                            Text("Favor \(preferredMissDirection.capitalized), avoid \(avoidDirection.capitalized)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if !teeShotRecommendation.hazardSummary.isEmpty {
+                            Text(teeShotRecommendation.hazardSummary.joined(separator: " • "))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                } else {
+                    Text("No tee-shot recommendation packet yet")
+                        .foregroundStyle(.secondary)
                 }
             }
 
