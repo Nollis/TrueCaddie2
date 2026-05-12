@@ -1,11 +1,28 @@
 import Foundation
 
+public enum TeeShotBranch: String, Equatable, Sendable, CaseIterable {
+    case conservative
+    case stock
+    case aggressive
+}
+
+public struct TeeShotBranchOption: Equatable, Sendable, Identifiable {
+    public let branch: TeeShotBranch
+    public let recommendedClub: String?
+    public let clubCarryDistanceM: Double?
+    public let carryBiasM: Double
+    public let summary: String
+
+    public var id: String { branch.rawValue }
+}
+
 public struct TeeShotRecommendationPacket: Equatable, Sendable {
     public let courseId: String
     public let holeId: String
     public let holeNumber: Int
     public let shotPhase: String
     public let strategyMode: String
+    public let selectedBranch: TeeShotBranch
     public let strategyPreference: String?
     public let recommendedClub: String?
     public let clubCarryDistanceM: Double?
@@ -21,6 +38,7 @@ public struct TeeShotRecommendationPacket: Equatable, Sendable {
     public let primaryReason: String
     public let supportingReason: String?
     public let hazardSummary: [String]
+    public let branchOptions: [TeeShotBranchOption]
 }
 
 public enum TeeShotRecommendationEngine {
@@ -54,9 +72,11 @@ public enum TeeShotRecommendationEngine {
         }
 
         let relevantHazards = hazardsRelevantToLanding(in: hole, targetDistanceM: corridor.properties.targetDistanceM)
-        let riskReference = max(
+        let riskLevel = riskLevel(
+            for: max(
             preferredMiss?.properties.avoidRiskScore ?? 0,
             relevantHazards.first?.overlay.properties.severityScore ?? 0
+            )
         )
         let confidenceScore = blendedConfidence(
             corridorScore: corridor.confidence.score,
@@ -67,16 +87,22 @@ public enum TeeShotRecommendationEngine {
             preferredMiss: preferredMiss,
             relevantHazards: relevantHazards
         )
-        let clubRecommendation = chooseClub(
+        let branchOptions = buildBranchOptions(
             for: corridor,
             playerContext: playerContext,
             roundContext: roundContext,
-            riskLevel: riskLevel(for: riskReference)
+            riskLevel: riskLevel
         )
+        let selectedBranch = selectedBranch(
+            playerContext: playerContext,
+            roundContext: roundContext,
+            riskLevel: riskLevel
+        )
+        let selectedBranchOption = branchOptions.first { $0.branch == selectedBranch }
         let supportingReason = supportingReason(
             corridor: corridor,
             preferredMiss: preferredMiss,
-            clubRecommendation: clubRecommendation,
+            branchOption: selectedBranchOption,
             roundContext: roundContext
         )
 
@@ -86,26 +112,63 @@ public enum TeeShotRecommendationEngine {
             holeNumber: hole.holeNumber,
             shotPhase: "tee",
             strategyMode: corridor.properties.strategyMode,
+            selectedBranch: selectedBranch,
             strategyPreference: roundContext?.strategyPreference.rawValue,
-            recommendedClub: clubRecommendation?.name,
-            clubCarryDistanceM: clubRecommendation?.carryDistanceM,
+            recommendedClub: selectedBranchOption?.recommendedClub,
+            clubCarryDistanceM: selectedBranchOption?.clubCarryDistanceM,
             targetLabel: corridor.properties.targetLabel,
             targetDistanceM: corridor.properties.targetDistanceM,
             targetWidthM: corridor.properties.corridorWidthM,
             targetDepthM: corridor.properties.corridorDepthM,
             preferredMissDirection: preferredMiss?.properties.preferredDirection,
             avoidDirection: preferredMiss?.properties.avoidDirection,
-            riskLevel: riskLevel(for: riskReference),
+            riskLevel: riskLevel,
             confidenceBand: confidenceBand(for: confidenceScore),
             confidenceScore: confidenceScore,
             primaryReason: primaryReason,
             supportingReason: supportingReason,
-            hazardSummary: Array(relevantHazards.prefix(2).map(\.summary))
+            hazardSummary: Array(relevantHazards.prefix(2).map(\.summary)),
+            branchOptions: branchOptions
         )
+    }
+
+    private static func buildBranchOptions(
+        for corridor: TeeTargetCorridorOverlay,
+        playerContext: PlayerContext?,
+        roundContext: RoundContext?,
+        riskLevel: String
+    ) -> [TeeShotBranchOption] {
+        TeeShotBranch.allCases.compactMap { branch in
+            guard let clubRecommendation = chooseClub(
+                for: corridor,
+                branch: branch,
+                playerContext: playerContext,
+                roundContext: roundContext,
+                riskLevel: riskLevel
+            ) else {
+                return nil
+            }
+
+            let carryBias = carryBias(
+                for: branch,
+                playerContext: playerContext,
+                roundContext: roundContext,
+                riskLevel: riskLevel
+            )
+
+            return TeeShotBranchOption(
+                branch: branch,
+                recommendedClub: clubRecommendation.name,
+                clubCarryDistanceM: clubRecommendation.carryDistanceM,
+                carryBiasM: carryBias,
+                summary: branchSummary(for: branch)
+            )
+        }
     }
 
     private static func chooseClub(
         for corridor: TeeTargetCorridorOverlay,
+        branch: TeeShotBranch,
         playerContext: PlayerContext?,
         roundContext: RoundContext?,
         riskLevel: String
@@ -114,20 +177,12 @@ public enum TeeShotRecommendationEngine {
             return nil
         }
 
-        var carryBias: Double
-        switch (playerContext.riskTolerance, riskLevel) {
-        case (.conservative, _), (_, "high"):
-            carryBias = -10
-        case (.aggressive, "low"), (.aggressive, "medium"):
-            carryBias = 5
-        default:
-            carryBias = 0
-        }
-
-        if let roundContext {
-            carryBias += carryBiasForRoundContext(roundContext)
-        }
-
+        let carryBias = carryBias(
+            for: branch,
+            playerContext: playerContext,
+            roundContext: roundContext,
+            riskLevel: riskLevel
+        )
         let desiredCarry = corridor.properties.targetDistanceM + carryBias
 
         return playerContext.clubs.min { lhs, rhs in
@@ -138,6 +193,76 @@ public enum TeeShotRecommendationEngine {
             }
             return lhsDelta < rhsDelta
         }
+    }
+
+    private static func selectedBranch(
+        playerContext: PlayerContext?,
+        roundContext: RoundContext?,
+        riskLevel: String
+    ) -> TeeShotBranch {
+        var scores: [TeeShotBranch: Int] = [
+            .conservative: 0,
+            .stock: 0,
+            .aggressive: 0
+        ]
+
+        if let roundContext {
+            switch roundContext.strategyPreference {
+            case .conservative:
+                scores[.conservative, default: 0] += 3
+            case .balanced:
+                scores[.stock, default: 0] += 2
+            case .aggressive:
+                scores[.aggressive, default: 0] += 3
+            }
+        }
+
+        if let playerContext {
+            switch playerContext.riskTolerance {
+            case .conservative:
+                scores[.conservative, default: 0] += 2
+            case .balanced:
+                scores[.stock, default: 0] += 1
+            case .aggressive:
+                scores[.aggressive, default: 0] += 2
+            }
+
+            if let handicapIndex = playerContext.handicapIndex {
+                switch handicapIndex {
+                case ..<8:
+                    scores[.aggressive, default: 0] += 2
+                    scores[.stock, default: 0] += 1
+                case 18...:
+                    scores[.conservative, default: 0] += 2
+                    scores[.stock, default: 0] += 1
+                default:
+                    scores[.stock, default: 0] += 2
+                }
+            }
+        } else {
+            scores[.stock, default: 0] += 1
+        }
+
+        switch riskLevel {
+        case "high":
+            scores[.conservative, default: 0] += 2
+            scores[.stock, default: 0] += 1
+            scores[.aggressive, default: 0] -= 2
+        case "medium":
+            scores[.stock, default: 0] += 2
+        default:
+            scores[.aggressive, default: 0] += 2
+            scores[.stock, default: 0] += 1
+        }
+
+        return TeeShotBranch.allCases.max { lhs, rhs in
+            let lhsScore = scores[lhs, default: 0]
+            let rhsScore = scores[rhs, default: 0]
+            if lhsScore == rhsScore {
+                return branchPriority(lhs) > branchPriority(rhs)
+            }
+            return lhsScore < rhsScore
+        } ?? .stock
     }
 
     private static func hazardsRelevantToLanding(
@@ -191,20 +316,22 @@ public enum TeeShotRecommendationEngine {
     private static func supportingReason(
         corridor: TeeTargetCorridorOverlay,
         preferredMiss: PreferredMissOverlay?,
-        clubRecommendation: PlayerClub?,
+        branchOption: TeeShotBranchOption?,
         roundContext: RoundContext?
     ) -> String? {
-        if let clubRecommendation {
+        if let branchOption,
+           let recommendedClub = branchOption.recommendedClub,
+           let clubCarryDistanceM = branchOption.clubCarryDistanceM {
             let windText = windSupportText(roundContext?.wind)
             if let windText {
-                return "\(clubRecommendation.name) carry \(format(number: clubRecommendation.carryDistanceM))m matches the stock landing window with \(windText)."
+                return "\(recommendedClub) carry \(format(number: clubCarryDistanceM))m \(branchPhrase(for: branchOption.branch)) with \(windText)."
             }
 
             if let roundContext, roundContext.strategyPreference != .balanced {
-                return "\(clubRecommendation.name) carry \(format(number: clubRecommendation.carryDistanceM))m fits today's \(roundContext.strategyPreference.rawValue) plan."
+                return "\(recommendedClub) carry \(format(number: clubCarryDistanceM))m fits today's \(roundContext.strategyPreference.rawValue) plan."
             }
 
-            return "\(clubRecommendation.name) carry \(format(number: clubRecommendation.carryDistanceM))m matches the stock landing window."
+            return "\(recommendedClub) carry \(format(number: clubCarryDistanceM))m \(branchPhrase(for: branchOption.branch))."
         }
 
         if let preferredMiss, preferredMiss.rationale.primaryReason != corridor.rationale.primaryReason {
@@ -288,6 +415,77 @@ public enum TeeShotRecommendationEngine {
             return "\(speed)m/s headwind"
         case .cross:
             return "\(speed)m/s crosswind"
+        }
+    }
+
+    private static func carryBias(
+        for branch: TeeShotBranch,
+        playerContext: PlayerContext?,
+        roundContext: RoundContext?,
+        riskLevel: String
+    ) -> Double {
+        let baseBias = baseCarryBias(playerContext: playerContext, riskLevel: riskLevel)
+        let branchBias = branchCarryBias(branch)
+        let roundBias = roundContext.map(carryBiasForRoundContext) ?? 0
+        return baseBias + branchBias + roundBias
+    }
+
+    private static func baseCarryBias(playerContext: PlayerContext?, riskLevel: String) -> Double {
+        guard let playerContext else {
+            return 0
+        }
+
+        switch (playerContext.riskTolerance, riskLevel) {
+        case (.conservative, _), (_, "high"):
+            return -10
+        case (.aggressive, "low"), (.aggressive, "medium"):
+            return 5
+        default:
+            return 0
+        }
+    }
+
+    private static func branchCarryBias(_ branch: TeeShotBranch) -> Double {
+        switch branch {
+        case .conservative:
+            return -25
+        case .stock:
+            return 0
+        case .aggressive:
+            return 20
+        }
+    }
+
+    private static func branchSummary(for branch: TeeShotBranch) -> String {
+        switch branch {
+        case .conservative:
+            return "backs off from the riskiest edge of the stock landing window"
+        case .stock:
+            return "stays on the stock landing number"
+        case .aggressive:
+            return "presses toward the far edge of the stock landing window"
+        }
+    }
+
+    private static func branchPhrase(for branch: TeeShotBranch) -> String {
+        switch branch {
+        case .conservative:
+            return "keeps the ball short of the riskiest edge of the stock landing window"
+        case .stock:
+            return "matches the stock landing window"
+        case .aggressive:
+            return "presses toward the far edge of the stock landing window"
+        }
+    }
+
+    private static func branchPriority(_ branch: TeeShotBranch) -> Int {
+        switch branch {
+        case .stock:
+            return 0
+        case .conservative:
+            return 1
+        case .aggressive:
+            return 2
         }
     }
 }

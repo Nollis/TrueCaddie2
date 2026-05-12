@@ -241,6 +241,10 @@ private struct HoleInspectorDetail: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                        Text("Selected branch: \(teeShotRecommendation.selectedBranch.rawValue.capitalized)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
                         if let strategyPreference = teeShotRecommendation.strategyPreference {
                             Text("Today's plan: \(strategyPreference.capitalized)")
                                 .font(.caption)
@@ -265,6 +269,36 @@ private struct HoleInspectorDetail: View {
                             Text(teeShotRecommendation.hazardSummary.joined(separator: " • "))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                        }
+
+                        if !teeShotRecommendation.branchOptions.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Branches")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+
+                                ForEach(teeShotRecommendation.branchOptions) { option in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Text(option.branch.rawValue.capitalized)
+                                            .font(.caption.weight(option.branch == teeShotRecommendation.selectedBranch ? .bold : .regular))
+                                            .frame(width: 88, alignment: .leading)
+
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            if let recommendedClub = option.recommendedClub,
+                                               let carryDistance = option.clubCarryDistanceM {
+                                                Text("\(recommendedClub) • \(format(number: carryDistance)) m")
+                                                    .font(.caption)
+                                            }
+
+                                            Text(option.summary)
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Spacer()
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(.vertical, 2)

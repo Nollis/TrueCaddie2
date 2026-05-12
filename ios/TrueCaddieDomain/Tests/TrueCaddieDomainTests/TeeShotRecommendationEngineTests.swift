@@ -201,6 +201,7 @@ final class TeeShotRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(packet?.courseId, "test-course")
         XCTAssertEqual(packet?.holeId, "1")
         XCTAssertEqual(packet?.targetLabel, "Primary stock corridor")
+        XCTAssertEqual(packet?.selectedBranch, .stock)
         XCTAssertNil(packet?.strategyPreference)
         XCTAssertEqual(packet?.recommendedClub, "5 Wood")
         XCTAssertEqual(packet?.clubCarryDistanceM, 200)
@@ -210,6 +211,11 @@ final class TeeShotRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(packet?.confidenceBand, "medium")
         XCTAssertEqual(packet?.hazardSummary, ["Water right"])
         XCTAssertEqual(packet?.supportingReason, "5 Wood carry 200m matches the stock landing window.")
+        XCTAssertEqual(packet?.branchOptions.count, 3)
+        XCTAssertEqual(
+            packet?.branchOptions.map(\.recommendedClub),
+            ["5 Iron", "5 Wood", "3 Wood"]
+        )
         XCTAssertEqual(
             packet?.primaryReason,
             "Favor left. right side carries more risk: water on the right at 200m along with 18m from centerline"
@@ -419,10 +425,230 @@ final class TeeShotRecommendationEngineTests: XCTestCase {
             roundContext: roundContext
         )
 
+        XCTAssertEqual(packet?.selectedBranch, .stock)
         XCTAssertEqual(packet?.strategyPreference, "balanced")
         XCTAssertEqual(packet?.recommendedClub, "3 Wood")
         XCTAssertEqual(packet?.clubCarryDistanceM, 215)
         XCTAssertEqual(packet?.supportingReason, "3 Wood carry 215m matches the stock landing window with 6m/s headwind.")
+        XCTAssertEqual(
+            packet?.branchOptions.map(\.recommendedClub),
+            ["4 Hybrid", "3 Wood", "Driver"]
+        )
+    }
+
+    func testLowHandicapAggressiveRoundCanSelectAggressiveBranch() throws {
+        let bundle = try loadBundle(from: """
+        {
+          "schema_version": "v1",
+          "bundle_version": "test-bundle",
+          "course_id": "test-course",
+          "course_name": "Test Course",
+          "published_at": "2026-05-10T00:00:00Z",
+          "provenance": {
+            "source_system": "test",
+            "derivation_version": "test"
+          },
+          "holes": [
+            {
+              "hole_id": "1",
+              "hole_number": 1,
+              "par": 4,
+              "tees": [
+                {
+                  "tee_set_id": "white",
+                  "name": "White",
+                  "tee_coordinate": [11.0, 57.0],
+                  "tee_length_m": 350,
+                  "is_default": true
+                }
+              ],
+              "base_mapping_data": {
+                "centerline": {
+                  "type": "LineString",
+                  "coordinates": [[11.0, 57.0], [11.1, 57.1]]
+                },
+                "green": {
+                  "center": [11.1, 57.1],
+                  "front_center": null,
+                  "back_center": null,
+                  "center_elevation_m": null,
+                  "front_elevation_m": null,
+                  "back_elevation_m": null,
+                  "polygon_feature_id": null
+                },
+                "features": [
+                  {
+                    "feature_id": "water-right",
+                    "feature_type": "water",
+                    "hazard_kind": "water",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.01, 57.0], [11.01, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "name": "water-1",
+                      "centerline_along_m": 200,
+                      "centerline_distance_m": 18,
+                      "centerline_side": "right"
+                    }
+                  }
+                ],
+                "out_of_bounds_lines": [],
+                "context_points": []
+              },
+              "strategy_overlays": {
+                "tee_target_corridors": [
+                  {
+                    "overlay_id": "tee-corridor-1",
+                    "overlay_type": "tee_target_corridor",
+                    "course_id": "test-course",
+                    "hole_id": "1",
+                    "tee_set_id": "all",
+                    "shot_phase": "tee",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.02, 57.0], [11.02, 57.01], [11.0, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "target_distance_m": 210,
+                      "corridor_width_m": 24,
+                      "corridor_depth_m": 30,
+                      "target_label": "Primary stock corridor",
+                      "fairway_feature_id": "fairway-1",
+                      "strategy_mode": "stock"
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.74
+                    },
+                    "rationale": {
+                      "primary_reason": "corridor follows the broadest stock landing area"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ],
+                "aggressive_tee_corridors": [],
+                "layup_candidates": [],
+                "preferred_miss": [
+                  {
+                    "overlay_id": "preferred-miss-1",
+                    "overlay_type": "preferred_miss",
+                    "course_id": "test-course",
+                    "hole_id": "1",
+                    "tee_set_id": "all",
+                    "shot_phase": "tee",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.02, 57.0], [11.02, 57.01], [11.0, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "preferred_direction": "left",
+                      "avoid_direction": "right",
+                      "preferred_risk_score": 0.18,
+                      "avoid_risk_score": 0.40,
+                      "risk_gap_score": 0.22
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.73
+                    },
+                    "rationale": {
+                      "primary_reason": "right side still carries more risk, but the gap is manageable"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ],
+                "hazard_severity": [
+                  {
+                    "overlay_id": "hazard-1",
+                    "overlay_type": "hazard_severity",
+                    "course_id": "test-course",
+                    "hole_id": "1",
+                    "tee_set_id": "all",
+                    "shot_phase": "all",
+                    "geometry": {
+                      "type": "Polygon",
+                      "coordinates": [[[11.0, 57.0], [11.01, 57.0], [11.01, 57.01], [11.0, 57.0]]]
+                    },
+                    "properties": {
+                      "hazard_ref_id": "water-right",
+                      "hazard_kind": "water",
+                      "severity_band": "high",
+                      "severity_score": 0.42,
+                      "context_relevance_score": 0.60,
+                      "penalty_kind": "stroke_penalty",
+                      "landing_conflict": true,
+                      "blocks_recovery": false
+                    },
+                    "confidence": {
+                      "band": "medium",
+                      "score": 0.72
+                    },
+                    "rationale": {
+                      "primary_reason": "water right is present, but not dominant"
+                    },
+                    "constraints": {
+                      "derived_from": "test"
+                    },
+                    "provenance": {
+                      "source_file": "test.json",
+                      "derivation_version": "test"
+                    }
+                  }
+                ]
+              },
+              "quality_confidence": {
+                "hole_publish_confidence": "medium",
+                "hole_publish_score": 0.7,
+                "overlay_scores": {},
+                "notes": []
+              },
+              "provenance": {
+                "source_system": "test",
+                "source_file": "test.json",
+                "derivation_version": "test"
+              }
+            }
+          ]
+        }
+        """)
+
+        let playerContext = PlayerContext(
+            displayName: "Scratch Tester",
+            handicapIndex: 4.2,
+            riskTolerance: .aggressive,
+            clubs: PlayerContext.pilotSample.clubs
+        )
+        let roundContext = RoundContext(
+            teeSetId: "white",
+            teeSetName: "White",
+            strategyPreference: .aggressive,
+            wind: nil
+        )
+
+        let packet = TeeShotRecommendationEngine.build(
+            courseId: bundle.courseId,
+            for: try XCTUnwrap(bundle.holes.first),
+            playerContext: playerContext,
+            roundContext: roundContext
+        )
+
+        XCTAssertEqual(packet?.selectedBranch, .aggressive)
+        XCTAssertEqual(packet?.strategyPreference, "aggressive")
+        XCTAssertEqual(packet?.recommendedClub, "Driver")
+        XCTAssertEqual(packet?.clubCarryDistanceM, 235)
     }
 
     func testReturnsNilWithoutTeeCorridor() throws {
