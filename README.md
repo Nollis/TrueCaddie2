@@ -5,7 +5,8 @@ TrueCaddie is organized as a small monorepo while the course bundle contract is 
 ## Layout
 
 - `course-studio/` prepares and publishes canonical course bundles.
-- `ios/` contains the on-device runtime modules for the future iOS app.
+- `ios/TrueCaddieDomain/` contains the Swift package for loading and validating course bundles.
+- `ios/TrueCaddieHost/` contains the iOS host app that renders the current bundle inspector.
 - `shared/` contains the bundle schema, pilot data snapshots, and published sample bundles.
 - `openspec/` contains architecture and implementation proposals.
 

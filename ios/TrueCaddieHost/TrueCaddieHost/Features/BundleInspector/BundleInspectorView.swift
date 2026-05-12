@@ -416,18 +416,7 @@ private struct FeatureHighlight: Identifiable {
 #if DEBUG
 private enum BundleInspectorPreviewSupport {
     static func loadBundle() throws -> CourseBundle {
-        let sourceFile = URL(fileURLWithPath: #filePath)
-        let repoRoot = sourceFile
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let bundleURL = repoRoot
-            .appendingPathComponent("shared", isDirectory: true)
-            .appendingPathComponent("sample-bundles", isDirectory: true)
-            .appendingPathComponent("kungsbacka-nya.v1.json")
-
-        let data = try Data(contentsOf: bundleURL)
-        return try CourseBundleLoader().load(data: data)
+        try HostCourseBundleStore.loadKungsbackaNya()
     }
 }
 

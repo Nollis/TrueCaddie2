@@ -4,8 +4,9 @@ The iOS runtime consumes published course bundles and eventually runs the on-dev
 
 The current repo contains:
 
+- `TrueCaddieHost/`, the iOS app shell used to run the current inspector UI
 - a domain package for loading and validating canonical bundles
 - a hole-sketch layout module with unit tests
-- a SwiftUI inspector view with a committed `#Preview` that loads the published `kungsbacka-nya` sample bundle
+- a SwiftUI inspector feature with a committed `#Preview` that loads the bundled `kungsbacka-nya` sample bundle
 
-Swift tooling is not available in this local Windows environment, so simulator and preview verification still happen in an Apple toolchain on the Mac side.
+Open `TrueCaddieHost/TrueCaddieHost.xcodeproj` to run the app. The app root loads the bundled `kungsbacka-nya.v1.json` sample and displays `BundleInspectorView`.
