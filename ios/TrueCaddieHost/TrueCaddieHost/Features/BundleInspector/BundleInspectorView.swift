@@ -60,6 +60,7 @@ private struct HoleInspectorDetail: View {
     let hole: CourseHole
     let playerContext: PlayerContext
     let roundContext: RoundContext
+    @State private var selectedTab: HoleInspectorModel.HoleInspectorTab = .overview
     @State private var selectedScenarioId = ""
 
     private var nextShotRecommendation: NextShotRecommendationPacket? {
@@ -114,362 +115,409 @@ private struct HoleInspectorDetail: View {
         shotStateScenarios.first(where: { $0.id == selectedScenarioId }) ?? shotStateScenarios.first
     }
 
+    private var visibleSections: Set<HoleInspectorModel.HoleInspectorSection> {
+        Set(HoleInspectorModel.sections(for: selectedTab))
+    }
+
     var body: some View {
         List {
-            Section("Hole Sketch") {
-                HoleSketchView(hole: hole)
-                    .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+            Section {
+                Picker("Inspector View", selection: $selectedTab) {
+                    ForEach(HoleInspectorModel.HoleInspectorTab.allCases) { tab in
+                        Text(tab.title).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
             }
 
-            Section("Bundle") {
-                LabeledContent("Course", value: snapshot.courseId)
-                LabeledContent("Version", value: snapshot.bundleVersion)
-                LabeledContent("Quality", value: qualityLabel)
-                LabeledContent("Published", value: hole.provenance.derivationVersion)
-            }
-
-            Section("Hole") {
-                LabeledContent("Hole", value: "\(snapshot.holeNumber)")
-                LabeledContent("Par", value: "\(snapshot.par)")
-                LabeledContent("Tees", value: "\(snapshot.teeCount)")
-                LabeledContent("Features", value: "\(snapshot.featureCount)")
-                if let bearing = defaultBearingText {
-                    LabeledContent("Direction", value: bearing)
+            if visibleSections.contains(.holeSketch) {
+                Section("Hole Sketch") {
+                    HoleSketchView(hole: hole)
+                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                 }
             }
 
-            Section("Green") {
-                LabeledContent("Center", value: coordinateText(hole.baseMappingData.green.center))
-
-                if let frontCenter = hole.baseMappingData.green.frontCenter {
-                    LabeledContent("Front", value: coordinateText(frontCenter))
-                }
-
-                if let backCenter = hole.baseMappingData.green.backCenter {
-                    LabeledContent("Back", value: coordinateText(backCenter))
+            if visibleSections.contains(.bundle) {
+                Section("Bundle") {
+                    LabeledContent("Course", value: snapshot.courseId)
+                    LabeledContent("Version", value: snapshot.bundleVersion)
+                    LabeledContent("Quality", value: qualityLabel)
+                    LabeledContent("Published", value: hole.provenance.derivationVersion)
                 }
             }
 
-            Section("Tees") {
-                ForEach(hole.tees) { tee in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(tee.name)
-                            if tee.isDefault == true {
+            if visibleSections.contains(.hole) {
+                Section("Hole") {
+                    LabeledContent("Hole", value: "\(snapshot.holeNumber)")
+                    LabeledContent("Par", value: "\(snapshot.par)")
+                    LabeledContent("Tees", value: "\(snapshot.teeCount)")
+                    LabeledContent("Features", value: "\(snapshot.featureCount)")
+                    if let bearing = defaultBearingText {
+                        LabeledContent("Direction", value: bearing)
+                    }
+                }
+            }
+
+            if visibleSections.contains(.green) {
+                Section("Green") {
+                    LabeledContent("Center", value: coordinateText(hole.baseMappingData.green.center))
+
+                    if let frontCenter = hole.baseMappingData.green.frontCenter {
+                        LabeledContent("Front", value: coordinateText(frontCenter))
+                    }
+
+                    if let backCenter = hole.baseMappingData.green.backCenter {
+                        LabeledContent("Back", value: coordinateText(backCenter))
+                    }
+                }
+            }
+
+            if visibleSections.contains(.tees) {
+                Section("Tees") {
+                    ForEach(hole.tees) { tee in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(tee.name)
+                                if tee.isDefault == true {
+                                    Spacer()
+                                    Text("Default")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            HStack {
+                                Text("\(Int(tee.teeLengthM)) m")
+                                    .foregroundStyle(.secondary)
                                 Spacer()
-                                Text("Default")
+                                Text(coordinateText(tee.teeCoordinate))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
+                    }
+                }
+            }
 
-                        HStack {
-                            Text("\(Int(tee.teeLengthM)) m")
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text(coordinateText(tee.teeCoordinate))
+            if visibleSections.contains(.playerContext) {
+                Section("Player Context") {
+                    LabeledContent("Player", value: playerContext.displayName)
+                    if let handicapIndex = playerContext.handicapIndex {
+                        LabeledContent("Handicap", value: format(number: handicapIndex))
+                    }
+                    LabeledContent("Risk", value: playerContext.riskTolerance.rawValue.capitalized)
+                    if let longestClub = playerContext.clubs.first {
+                        LabeledContent("Top Club", value: "\(longestClub.name) • \(format(number: longestClub.carryDistanceM)) m")
+                    }
+                }
+            }
+
+            if visibleSections.contains(.roundContext) {
+                Section("Round Context") {
+                    LabeledContent("Tee", value: roundContext.teeSetName)
+                    LabeledContent("Strategy", value: roundContext.strategyPreference.rawValue.capitalized)
+                    if let wind = roundContext.wind {
+                        LabeledContent("Wind", value: windLabel(wind))
+                    }
+                }
+            }
+
+            if visibleSections.contains(.shotState) {
+                Section("Shot State") {
+                    if !shotStateScenarios.isEmpty {
+                        Picker("Scenario", selection: $selectedScenarioId) {
+                            ForEach(shotStateScenarios) { scenario in
+                                Text(scenario.name).tag(scenario.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+
+                    if let selectedScenario {
+                        Text(selectedScenario.detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let shotStateContext {
+                        LabeledContent("Shot", value: "\(shotStateContext.shotNumber)")
+                        LabeledContent("Lie", value: shotStateContext.lie.rawValue.capitalized)
+                        LabeledContent("Remaining", value: "\(format(number: shotStateContext.remainingDistanceM)) m")
+                    } else {
+                        Text("No sample shot state yet")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            if visibleSections.contains(.teeTargetCorridors) {
+                Section("Tee Target Corridors") {
+                    if teeTargetCorridors.isEmpty {
+                        Text("No derived tee corridors yet")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(teeTargetCorridors) { corridor in
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text(corridorLabel(for: corridor))
+                                        .font(.headline)
+                                    Spacer()
+                                    Text(corridor.confidence.band.capitalized)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Text(corridor.rationale.primaryReason)
+                                    .font(.subheadline)
+
+                                if corridor.teeSetId == "all" {
+                                    Text("Applies across all tees")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                HStack(spacing: 12) {
+                                    Text("Target \(format(number: corridor.properties.targetDistanceM)) m")
+                                    Text("W \(format(number: corridor.properties.corridorWidthM))")
+                                    Text("D \(format(number: corridor.properties.corridorDepthM))")
+                                }
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 2)
                         }
                     }
                 }
             }
 
-            Section("Player Context") {
-                LabeledContent("Player", value: playerContext.displayName)
-                if let handicapIndex = playerContext.handicapIndex {
-                    LabeledContent("Handicap", value: format(number: handicapIndex))
-                }
-                LabeledContent("Risk", value: playerContext.riskTolerance.rawValue.capitalized)
-                if let longestClub = playerContext.clubs.first {
-                    LabeledContent("Top Club", value: "\(longestClub.name) • \(format(number: longestClub.carryDistanceM)) m")
-                }
-            }
-
-            Section("Round Context") {
-                LabeledContent("Tee", value: roundContext.teeSetName)
-                LabeledContent("Strategy", value: roundContext.strategyPreference.rawValue.capitalized)
-                if let wind = roundContext.wind {
-                    LabeledContent("Wind", value: windLabel(wind))
-                }
-            }
-
-            Section("Shot State") {
-                if !shotStateScenarios.isEmpty {
-                    Picker("Scenario", selection: $selectedScenarioId) {
-                        ForEach(shotStateScenarios) { scenario in
-                            Text(scenario.name).tag(scenario.id)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-
-                if let selectedScenario {
-                    Text(selectedScenario.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let shotStateContext {
-                    LabeledContent("Shot", value: "\(shotStateContext.shotNumber)")
-                    LabeledContent("Lie", value: shotStateContext.lie.rawValue.capitalized)
-                    LabeledContent("Remaining", value: "\(format(number: shotStateContext.remainingDistanceM)) m")
-                } else {
-                    Text("No sample shot state yet")
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Tee Target Corridors") {
-                if teeTargetCorridors.isEmpty {
-                    Text("No derived tee corridors yet")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(teeTargetCorridors) { corridor in
-                        VStack(alignment: .leading, spacing: 6) {
+            if visibleSections.contains(.nextShotRecommendation) {
+                Section("Next Shot Recommendation") {
+                    if let nextShotRecommendation {
+                        VStack(alignment: .leading, spacing: 8) {
                             HStack {
-                                Text(corridorLabel(for: corridor))
+                                Text(nextShotRecommendation.headline)
                                     .font(.headline)
                                 Spacer()
-                                Text(corridor.confidence.band.capitalized)
+                                Text(nextShotRecommendation.confidenceBand.capitalized)
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(.secondary)
                             }
 
-                            Text(corridor.rationale.primaryReason)
+                            Text(nextShotRecommendation.primaryReason)
                                 .font(.subheadline)
 
-                            if corridor.teeSetId == "all" {
-                                Text("Applies across all tees")
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Voice Preview")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+
+                                Text(HoleInspectorModel.voicePreviewText(for: nextShotRecommendation))
+                                    .font(.callout)
+                            }
+                            .padding(12)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                            Text(nextShotRecommendation.executionNote)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            if let missNote = nextShotRecommendation.missNote {
+                                Text(missNote)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let fallbackNote = nextShotRecommendation.fallbackNote {
+                                Text(fallbackNote)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
 
                             HStack(spacing: 12) {
-                                Text("Target \(format(number: corridor.properties.targetDistanceM)) m")
-                                Text("W \(format(number: corridor.properties.corridorWidthM))")
-                                Text("D \(format(number: corridor.properties.corridorDepthM))")
+                                Text("\(nextShotRecommendation.recommendationType.capitalized) \(format(number: nextShotRecommendation.shotDistanceM)) m")
+                                Text("Risk \(nextShotRecommendation.riskLevel.capitalized)")
                             }
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-            }
 
-            Section("Next Shot Recommendation") {
-                if let nextShotRecommendation {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(nextShotRecommendation.headline)
-                                .font(.headline)
-                            Spacer()
-                            Text(nextShotRecommendation.confidenceBand.capitalized)
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Text(nextShotRecommendation.primaryReason)
-                            .font(.subheadline)
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Voice Preview")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-
-                            Text(HoleInspectorModel.voicePreviewText(for: nextShotRecommendation))
-                                .font(.callout)
-                        }
-                        .padding(12)
-                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                        Text(nextShotRecommendation.executionNote)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        if let missNote = nextShotRecommendation.missNote {
-                            Text(missNote)
+                            Text("Shot \(nextShotRecommendation.shotNumber) • \(nextShotRecommendation.lie.rawValue.capitalized)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                        }
 
-                        if let fallbackNote = nextShotRecommendation.fallbackNote {
-                            Text(fallbackNote)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        HStack(spacing: 12) {
-                            Text("\(nextShotRecommendation.recommendationType.capitalized) \(format(number: nextShotRecommendation.shotDistanceM)) m")
-                            Text("Risk \(nextShotRecommendation.riskLevel.capitalized)")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                        Text("Shot \(nextShotRecommendation.shotNumber) • \(nextShotRecommendation.lie.rawValue.capitalized)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        if let strategyPreference = nextShotRecommendation.strategyPreference {
-                            Text("Today's plan: \(strategyPreference.capitalized)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let plannedLeaveDistanceM = nextShotRecommendation.plannedLeaveDistanceM {
-                            Text("Leave \(format(number: plannedLeaveDistanceM)) m")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let recommendedClub = nextShotRecommendation.recommendedClub,
-                           let clubCarryDistanceM = nextShotRecommendation.clubCarryDistanceM {
-                            Text("\(recommendedClub) • carry \(format(number: clubCarryDistanceM)) m")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let preferredMissDirection = nextShotRecommendation.preferredMissDirection,
-                           let avoidDirection = nextShotRecommendation.avoidDirection {
-                            Text("Favor \(preferredMissDirection.capitalized), avoid \(avoidDirection.capitalized)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if !nextShotRecommendation.hazardSummary.isEmpty {
-                            Text(nextShotRecommendation.hazardSummary.joined(separator: " • "))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                } else {
-                    Text("No next-shot recommendation packet yet")
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Preferred Miss") {
-                if preferredMissOverlays.isEmpty {
-                    Text("No preferred miss guidance yet")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(preferredMissOverlays) { preferredMiss in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(preferredMissLabel(for: preferredMiss))
-                                    .font(.headline)
-                                Spacer()
-                                Text(preferredMiss.confidence.band.capitalized)
-                                    .font(.caption.weight(.semibold))
+                            if let strategyPreference = nextShotRecommendation.strategyPreference {
+                                Text("Today's plan: \(strategyPreference.capitalized)")
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
 
-                            Text(preferredMiss.rationale.primaryReason)
-                                .font(.subheadline)
-
-                            HStack(spacing: 12) {
-                                Text("Safer \(format(number: preferredMiss.properties.preferredRiskScore))")
-                                Text("Avoid \(format(number: preferredMiss.properties.avoidRiskScore))")
-                                Text("Gap \(format(number: preferredMiss.properties.riskGapScore))")
+                            if let plannedLeaveDistanceM = nextShotRecommendation.plannedLeaveDistanceM {
+                                Text("Leave \(format(number: plannedLeaveDistanceM)) m")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+
+                            if let recommendedClub = nextShotRecommendation.recommendedClub,
+                               let clubCarryDistanceM = nextShotRecommendation.clubCarryDistanceM {
+                                Text("\(recommendedClub) • carry \(format(number: clubCarryDistanceM)) m")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let preferredMissDirection = nextShotRecommendation.preferredMissDirection,
+                               let avoidDirection = nextShotRecommendation.avoidDirection {
+                                Text("Favor \(preferredMissDirection.capitalized), avoid \(avoidDirection.capitalized)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if !nextShotRecommendation.hazardSummary.isEmpty {
+                                Text(nextShotRecommendation.hazardSummary.joined(separator: " • "))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .padding(.vertical, 2)
+                    } else {
+                        Text("No next-shot recommendation packet yet")
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
 
-            Section("Hazard Severity") {
-                if hazardSeverityOverlays.isEmpty {
-                    Text("No derived hazard overlays yet")
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(hazardSeverityOverlays) { hazard in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(alignment: .firstTextBaseline) {
-                                Label(
-                                    hazard.properties.hazardKind.capitalized,
-                                    systemImage: iconName(for: hazard.properties.hazardKind)
-                                )
-                                    .font(.headline)
-
-                                Spacer()
-
-                                Text(severityLabel(for: hazard))
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(bandColor(for: hazard).opacity(0.18), in: Capsule())
-                                    .foregroundStyle(bandColor(for: hazard))
-                            }
-
-                            Text(hazard.rationale.primaryReason)
-                                .font(.subheadline)
-
-                            HStack(spacing: 12) {
-                                Text("Score \(format(number: hazard.properties.severityScore))")
-                                Text(hazard.properties.penaltyKind.replacingOccurrences(of: "_", with: " "))
-                                if hazard.properties.landingConflict {
-                                    Text("Landing conflict")
-                                }
-                                if hazard.properties.blocksRecovery {
-                                    Text("Recovery blocker")
-                                }
-                            }
-                            .font(.caption)
+            if visibleSections.contains(.preferredMiss) {
+                Section("Preferred Miss") {
+                    if preferredMissOverlays.isEmpty {
+                        Text("No preferred miss guidance yet")
                             .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(preferredMissOverlays) { preferredMiss in
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text(preferredMissLabel(for: preferredMiss))
+                                        .font(.headline)
+                                    Spacer()
+                                    Text(preferredMiss.confidence.band.capitalized)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Text(preferredMiss.rationale.primaryReason)
+                                    .font(.subheadline)
+
+                                HStack(spacing: 12) {
+                                    Text("Safer \(format(number: preferredMiss.properties.preferredRiskScore))")
+                                    Text("Avoid \(format(number: preferredMiss.properties.avoidRiskScore))")
+                                    Text("Gap \(format(number: preferredMiss.properties.riskGapScore))")
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 2)
                         }
-                        .padding(.vertical, 2)
                     }
                 }
             }
 
-            Section("Feature Types") {
-                ForEach(featureTypeCounts, id: \.name) { item in
-                    LabeledContent(item.name, value: "\(item.count)")
-                }
-            }
-
-            Section("Feature Highlights") {
-                ForEach(featureHighlights, id: \.id) { feature in
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(feature.title)
-                            .fontWeight(.medium)
-                        Text(feature.detail)
-                            .font(.caption)
+            if visibleSections.contains(.hazardSeverity) {
+                Section("Hazard Severity") {
+                    if hazardSeverityOverlays.isEmpty {
+                        Text("No derived hazard overlays yet")
                             .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(hazardSeverityOverlays) { hazard in
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(alignment: .firstTextBaseline) {
+                                    Label(
+                                        hazard.properties.hazardKind.capitalized,
+                                        systemImage: iconName(for: hazard.properties.hazardKind)
+                                    )
+                                        .font(.headline)
+
+                                    Spacer()
+
+                                    Text(severityLabel(for: hazard))
+                                        .font(.caption.weight(.semibold))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(bandColor(for: hazard).opacity(0.18), in: Capsule())
+                                        .foregroundStyle(bandColor(for: hazard))
+                                }
+
+                                Text(hazard.rationale.primaryReason)
+                                    .font(.subheadline)
+
+                                HStack(spacing: 12) {
+                                    Text("Score \(format(number: hazard.properties.severityScore))")
+                                    Text(hazard.properties.penaltyKind.replacingOccurrences(of: "_", with: " "))
+                                    if hazard.properties.landingConflict {
+                                        Text("Landing conflict")
+                                    }
+                                    if hazard.properties.blocksRecovery {
+                                        Text("Recovery blocker")
+                                    }
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 2)
+                        }
                     }
                 }
             }
 
-            Section("Overlay Containers") {
-                LabeledContent("Tee Corridors", value: "\(hole.strategyOverlays.teeTargetCorridors.count)")
-                LabeledContent("Aggressive Corridors", value: "\(hole.strategyOverlays.aggressiveTeeCorridors.count)")
-                LabeledContent("Layup Candidates", value: "\(hole.strategyOverlays.layupCandidates.count)")
-                LabeledContent("Preferred Miss", value: "\(hole.strategyOverlays.preferredMiss.count)")
-                LabeledContent("Hazard Severity", value: "\(hole.strategyOverlays.hazardSeverity.count)")
-            }
-
-            Section("Quality Notes") {
-                if snapshot.qualityNotes.isEmpty {
-                    Text("No quality notes")
-                } else {
-                    ForEach(snapshot.qualityNotes, id: \.self) { note in
-                        Text(note)
+            if visibleSections.contains(.featureTypes) {
+                Section("Feature Types") {
+                    ForEach(featureTypeCounts, id: \.name) { item in
+                        LabeledContent(item.name, value: "\(item.count)")
                     }
                 }
             }
 
-            Section("Provenance") {
-                if let sourceFile = hole.provenance.sourceFile {
-                    LabeledContent("Source File", value: sourceFile)
+            if visibleSections.contains(.featureHighlights) {
+                Section("Feature Highlights") {
+                    ForEach(featureHighlights, id: \.id) { feature in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(feature.title)
+                                .fontWeight(.medium)
+                            Text(feature.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
+            }
 
-                if let updatedAt = hole.provenance.sourceUpdatedAt {
-                    LabeledContent("Updated", value: updatedAt)
+            if visibleSections.contains(.overlayContainers) {
+                Section("Overlay Containers") {
+                    LabeledContent("Tee Corridors", value: "\(hole.strategyOverlays.teeTargetCorridors.count)")
+                    LabeledContent("Aggressive Corridors", value: "\(hole.strategyOverlays.aggressiveTeeCorridors.count)")
+                    LabeledContent("Layup Candidates", value: "\(hole.strategyOverlays.layupCandidates.count)")
+                    LabeledContent("Preferred Miss", value: "\(hole.strategyOverlays.preferredMiss.count)")
+                    LabeledContent("Hazard Severity", value: "\(hole.strategyOverlays.hazardSeverity.count)")
+                }
+            }
+
+            if visibleSections.contains(.qualityNotes) {
+                Section("Quality Notes") {
+                    if snapshot.qualityNotes.isEmpty {
+                        Text("No quality notes")
+                    } else {
+                        ForEach(snapshot.qualityNotes, id: \.self) { note in
+                            Text(note)
+                        }
+                    }
+                }
+            }
+
+            if visibleSections.contains(.provenance) {
+                Section("Provenance") {
+                    if let sourceFile = hole.provenance.sourceFile {
+                        LabeledContent("Source File", value: sourceFile)
+                    }
+
+                    if let updatedAt = hole.provenance.sourceUpdatedAt {
+                        LabeledContent("Updated", value: updatedAt)
+                    }
                 }
             }
         }
@@ -737,6 +785,45 @@ private struct FeatureHighlight: Identifiable {
 }
 
 enum HoleInspectorModel {
+    enum HoleInspectorTab: String, CaseIterable, Identifiable {
+        case overview
+        case strategy
+        case debug
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .overview:
+                return "Overview"
+            case .strategy:
+                return "Strategy"
+            case .debug:
+                return "Debug"
+            }
+        }
+    }
+
+    enum HoleInspectorSection: Equatable, Hashable {
+        case holeSketch
+        case nextShotRecommendation
+        case shotState
+        case playerContext
+        case roundContext
+        case teeTargetCorridors
+        case preferredMiss
+        case hazardSeverity
+        case bundle
+        case hole
+        case green
+        case tees
+        case featureTypes
+        case featureHighlights
+        case overlayContainers
+        case qualityNotes
+        case provenance
+    }
+
     struct ShotStateScenario: Identifiable, Equatable {
         let id: String
         let name: String
@@ -883,6 +970,17 @@ enum HoleInspectorModel {
                 return "\(trimmed)."
             }
             .joined(separator: " ")
+    }
+
+    static func sections(for tab: HoleInspectorTab) -> [HoleInspectorSection] {
+        switch tab {
+        case .overview:
+            return [.holeSketch, .nextShotRecommendation, .shotState]
+        case .strategy:
+            return [.playerContext, .roundContext, .teeTargetCorridors, .preferredMiss, .hazardSeverity]
+        case .debug:
+            return [.bundle, .hole, .green, .tees, .featureTypes, .featureHighlights, .overlayContainers, .qualityNotes, .provenance]
+        }
     }
 
     private static func selectedTee(in hole: CourseHole, roundContext: RoundContext) -> Tee? {

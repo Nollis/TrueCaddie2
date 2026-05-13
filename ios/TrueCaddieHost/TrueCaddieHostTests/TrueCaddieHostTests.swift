@@ -114,4 +114,26 @@ struct TrueCaddieHostTests {
             "7I to Right-center layup shelf. 7I puts the ball on the shelf without bringing the front bunker in. Favor left. Avoid right. If the green light is not there, leave yourself about 100m in."
         )
     }
+
+    @Test func inspectorTabsAreOrderedForPrimaryUseFirst() {
+        #expect(HoleInspectorModel.HoleInspectorTab.allCases == [.overview, .strategy, .debug])
+        #expect(HoleInspectorModel.HoleInspectorTab.overview.title == "Overview")
+        #expect(HoleInspectorModel.HoleInspectorTab.strategy.title == "Strategy")
+        #expect(HoleInspectorModel.HoleInspectorTab.debug.title == "Debug")
+    }
+
+    @Test func inspectorSectionsGroupHighSignalContentAheadOfDebugData() {
+        #expect(
+            HoleInspectorModel.sections(for: .overview) ==
+            [.holeSketch, .nextShotRecommendation, .shotState]
+        )
+        #expect(
+            HoleInspectorModel.sections(for: .strategy) ==
+            [.playerContext, .roundContext, .teeTargetCorridors, .preferredMiss, .hazardSeverity]
+        )
+        #expect(
+            HoleInspectorModel.sections(for: .debug) ==
+            [.bundle, .hole, .green, .tees, .featureTypes, .featureHighlights, .overlayContainers, .qualityNotes, .provenance]
+        )
+    }
 }
