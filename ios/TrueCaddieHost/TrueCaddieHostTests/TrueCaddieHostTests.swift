@@ -836,6 +836,25 @@ struct TrueCaddieHostTests {
         )
     }
 
+    @Test func conversationBuildsSessionStateSnapshot() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let context = HostCaddieSession.TurnContext(
+            bundle: bundle,
+            playerContext: .pilotSample,
+            roundContext: .pilotSample,
+            selectedHoleNumber: 3,
+            planMode: .stockNextShot,
+            roundState: RoundState(courseId: bundle.courseId, holeStates: [])
+        )
+
+        let snapshot = HostCaddieSession.snapshot(from: context)
+
+        #expect(snapshot.selectedHoleNumber == 3)
+        #expect(snapshot.roundContext == .pilotSample)
+        #expect(snapshot.roundState == RoundState(courseId: bundle.courseId, holeStates: []))
+        #expect(snapshot.availableToolNames.contains(.reportResult))
+    }
+
     @Test func conversationShotResultAdvancesRoundStateAndRepliesFromNewContext() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let outcome = try #require(
@@ -950,6 +969,71 @@ struct TrueCaddieHostTests {
         #expect(outcome.actionName == .reportResult)
         #expect(outcome.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
         #expect(outcome.assistantReply.contains("From rough at 128m"))
+    }
+
+    @Test func conversationCanRespondFromSessionEnvelopeUtterance() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let envelope = HostCaddieSession.SessionRequestEnvelope(
+            source: .utterance("safe play"),
+            context: .init(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                selectedHoleNumber: 1,
+                planMode: .stockNextShot,
+                roundState: RoundState(courseId: bundle.courseId, holeStates: [])
+            )
+        )
+
+        let response = try #require(HostCaddieSession.respond(to: envelope))
+
+        #expect(response.actionName == .saferPlay)
+        #expect(response.strategyPreference == .conservative)
+        #expect(response.state.selectedHoleNumber == 1)
+        #expect(response.state.roundContext.strategyPreference == .conservative)
+        #expect(response.state.availableToolNames.contains(.guidance))
+    }
+
+    @Test func conversationCanRespondFromSessionEnvelopeToolCall() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let envelope = HostCaddieSession.SessionRequestEnvelope(
+            source: .toolCall(
+                .init(
+                    name: .reportResult,
+                    payload: .reportResult(
+                        .init(lie: .rough, remainingDistanceM: 128)
+                    )
+                )
+            ),
+            context: .init(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                selectedHoleNumber: 1,
+                planMode: .stockNextShot,
+                roundState: RoundState(
+                    courseId: bundle.courseId,
+                    holeStates: [
+                        .init(
+                            holeNumber: 1,
+                            status: .inProgress,
+                            shotStateContext: ShotStateContext(
+                                shotNumber: 2,
+                                remainingDistanceM: 220,
+                                lie: .fairway
+                            ),
+                            strokesTaken: 1
+                        )
+                    ]
+                )
+            )
+        )
+
+        let response = try #require(HostCaddieSession.respond(to: envelope))
+
+        #expect(response.actionName == .reportResult)
+        #expect(response.state.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
+        #expect(response.assistantReply.contains("From rough at 128m"))
     }
 
     @Test func conversationCanCorrectFinishedHoleScore() throws {

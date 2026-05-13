@@ -1522,6 +1522,11 @@ enum HostCaddieSession {
         let payload: RealtimeToolPayload
     }
 
+    enum SessionTurnSource: Equatable {
+        case utterance(String)
+        case toolCall(RealtimeToolCall)
+    }
+
     enum Action: Equatable {
         case guidance
         case saferPlay
@@ -1573,6 +1578,25 @@ enum HostCaddieSession {
         let assistantReply: String
         let roundState: RoundState
         let selectedHoleNumber: Int
+        let strategyPreference: StrategyPreference?
+    }
+
+    struct SessionStateSnapshot: Equatable {
+        let selectedHoleNumber: Int
+        let roundContext: RoundContext
+        let roundState: RoundState
+        let availableToolNames: [ActionName]
+    }
+
+    struct SessionRequestEnvelope: Equatable {
+        let source: SessionTurnSource
+        let context: TurnContext
+    }
+
+    struct SessionResponseEnvelope: Equatable {
+        let actionName: ActionName
+        let assistantReply: String
+        let state: SessionStateSnapshot
         let strategyPreference: StrategyPreference?
     }
 
@@ -1725,6 +1749,15 @@ enum HostCaddieSession {
         }
     }
 
+    static func snapshot(from context: TurnContext) -> SessionStateSnapshot {
+        SessionStateSnapshot(
+            selectedHoleNumber: context.selectedHoleNumber,
+            roundContext: context.roundContext,
+            roundState: context.roundState,
+            availableToolNames: supportedVoiceTools.map(\.name)
+        )
+    }
+
     static func respond(
         to toolCall: RealtimeToolCall,
         in context: TurnContext
@@ -1742,6 +1775,55 @@ enum HostCaddieSession {
         }
 
         return perform(action, in: request.context)
+    }
+
+    static func respond(
+        to envelope: SessionRequestEnvelope
+    ) -> SessionResponseEnvelope? {
+        let turnOutcome: TurnOutcome?
+
+        switch envelope.source {
+        case let .utterance(utterance):
+            turnOutcome = respond(
+                to: TurnRequest(
+                    utterance: utterance,
+                    context: envelope.context
+                )
+            )
+        case let .toolCall(toolCall):
+            turnOutcome = respond(
+                to: toolCall,
+                in: envelope.context
+            )
+        }
+
+        guard let turnOutcome else {
+            return nil
+        }
+
+        let updatedRoundContext: RoundContext
+        if let strategyPreference = turnOutcome.strategyPreference {
+            updatedRoundContext = RoundContext(
+                teeSetId: envelope.context.roundContext.teeSetId,
+                teeSetName: envelope.context.roundContext.teeSetName,
+                strategyPreference: strategyPreference,
+                wind: envelope.context.roundContext.wind
+            )
+        } else {
+            updatedRoundContext = envelope.context.roundContext
+        }
+
+        return SessionResponseEnvelope(
+            actionName: turnOutcome.actionName,
+            assistantReply: turnOutcome.assistantReply,
+            state: SessionStateSnapshot(
+                selectedHoleNumber: turnOutcome.selectedHoleNumber,
+                roundContext: updatedRoundContext,
+                roundState: turnOutcome.roundState,
+                availableToolNames: supportedVoiceTools.map(\.name)
+            ),
+            strategyPreference: turnOutcome.strategyPreference
+        )
     }
 
     static func perform(_ action: Action, in context: TurnContext) -> TurnOutcome? {
