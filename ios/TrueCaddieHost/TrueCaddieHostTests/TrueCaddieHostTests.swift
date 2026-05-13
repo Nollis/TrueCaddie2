@@ -218,6 +218,38 @@ struct TrueCaddieHostTests {
         #expect(facts.contains(.init(label: "Hazards", value: "Bunker left")))
     }
 
+    @Test func roundPreviewUsesFirstHoleAndUnifiedPacket() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let preview = try #require(
+            HostRoundPreviewModel.firstHolePreview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample
+            )
+        )
+
+        #expect(preview.holeNumber == 1)
+        #expect(preview.par == 5)
+        #expect(preview.scenarioName == "Fairway result")
+        #expect(preview.packet.headline == "PW to Lay up for wedge number")
+    }
+
+    @Test func roundPreviewVoiceCopyComesFromUnifiedPacket() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let preview = try #require(
+            HostRoundPreviewModel.firstHolePreview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample
+            )
+        )
+
+        #expect(
+            preview.voicePreview ==
+            HoleInspectorModel.voicePreviewText(for: preview.packet)
+        )
+    }
+
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
         NextShotRecommendationPacket(
             courseId: "course",
