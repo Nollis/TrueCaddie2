@@ -14,6 +14,7 @@ final class RoundStateTests: XCTestCase {
         XCTAssertEqual(holeState.shotStateContext?.shotNumber, 1)
         XCTAssertEqual(holeState.shotStateContext?.remainingDistanceM, 352)
         XCTAssertEqual(holeState.shotStateContext?.lie, .tee)
+        XCTAssertEqual(holeState.strokesTaken, 0)
     }
 
     func testAdvanceShotIncrementsShotNumberAndAppliesOverrides() {
@@ -39,6 +40,7 @@ final class RoundStateTests: XCTestCase {
         XCTAssertEqual(advancedState.holeState(for: 1)?.shotStateContext?.shotNumber, 3)
         XCTAssertEqual(advancedState.holeState(for: 1)?.shotStateContext?.remainingDistanceM, 118)
         XCTAssertEqual(advancedState.holeState(for: 1)?.shotStateContext?.lie, .rough)
+        XCTAssertEqual(advancedState.holeState(for: 1)?.strokesTaken, 2)
     }
 
     func testFinishAndResetHoleUpdateStoredStatus() {
@@ -57,9 +59,38 @@ final class RoundStateTests: XCTestCase {
         let finishedState = roundState.finishHole(1)
         XCTAssertEqual(finishedState.holeState(for: 1)?.status, .finished)
         XCTAssertEqual(finishedState.holeState(for: 1)?.shotStateContext?.remainingDistanceM, 94)
+        XCTAssertEqual(finishedState.holeState(for: 1)?.strokesTaken, 3)
 
         let resetState = finishedState.resetHole(1)
         XCTAssertNil(resetState.holeState(for: 1))
+    }
+
+    func testRoundStateCodableRoundTripPreservesHoleProgress() throws {
+        let roundState = RoundState(courseId: "course", holeStates: [
+            HoleRoundState(
+                holeNumber: 1,
+                status: .finished,
+                shotStateContext: ShotStateContext(
+                    shotNumber: 4,
+                    remainingDistanceM: 0,
+                    lie: .fairway
+                )
+            ),
+            HoleRoundState(
+                holeNumber: 2,
+                status: .inProgress,
+                shotStateContext: ShotStateContext(
+                    shotNumber: 2,
+                    remainingDistanceM: 158,
+                    lie: .rough
+                )
+            )
+        ])
+
+        let encoded = try JSONEncoder().encode(roundState)
+        let decoded = try JSONDecoder().decode(RoundState.self, from: encoded)
+
+        XCTAssertEqual(decoded, roundState)
     }
 
     private func loadBundle(from json: String) throws -> CourseBundle {

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ShotStateContext: Equatable, Sendable {
+public struct ShotStateContext: Codable, Equatable, Sendable {
     public let shotNumber: Int
     public let remainingDistanceM: Double
     public let lie: ShotLie
@@ -16,7 +16,7 @@ public struct ShotStateContext: Equatable, Sendable {
     }
 }
 
-public enum ShotLie: String, Equatable, Sendable {
+public enum ShotLie: String, Codable, Equatable, Sendable {
     case tee
     case fairway
     case rough

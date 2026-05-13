@@ -440,6 +440,153 @@ struct TrueCaddieHostTests {
         #expect(holeOne.packet.remainingDistanceM == 88)
     }
 
+    @Test func currentHolePrefersSavedSelectionWhenStillValid() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        let holeNumber = HostRoundProgressModel.currentHoleNumber(
+            bundle: bundle,
+            roundState: RoundState(courseId: bundle.courseId, holeStates: []),
+            preferredHoleNumber: 4
+        )
+
+        #expect(holeNumber == 4)
+    }
+
+    @Test func currentHoleFallsBackToFirstInProgressHole() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        let holeNumber = HostRoundProgressModel.currentHoleNumber(
+            bundle: bundle,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(
+                        holeNumber: 3,
+                        status: .finished,
+                        shotStateContext: nil
+                    ),
+                    .init(
+                        holeNumber: 5,
+                        status: .inProgress,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 2,
+                            remainingDistanceM: 140,
+                            lie: .fairway
+                        )
+                    )
+                ]
+            ),
+            preferredHoleNumber: 42
+        )
+
+        #expect(holeNumber == 5)
+    }
+
+    @Test func currentHoleDoesNotResumeFinishedPreferredHole() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        let holeNumber = HostRoundProgressModel.currentHoleNumber(
+            bundle: bundle,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(holeNumber: 4, status: .finished, shotStateContext: nil, strokesTaken: 5),
+                    .init(
+                        holeNumber: 6,
+                        status: .inProgress,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 2,
+                            remainingDistanceM: 131,
+                            lie: .fairway
+                        ),
+                        strokesTaken: 1
+                    )
+                ]
+            ),
+            preferredHoleNumber: 4
+        )
+
+        #expect(holeNumber == 6)
+    }
+
+    @Test func nextUnfinishedHoleSkipsFinishedHolesAndWraps() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        let nextHoleNumber = HostRoundProgressModel.nextUnfinishedHoleNumber(
+            after: 4,
+            bundle: bundle,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(holeNumber: 4, status: .finished, shotStateContext: nil),
+                    .init(holeNumber: 5, status: .finished, shotStateContext: nil),
+                    .init(
+                        holeNumber: 6,
+                        status: .inProgress,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 2,
+                            remainingDistanceM: 132,
+                            lie: .fairway
+                        )
+                    )
+                ]
+            )
+        )
+
+        #expect(nextHoleNumber == 6)
+    }
+
+    @Test func roundSummaryReflectsFinishedScoreAndCurrentHoleStatus() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let summary = HostRoundProgressModel.summary(
+            bundle: bundle,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(
+                        holeNumber: 1,
+                        status: .finished,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 5,
+                            remainingDistanceM: 0,
+                            lie: .fairway
+                        ),
+                        strokesTaken: 5
+                    ),
+                    .init(
+                        holeNumber: 2,
+                        status: .inProgress,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 2,
+                            remainingDistanceM: 146,
+                            lie: .fairway
+                        ),
+                        strokesTaken: 1
+                    )
+                ]
+            ),
+            currentHoleNumber: 2
+        )
+
+        #expect(summary.currentHoleNumber == 2)
+        #expect(summary.currentStatusLabel == "In progress")
+        #expect(summary.progressLabel == "1 of 9 complete")
+        #expect(summary.scoreLabel == "E through 1")
+    }
+
+    @Test func roundSummaryShowsNotStartedWhenNoHoleHasBegun() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let summary = HostRoundProgressModel.summary(
+            bundle: bundle,
+            roundState: RoundState(courseId: bundle.courseId, holeStates: []),
+            currentHoleNumber: 1
+        )
+
+        #expect(summary.currentStatusLabel == "Not started")
+        #expect(summary.progressLabel == "0 of 9 complete")
+        #expect(summary.scoreLabel == "Even")
+    }
+
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
         NextShotRecommendationPacket(
             courseId: "course",

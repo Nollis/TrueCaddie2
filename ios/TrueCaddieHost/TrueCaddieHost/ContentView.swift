@@ -68,15 +68,27 @@ private struct RoundPreviewView: View {
         playerContext: PlayerContext,
         roundContext: RoundContext
     ) {
+        let savedProgress = HostRoundProgressStore.load(courseId: bundle.courseId)
         self.bundle = bundle
         self.playerContext = playerContext
         self.baseRoundContext = roundContext
+        _selectedHoleNumber = State(
+            initialValue: HostRoundProgressModel.currentHoleNumber(
+                bundle: bundle,
+                roundState: savedProgress?.roundState ?? RoundState(courseId: bundle.courseId, holeStates: []),
+                preferredHoleNumber: savedProgress?.selectedHoleNumber
+            ) ?? 0
+        )
         _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
-        _roundState = State(initialValue: RoundState(courseId: bundle.courseId, holeStates: []))
+        _roundState = State(initialValue: savedProgress?.roundState ?? RoundState(courseId: bundle.courseId, holeStates: []))
     }
 
     private var selectedHole: CourseHole? {
         bundle.holes.first(where: { $0.holeNumber == selectedHoleNumber })
+    }
+
+    private var holeOptions: [CourseHole] {
+        bundle.holes
     }
 
     private var teeOptions: [Tee] {
@@ -108,6 +120,14 @@ private struct RoundPreviewView: View {
         return 0...max(150, maxTeeLength)
     }
 
+    private var roundSummary: HostRoundProgressModel.RoundSummary {
+        HostRoundProgressModel.summary(
+            bundle: bundle,
+            roundState: roundState,
+            currentHoleNumber: selectedHoleNumber
+        )
+    }
+
     private var scenarioOptions: [HoleInspectorModel.ShotStateScenario] {
         guard !usesLiveState else {
             return []
@@ -119,16 +139,6 @@ private struct RoundPreviewView: View {
             roundContext: effectiveRoundContext,
             holeNumber: selectedHoleNumber,
             planMode: selectedPlanMode
-        )
-    }
-
-    private var roundPreviews: [HostRoundPreviewModel.HolePreview] {
-        HostRoundPreviewModel.roundPreviews(
-            bundle: bundle,
-            playerContext: playerContext,
-            roundContext: effectiveRoundContext,
-            planMode: selectedPlanMode,
-            roundState: roundState
         )
     }
 
@@ -147,45 +157,21 @@ private struct RoundPreviewView: View {
     var body: some View {
         List {
             if let preview {
-                Section("Round Plan") {
-                    ForEach(roundPreviews, id: \.holeNumber) { holePreview in
-                        Button {
-                            selectedHoleNumber = holePreview.holeNumber
-                            selectedScenarioId = ""
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text("Hole \(holePreview.holeNumber)")
-                                        .fontWeight(.semibold)
-                                    Text("Par \(holePreview.par)")
-                                        .foregroundStyle(.secondary)
-                                    Text(roundPlanStatusLabel(for: holePreview))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    Spacer()
-                                    if holePreview.holeNumber == selectedHoleNumber {
-                                        Text("Current")
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.blue)
-                                    }
-                                }
-
-                                Text(holePreview.packet.headline)
-                                    .foregroundStyle(.primary)
-
-                                Text(holePreview.packet.primaryReason)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(2)
-                            }
-                            .padding(.vertical, 4)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
+                Section("Round Summary") {
+                    LabeledContent("Current", value: "Hole \(roundSummary.currentHoleNumber)")
+                    LabeledContent("Status", value: roundSummary.currentStatusLabel)
+                    LabeledContent("Progress", value: roundSummary.progressLabel)
+                    LabeledContent("Score", value: roundSummary.scoreLabel)
                 }
 
                 Section("Round") {
+                    Picker("Current Hole", selection: $selectedHoleNumber) {
+                        ForEach(holeOptions, id: \.holeNumber) { hole in
+                            Text("Hole \(hole.holeNumber)").tag(hole.holeNumber)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
                     Picker("View", selection: $selectedPlanMode) {
                         ForEach(HostRoundPreviewModel.RoundPlanMode.allCases) { mode in
                             Text(mode.title).tag(mode)
@@ -226,7 +212,6 @@ private struct RoundPreviewView: View {
                         )
                     }
 
-                    LabeledContent("Hole", value: "\(preview.holeNumber)")
                     LabeledContent("Mode", value: selectedPlanMode.title)
 
                     if isHoleFinished {
@@ -387,12 +372,16 @@ private struct RoundPreviewView: View {
         .onChange(of: selectedHoleNumber) {
             syncTeeSelection()
             syncScenarioSelection()
+            persistRoundProgress()
         }
         .onChange(of: selectedPlanMode) {
             syncScenarioSelection(forceReset: true)
         }
         .onChange(of: effectiveRoundContext) {
             syncScenarioSelection()
+        }
+        .onChange(of: roundState) {
+            persistRoundProgress()
         }
     }
 
@@ -444,17 +433,6 @@ private struct RoundPreviewView: View {
         selectedScenarioId = scenarioOptions.first?.id ?? ""
     }
 
-    private func roundPlanStatusLabel(for preview: HostRoundPreviewModel.HolePreview) -> String {
-        switch roundState.holeState(for: preview.holeNumber)?.status {
-        case .inProgress:
-            return "Live state"
-        case .finished:
-            return "Finished"
-        case nil:
-            return preview.scenarioName
-        }
-    }
-
     private func currentScenarioLabel(for preview: HostRoundPreviewModel.HolePreview) -> String {
         usesLiveState ? "Live state" : preview.scenarioName
     }
@@ -465,6 +443,7 @@ private struct RoundPreviewView: View {
         }
 
         roundState = roundState.startHole(hole, roundContext: effectiveRoundContext)
+        selectedHoleNumber = hole.holeNumber
         syncScenarioSelection(forceReset: true)
     }
 
@@ -473,7 +452,13 @@ private struct RoundPreviewView: View {
     }
 
     private func finishSelectedHole() {
-        roundState = roundState.finishHole(selectedHoleNumber)
+        let finishedRoundState = roundState.finishHole(selectedHoleNumber)
+        roundState = finishedRoundState
+        selectedHoleNumber = HostRoundProgressModel.nextUnfinishedHoleNumber(
+            after: selectedHoleNumber,
+            bundle: bundle,
+            roundState: finishedRoundState
+        ) ?? selectedHoleNumber
         syncScenarioSelection(forceReset: true)
     }
 
@@ -524,6 +509,16 @@ private struct RoundPreviewView: View {
                 lie: shotStateContext.lie
             ),
             for: selectedHoleNumber
+        )
+    }
+
+    private func persistRoundProgress() {
+        HostRoundProgressStore.save(
+            .init(
+                selectedHoleNumber: selectedHoleNumber,
+                roundState: roundState
+            ),
+            courseId: bundle.courseId
         )
     }
 }
@@ -774,5 +769,148 @@ enum HostRoundPreviewModel {
         }
 
         return hole.tees.first
+    }
+}
+
+struct HostSavedRoundProgress: Codable, Equatable {
+    let selectedHoleNumber: Int
+    let roundState: RoundState
+}
+
+enum HostRoundProgressModel {
+    struct RoundSummary: Equatable {
+        let currentHoleNumber: Int
+        let currentStatusLabel: String
+        let progressLabel: String
+        let scoreLabel: String
+    }
+
+    static func currentHoleNumber(
+        bundle: CourseBundle,
+        roundState: RoundState,
+        preferredHoleNumber: Int?
+    ) -> Int? {
+        if let preferredHoleNumber,
+           bundle.holes.contains(where: { $0.holeNumber == preferredHoleNumber }),
+           roundState.holeState(for: preferredHoleNumber)?.status != .finished {
+            return preferredHoleNumber
+        }
+
+        if let inProgressHole = roundState.holeStates.first(where: { $0.status == .inProgress })?.holeNumber {
+            return inProgressHole
+        }
+
+        if let firstUnfinishedHole = bundle.holes.first(where: {
+            roundState.holeState(for: $0.holeNumber)?.status != .finished
+        })?.holeNumber {
+            return firstUnfinishedHole
+        }
+
+        return bundle.holes.first?.holeNumber
+    }
+
+    static func summary(
+        bundle: CourseBundle,
+        roundState: RoundState,
+        currentHoleNumber: Int
+    ) -> RoundSummary {
+        let finishedHoles = roundState.holeStates.filter { $0.status == .finished }
+        let inProgressHoles = roundState.holeStates.filter { $0.status == .inProgress }
+        let finishedHoleCount = finishedHoles.count
+        let totalHoleCount = bundle.holes.count
+        let relativeToPar = finishedHoles.reduce(0) { partialResult, holeState in
+            let par = bundle.holes.first(where: { $0.holeNumber == holeState.holeNumber })?.par ?? 0
+            let strokesTaken = holeState.strokesTaken ?? 0
+            return partialResult + (strokesTaken - par)
+        }
+
+        return RoundSummary(
+            currentHoleNumber: currentHoleNumber,
+            currentStatusLabel: currentStatusLabel(
+                roundState: roundState,
+                holeNumber: currentHoleNumber
+            ),
+            progressLabel: "\(finishedHoleCount) of \(totalHoleCount) complete",
+            scoreLabel: scoreLabel(
+                relativeToPar: relativeToPar,
+                finishedHoleCount: finishedHoleCount,
+                inProgressHoleCount: inProgressHoles.count
+            )
+        )
+    }
+
+    static func nextUnfinishedHoleNumber(
+        after holeNumber: Int,
+        bundle: CourseBundle,
+        roundState: RoundState
+    ) -> Int? {
+        let orderedHoleNumbers = bundle.holes.map(\.holeNumber)
+        guard let currentIndex = orderedHoleNumbers.firstIndex(of: holeNumber) else {
+            return currentHoleNumber(bundle: bundle, roundState: roundState, preferredHoleNumber: nil)
+        }
+
+        let wrappedHoleNumbers = Array(orderedHoleNumbers.suffix(from: currentIndex + 1))
+            + Array(orderedHoleNumbers.prefix(currentIndex + 1))
+        return wrappedHoleNumbers.first(where: {
+            roundState.holeState(for: $0)?.status != .finished
+        })
+    }
+
+    private static func currentStatusLabel(
+        roundState: RoundState,
+        holeNumber: Int
+    ) -> String {
+        switch roundState.holeState(for: holeNumber)?.status {
+        case .inProgress:
+            return "In progress"
+        case .finished:
+            return "Finished"
+        case nil:
+            return "Not started"
+        }
+    }
+
+    private static func scoreLabel(
+        relativeToPar: Int,
+        finishedHoleCount: Int,
+        inProgressHoleCount: Int
+    ) -> String {
+        guard finishedHoleCount > 0 else {
+            return inProgressHoleCount > 0 ? "Round started" : "Even"
+        }
+
+        let relativeLabel: String
+        switch relativeToPar {
+        case ..<0:
+            relativeLabel = "\(relativeToPar)"
+        case 0:
+            relativeLabel = "E"
+        default:
+            relativeLabel = "+\(relativeToPar)"
+        }
+
+        return "\(relativeLabel) through \(finishedHoleCount)"
+    }
+}
+
+private enum HostRoundProgressStore {
+    static func load(courseId: String) -> HostSavedRoundProgress? {
+        guard let data = UserDefaults.standard.data(forKey: key(for: courseId)) else {
+            return nil
+        }
+
+        return try? JSONDecoder().decode(HostSavedRoundProgress.self, from: data)
+    }
+
+    static func save(_ progress: HostSavedRoundProgress, courseId: String) {
+        guard let data = try? JSONEncoder().encode(progress) else {
+            return
+        }
+
+        UserDefaults.standard.set(data, forKey: key(for: courseId))
+    }
+
+    private static func key(for courseId: String) -> String {
+        "truecaddie.round-progress.\(courseId)"
     }
 }

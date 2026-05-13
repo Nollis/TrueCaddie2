@@ -1,6 +1,6 @@
 import Foundation
 
-public struct RoundState: Equatable, Sendable {
+public struct RoundState: Codable, Equatable, Sendable {
     public let courseId: String
     public let holeStates: [HoleRoundState]
 
@@ -33,7 +33,8 @@ public struct RoundState: Equatable, Sendable {
             HoleRoundState(
                 holeNumber: holeNumber,
                 status: .inProgress,
-                shotStateContext: shotStateContext
+                shotStateContext: shotStateContext,
+                strokesTaken: max(shotStateContext.shotNumber - 1, 0)
             )
         )
     }
@@ -59,13 +60,14 @@ public struct RoundState: Equatable, Sendable {
     }
 
     public func finishHole(_ holeNumber: Int) -> RoundState {
-        let existingShotStateContext = holeState(for: holeNumber)?.shotStateContext
+        let existingHoleState = holeState(for: holeNumber)
 
         return upserting(
             HoleRoundState(
                 holeNumber: holeNumber,
                 status: .finished,
-                shotStateContext: existingShotStateContext
+                shotStateContext: existingHoleState?.shotStateContext,
+                strokesTaken: existingHoleState?.shotStateContext?.shotNumber ?? existingHoleState?.strokesTaken
             )
         )
     }
@@ -110,25 +112,28 @@ public struct RoundState: Equatable, Sendable {
     }
 }
 
-public struct HoleRoundState: Equatable, Identifiable, Sendable {
+public struct HoleRoundState: Codable, Equatable, Identifiable, Sendable {
     public let holeNumber: Int
     public let status: HoleRoundStatus
     public let shotStateContext: ShotStateContext?
+    public let strokesTaken: Int?
 
     public var id: Int { holeNumber }
 
     public init(
         holeNumber: Int,
         status: HoleRoundStatus,
-        shotStateContext: ShotStateContext?
+        shotStateContext: ShotStateContext?,
+        strokesTaken: Int? = nil
     ) {
         self.holeNumber = holeNumber
         self.status = status
         self.shotStateContext = shotStateContext
+        self.strokesTaken = strokesTaken
     }
 }
 
-public enum HoleRoundStatus: String, Equatable, Sendable {
+public enum HoleRoundStatus: String, Codable, Equatable, Sendable {
     case inProgress
     case finished
 }
