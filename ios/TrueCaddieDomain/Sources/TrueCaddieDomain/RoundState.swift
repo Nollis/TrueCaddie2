@@ -74,6 +74,25 @@ public struct RoundState: Codable, Equatable, Sendable {
         )
     }
 
+    public func updateFinishedHoleScore(
+        _ strokesTaken: Int,
+        for holeNumber: Int
+    ) -> RoundState {
+        guard let existingHoleState = holeState(for: holeNumber),
+              existingHoleState.status == .finished else {
+            return self
+        }
+
+        return upserting(
+            HoleRoundState(
+                holeNumber: holeNumber,
+                status: .finished,
+                shotStateContext: existingHoleState.shotStateContext,
+                strokesTaken: strokesTaken
+            )
+        )
+    }
+
     public func resetHole(_ holeNumber: Int) -> RoundState {
         RoundState(
             courseId: courseId,

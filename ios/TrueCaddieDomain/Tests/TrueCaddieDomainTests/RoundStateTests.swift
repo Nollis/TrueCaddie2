@@ -85,6 +85,26 @@ final class RoundStateTests: XCTestCase {
         XCTAssertEqual(finishedState.holeState(for: 1)?.strokesTaken, 5)
     }
 
+    func testUpdateFinishedHoleScoreReplacesStoredTotal() {
+        let roundState = RoundState(courseId: "course", holeStates: [
+            HoleRoundState(
+                holeNumber: 1,
+                status: .finished,
+                shotStateContext: ShotStateContext(
+                    shotNumber: 5,
+                    remainingDistanceM: 0,
+                    lie: .fairway
+                ),
+                strokesTaken: 5
+            )
+        ])
+
+        let updatedState = roundState.updateFinishedHoleScore(4, for: 1)
+
+        XCTAssertEqual(updatedState.holeState(for: 1)?.status, .finished)
+        XCTAssertEqual(updatedState.holeState(for: 1)?.strokesTaken, 4)
+    }
+
     func testRoundStateCodableRoundTripPreservesHoleProgress() throws {
         let roundState = RoundState(courseId: "course", holeStates: [
             HoleRoundState(

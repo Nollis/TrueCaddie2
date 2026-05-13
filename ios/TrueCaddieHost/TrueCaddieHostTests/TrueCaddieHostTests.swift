@@ -614,6 +614,29 @@ struct TrueCaddieHostTests {
         #expect(summary.totalsHeader == "Through 2: +4")
     }
 
+    @Test func roundSummaryShowsFinalStateWhenAllHolesAreFinished() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let summary = HostRoundProgressModel.summary(
+            bundle: bundle,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: bundle.holes.map { hole in
+                    .init(
+                        holeNumber: hole.holeNumber,
+                        status: .finished,
+                        shotStateContext: nil,
+                        strokesTaken: hole.par
+                    )
+                }
+            ),
+            currentHoleNumber: 9
+        )
+
+        #expect(summary.currentHoleHeader == "Round complete")
+        #expect(summary.totalsHeader == "Final: E")
+        #expect(summary.isRoundComplete == true)
+    }
+
     @Test func scorecardEntriesOnlyIncludeStartedHolesAndKeepHoleOrder() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let entries = HostRoundProgressModel.scorecardEntries(
@@ -646,6 +669,7 @@ struct TrueCaddieHostTests {
         #expect(entries[0].isCurrentHole == true)
         #expect(entries[0].statusLabel == "In progress")
         #expect(entries[1].statusLabel == "Finished")
+        #expect(entries[1].isFinished == true)
     }
 
     @Test func scorecardEntriesFormatStrokesAndRelativeToPar() throws {
@@ -674,6 +698,7 @@ struct TrueCaddieHostTests {
 
         #expect(entries[0].strokesLabel == "5")
         #expect(entries[0].relativeToParLabel == "E")
+        #expect(entries[0].rawStrokesTaken == 5)
         #expect(entries[1].strokesLabel == "2")
         #expect(entries[1].relativeToParLabel == "-1")
     }

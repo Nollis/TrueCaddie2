@@ -61,6 +61,8 @@ private struct RoundPreviewView: View {
     @State private var selectedPlanMode: HostRoundPreviewModel.RoundPlanMode = .stockNextShot
     @State private var selectedScenarioId = ""
     @State private var pendingHoleOutStrokes: Int?
+    @State private var editingScoreHoleNumber: Int?
+    @State private var editingScoreStrokes = 0
     @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
     @State private var roundState: RoundState
 
@@ -187,41 +189,73 @@ private struct RoundPreviewView: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(scorecardEntries) { entry in
-                            Button {
-                                selectedHoleNumber = entry.holeNumber
-                            } label: {
+                            VStack(alignment: .leading, spacing: 8) {
                                 HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        HStack(spacing: 6) {
-                                            Text("Hole \(entry.holeNumber)")
-                                                .fontWeight(.semibold)
-                                            Text("Par \(entry.par)")
-                                                .foregroundStyle(.secondary)
+                                    Button {
+                                        selectedHoleNumber = entry.holeNumber
+                                    } label: {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                HStack(spacing: 6) {
+                                                    Text("Hole \(entry.holeNumber)")
+                                                        .fontWeight(.semibold)
+                                                    Text("Par \(entry.par)")
+                                                        .foregroundStyle(.secondary)
+                                                }
+
+                                                Text(entry.statusLabel)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+
+                                            Spacer()
+
+                                            VStack(alignment: .trailing, spacing: 2) {
+                                                Text(entry.strokesLabel)
+                                                    .fontWeight(.semibold)
+                                                Text(entry.relativeToParLabel)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                if entry.isCurrentHole {
+                                                    Text("Current")
+                                                        .font(.caption2.weight(.semibold))
+                                                        .foregroundStyle(.blue)
+                                                }
+                                            }
                                         }
-
-                                        Text(entry.statusLabel)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
+                                        .contentShape(Rectangle())
                                     }
+                                    .buttonStyle(.plain)
 
-                                    Spacer()
+                                    if entry.isFinished {
+                                        Button(editingScoreHoleNumber == entry.holeNumber ? "Cancel" : "Edit") {
+                                            toggleScoreEdit(for: entry)
+                                        }
+                                        .font(.caption)
+                                    }
+                                }
 
-                                    VStack(alignment: .trailing, spacing: 2) {
-                                        Text(entry.strokesLabel)
-                                            .fontWeight(.semibold)
-                                        Text(entry.relativeToParLabel)
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                        if entry.isCurrentHole {
-                                            Text("Current")
-                                                .font(.caption2.weight(.semibold))
-                                                .foregroundStyle(.blue)
+                                if editingScoreHoleNumber == entry.holeNumber {
+                                    Stepper(
+                                        "Set score to \(editingScoreStrokes)",
+                                        value: $editingScoreStrokes,
+                                        in: 1...15
+                                    )
+
+                                    HStack {
+                                        Button("Save score") {
+                                            saveEditedScore(for: entry.holeNumber)
+                                        }
+                                        .tint(.green)
+
+                                        Spacer()
+
+                                        Button("View hole") {
+                                            selectedHoleNumber = entry.holeNumber
                                         }
                                     }
                                 }
-                                .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
                         }
                     }
 
@@ -463,6 +497,7 @@ private struct RoundPreviewView: View {
         }
         .onChange(of: selectedHoleNumber) {
             pendingHoleOutStrokes = nil
+            editingScoreHoleNumber = nil
             syncTeeSelection()
             syncScenarioSelection()
             persistRoundProgress()
@@ -536,6 +571,7 @@ private struct RoundPreviewView: View {
         }
 
         pendingHoleOutStrokes = nil
+        editingScoreHoleNumber = nil
         roundState = roundState.startHole(hole, roundContext: effectiveRoundContext)
         selectedHoleNumber = hole.holeNumber
         syncScenarioSelection(forceReset: true)
@@ -546,6 +582,7 @@ private struct RoundPreviewView: View {
     }
 
     private func beginHoleOutFlow() {
+        editingScoreHoleNumber = nil
         pendingHoleOutStrokes = selectedHoleState?.shotStateContext?.shotNumber
             ?? selectedHoleState?.strokesTaken
             ?? 1
@@ -575,14 +612,32 @@ private struct RoundPreviewView: View {
         syncScenarioSelection(forceReset: true)
     }
 
+    private func toggleScoreEdit(for entry: HostRoundProgressModel.ScorecardEntry) {
+        if editingScoreHoleNumber == entry.holeNumber {
+            editingScoreHoleNumber = nil
+            return
+        }
+
+        pendingHoleOutStrokes = nil
+        editingScoreHoleNumber = entry.holeNumber
+        editingScoreStrokes = entry.rawStrokesTaken ?? 1
+    }
+
+    private func saveEditedScore(for holeNumber: Int) {
+        roundState = roundState.updateFinishedHoleScore(editingScoreStrokes, for: holeNumber)
+        editingScoreHoleNumber = nil
+    }
+
     private func resetSelectedHole() {
         pendingHoleOutStrokes = nil
+        editingScoreHoleNumber = nil
         roundState = roundState.resetHole(selectedHoleNumber)
         syncScenarioSelection(forceReset: true)
     }
 
     private func resetRound() {
         pendingHoleOutStrokes = nil
+        editingScoreHoleNumber = nil
         roundState = RoundState(courseId: bundle.courseId, holeStates: [])
         selectedHoleNumber = HostRoundProgressModel.currentHoleNumber(
             bundle: bundle,
@@ -908,6 +963,7 @@ enum HostRoundProgressModel {
         let currentHoleHeader: String
         let totalsHeader: String
         let progressLabel: String
+        let isRoundComplete: Bool
     }
 
     struct ScorecardEntry: Equatable, Identifiable {
@@ -916,7 +972,9 @@ enum HostRoundProgressModel {
         let statusLabel: String
         let strokesLabel: String
         let relativeToParLabel: String
+        let rawStrokesTaken: Int?
         let isCurrentHole: Bool
+        let isFinished: Bool
 
         var id: Int { holeNumber }
     }
@@ -954,6 +1012,7 @@ enum HostRoundProgressModel {
         let inProgressHoles = roundState.holeStates.filter { $0.status == .inProgress }
         let finishedHoleCount = finishedHoles.count
         let totalHoleCount = bundle.holes.count
+        let isRoundComplete = totalHoleCount > 0 && finishedHoleCount == totalHoleCount
         let relativeToPar = finishedHoles.reduce(0) { partialResult, holeState in
             let par = bundle.holes.first(where: { $0.holeNumber == holeState.holeNumber })?.par ?? 0
             let strokesTaken = holeState.strokesTaken ?? 0
@@ -964,14 +1023,17 @@ enum HostRoundProgressModel {
             currentHoleNumber: currentHoleNumber,
             currentHoleHeader: currentHoleHeader(
                 roundState: roundState,
-                holeNumber: currentHoleNumber
+                holeNumber: currentHoleNumber,
+                isRoundComplete: isRoundComplete
             ),
             totalsHeader: totalsHeader(
                 relativeToPar: relativeToPar,
                 finishedHoleCount: finishedHoleCount,
-                inProgressHoleCount: inProgressHoles.count
+                inProgressHoleCount: inProgressHoles.count,
+                isRoundComplete: isRoundComplete
             ),
             progressLabel: "\(finishedHoleCount) of \(totalHoleCount) complete",
+            isRoundComplete: isRoundComplete
         )
     }
 
@@ -994,7 +1056,9 @@ enum HostRoundProgressModel {
                 statusLabel: statusLabel(for: holeState),
                 strokesLabel: strokesTaken == 0 ? "-" : "\(strokesTaken)",
                 relativeToParLabel: relativeLabel(for: relativeToPar),
-                isCurrentHole: hole.holeNumber == currentHoleNumber
+                rawStrokesTaken: holeState.strokesTaken,
+                isCurrentHole: hole.holeNumber == currentHoleNumber,
+                isFinished: holeState.status == .finished
             )
         }
     }
@@ -1018,8 +1082,13 @@ enum HostRoundProgressModel {
 
     private static func currentHoleHeader(
         roundState: RoundState,
-        holeNumber: Int
+        holeNumber: Int,
+        isRoundComplete: Bool
     ) -> String {
+        if isRoundComplete {
+            return "Round complete"
+        }
+
         switch roundState.holeState(for: holeNumber)?.status {
         case .inProgress:
             return "Current hole \(holeNumber)"
@@ -1033,7 +1102,8 @@ enum HostRoundProgressModel {
     private static func totalsHeader(
         relativeToPar: Int,
         finishedHoleCount: Int,
-        inProgressHoleCount: Int
+        inProgressHoleCount: Int,
+        isRoundComplete: Bool
     ) -> String {
         guard finishedHoleCount > 0 else {
             return inProgressHoleCount > 0 ? "Round started" : "Round ready"
@@ -1047,6 +1117,10 @@ enum HostRoundProgressModel {
             relativeLabel = "E"
         default:
             relativeLabel = "+\(relativeToPar)"
+        }
+
+        if isRoundComplete {
+            return "Final: \(relativeLabel)"
         }
 
         return "Through \(finishedHoleCount): \(relativeLabel)"
