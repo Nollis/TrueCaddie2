@@ -166,6 +166,17 @@ private struct RoundPreviewView: View {
         )
     }
 
+    private var isShotResultSheetPresented: Binding<Bool> {
+        Binding(
+            get: { shotResultDraft != nil },
+            set: { isPresented in
+                if !isPresented {
+                    shotResultDraft = nil
+                }
+            }
+        )
+    }
+
     var body: some View {
         List {
             if let preview {
@@ -503,76 +514,8 @@ private struct RoundPreviewView: View {
         .onAppear {
             syncSelection()
         }
-        .sheet(
-            isPresented: Binding(
-                get: { shotResultDraft != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        shotResultDraft = nil
-                    }
-                }
-            )
-        ) {
-            if let shotResultDraft {
-                NavigationStack {
-                    Form {
-                        Section("Shot Result") {
-                            LabeledContent("Shot", value: "\(shotResultDraft.currentShotNumber)")
-
-                            Toggle(
-                                "Holed out",
-                                isOn: Binding(
-                                    get: { shotResultDraft.holedOut },
-                                    set: { updateShotResultDraft(holedOut: $0) }
-                                )
-                            )
-
-                            if !shotResultDraft.holedOut {
-                                Picker(
-                                    "Lie",
-                                    selection: Binding(
-                                        get: { shotResultDraft.resultingLie },
-                                        set: { updateShotResultDraft(resultingLie: $0) }
-                                    )
-                                ) {
-                                    ForEach(HostRoundPreviewModel.lieOptions, id: \.rawValue) { lie in
-                                        Text(lie.rawValue.capitalized).tag(lie)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-
-                                LabeledContent(
-                                    "Remaining",
-                                    value: "\(metric(shotResultDraft.remainingDistanceM)) m"
-                                )
-
-                                Slider(
-                                    value: Binding(
-                                        get: { shotResultDraft.remainingDistanceM },
-                                        set: { updateShotResultDraft(remainingDistanceM: $0) }
-                                    ),
-                                    in: liveDistanceRange,
-                                    step: 1
-                                )
-                            }
-                        }
-                    }
-                    .navigationTitle("Record Result")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") {
-                                shotResultDraft = nil
-                            }
-                        }
-
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Save") {
-                                saveShotResultDraft()
-                            }
-                        }
-                    }
-                }
-            }
+        .sheet(isPresented: isShotResultSheetPresented) {
+            shotResultSheet
         }
         .onChange(of: selectedHoleNumber) {
             shotResultDraft = nil
@@ -591,6 +534,76 @@ private struct RoundPreviewView: View {
         .onChange(of: roundState) {
             persistRoundProgress()
         }
+    }
+
+    @ViewBuilder
+    private var shotResultSheet: some View {
+        if let shotResultDraft {
+            NavigationStack {
+                Form {
+                    Section("Shot Result") {
+                        LabeledContent("Shot", value: "\(shotResultDraft.currentShotNumber)")
+
+                        Toggle("Holed out", isOn: shotResultHoledOutBinding)
+
+                        if !shotResultDraft.holedOut {
+                            Picker("Lie", selection: shotResultLieBinding) {
+                                ForEach(HostRoundPreviewModel.lieOptions, id: \.rawValue) { lie in
+                                    Text(lie.rawValue.capitalized).tag(lie)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            LabeledContent(
+                                "Remaining",
+                                value: "\(metric(shotResultDraft.remainingDistanceM)) m"
+                            )
+
+                            Slider(
+                                value: shotResultRemainingDistanceBinding,
+                                in: liveDistanceRange,
+                                step: 1
+                            )
+                        }
+                    }
+                }
+                .navigationTitle("Record Result")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            shotResultDraft = nil
+                        }
+                    }
+
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            saveShotResultDraft()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var shotResultHoledOutBinding: Binding<Bool> {
+        Binding(
+            get: { shotResultDraft?.holedOut ?? false },
+            set: { updateShotResultDraft(holedOut: $0) }
+        )
+    }
+
+    private var shotResultLieBinding: Binding<ShotLie> {
+        Binding(
+            get: { shotResultDraft?.resultingLie ?? .fairway },
+            set: { updateShotResultDraft(resultingLie: $0) }
+        )
+    }
+
+    private var shotResultRemainingDistanceBinding: Binding<Double> {
+        Binding(
+            get: { shotResultDraft?.remainingDistanceM ?? 0 },
+            set: { updateShotResultDraft(remainingDistanceM: $0) }
+        )
     }
 
     private func metric(_ number: Double) -> String {
