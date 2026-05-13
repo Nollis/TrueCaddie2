@@ -1651,7 +1651,115 @@ enum HostCaddieSession {
         let strategyPreference: String?
     }
 
+    struct WireToolParameterDefinition: Codable, Equatable, Identifiable {
+        let name: String
+        let type: String
+        let required: Bool
+        let description: String
+        let allowedValues: [String]?
+
+        var id: String {
+            name
+        }
+    }
+
+    struct WireToolCatalogEntry: Codable, Equatable, Identifiable {
+        let name: String
+        let description: String
+        let parameters: [WireToolParameterDefinition]
+        let sampleUtterances: [String]
+
+        var id: String {
+            name
+        }
+    }
+
+    struct OpenAIPropertySchema: Codable, Equatable {
+        let type: String
+        let description: String
+        let enumValues: [String]?
+
+        enum CodingKeys: String, CodingKey {
+            case type
+            case description
+            case enumValues = "enum"
+        }
+    }
+
+    struct OpenAIParametersSchema: Codable, Equatable {
+        let type: String
+        let properties: [String: OpenAIPropertySchema]
+        let required: [String]
+        let additionalProperties: Bool
+    }
+
+    struct OpenAIFunctionToolDefinition: Codable, Equatable, Identifiable {
+        let type: String
+        let name: String
+        let description: String
+        let parameters: OpenAIParametersSchema
+        let strict: Bool
+
+        var id: String {
+            name
+        }
+    }
+
+    struct OpenAIFunctionToolCall: Codable, Equatable {
+        let name: String
+        let arguments: WireToolArguments
+    }
+
     enum VoiceSessionBridge {
+        static func toolCatalog() -> [WireToolCatalogEntry] {
+            supportedVoiceTools.map { tool in
+                WireToolCatalogEntry(
+                    name: tool.name.rawValue,
+                    description: tool.description,
+                    parameters: tool.fields.map { field in
+                        WireToolParameterDefinition(
+                            name: field.name,
+                            type: field.type,
+                            required: field.required,
+                            description: field.description,
+                            allowedValues: allowedValues(for: field)
+                        )
+                    },
+                    sampleUtterances: tool.sampleUtterances
+                )
+            }
+        }
+
+        static func openAIFunctionTools() -> [OpenAIFunctionToolDefinition] {
+            toolCatalog().map { tool in
+                OpenAIFunctionToolDefinition(
+                    type: "function",
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: OpenAIParametersSchema(
+                        type: "object",
+                        properties: Dictionary(
+                            uniqueKeysWithValues: tool.parameters.map { parameter in
+                                (
+                                    parameter.name,
+                                    OpenAIPropertySchema(
+                                        type: jsonSchemaType(for: parameter.type),
+                                        description: parameter.description,
+                                        enumValues: parameter.allowedValues
+                                    )
+                                )
+                            }
+                        ),
+                        required: tool.parameters
+                            .filter(\.required)
+                            .map(\.name),
+                        additionalProperties: false
+                    ),
+                    strict: true
+                )
+            }
+        }
+
         static func wireToolCall(from toolCall: RealtimeToolCall) -> WireToolCall {
             switch toolCall.payload {
             case .none:
@@ -1715,6 +1823,42 @@ enum HostCaddieSession {
             )
         }
 
+        static func wireRequest(
+            from openAIToolCall: OpenAIFunctionToolCall
+        ) -> WireSessionRequest? {
+            guard toolCatalog().contains(where: { $0.name == openAIToolCall.name }) else {
+                return nil
+            }
+
+            return WireSessionRequest(
+                utterance: nil,
+                toolCall: WireToolCall(
+                    name: openAIToolCall.name,
+                    arguments: openAIToolCall.arguments
+                )
+            )
+        }
+
+        static func wireRequest(
+            toolName: String,
+            argumentsJSON: String
+        ) -> WireSessionRequest? {
+            guard let data = argumentsJSON.data(using: .utf8),
+                  let arguments = try? JSONDecoder().decode(
+                    WireToolArguments.self,
+                    from: data
+                  ) else {
+                return nil
+            }
+
+            return wireRequest(
+                from: OpenAIFunctionToolCall(
+                    name: toolName,
+                    arguments: arguments
+                )
+            )
+        }
+
         static func wireState(from state: SessionStateSnapshot) -> WireSessionStateSnapshot {
             WireSessionStateSnapshot(
                 selectedHoleNumber: state.selectedHoleNumber,
@@ -1752,6 +1896,50 @@ enum HostCaddieSession {
             }
 
             return wireResponse(from: response)
+        }
+
+        static func dispatchTool(
+            named toolName: String,
+            arguments: WireToolArguments,
+            context: TurnContext
+        ) -> WireSessionResponse? {
+            respond(
+                to: WireSessionRequest(
+                    utterance: nil,
+                    toolCall: WireToolCall(
+                        name: toolName,
+                        arguments: arguments
+                    )
+                ),
+                context: context
+            )
+        }
+
+        private static func allowedValues(
+            for field: VoiceToolFieldDefinition
+        ) -> [String]? {
+            guard field.type == "ShotLie" else {
+                return nil
+            }
+
+            return [
+                ShotLie.tee.rawValue,
+                ShotLie.fairway.rawValue,
+                ShotLie.rough.rawValue,
+                ShotLie.bunker.rawValue,
+                ShotLie.recovery.rawValue
+            ]
+        }
+
+        private static func jsonSchemaType(for parameterType: String) -> String {
+            switch parameterType {
+            case "Double":
+                return "number"
+            case "Int":
+                return "integer"
+            default:
+                return "string"
+            }
         }
     }
 

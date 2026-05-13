@@ -841,6 +841,43 @@ struct TrueCaddieHostTests {
         )
     }
 
+    @Test func conversationExportsClientFacingWireToolCatalog() throws {
+        let catalog = HostCaddieSession.VoiceSessionBridge.toolCatalog()
+        let reportResultEntry = try #require(
+            catalog.first(where: { $0.name == "report_result" })
+        )
+        let correctScoreEntry = try #require(
+            catalog.first(where: { $0.name == "correct_score" })
+        )
+
+        #expect(reportResultEntry.parameters.map(\.name) == ["lie", "remainingDistanceM"])
+        #expect(
+            reportResultEntry.parameters.first?.allowedValues ==
+            ["tee", "fairway", "rough", "bunker", "recovery"]
+        )
+        #expect(correctScoreEntry.parameters.map(\.name) == ["strokesTaken", "holeNumber"])
+        #expect(correctScoreEntry.parameters.last?.required == false)
+    }
+
+    @Test func conversationExportsOpenAIFunctionTools() throws {
+        let tools = HostCaddieSession.VoiceSessionBridge.openAIFunctionTools()
+        let reportResultTool = try #require(
+            tools.first(where: { $0.name == "report_result" })
+        )
+        let correctScoreTool = try #require(
+            tools.first(where: { $0.name == "correct_score" })
+        )
+
+        #expect(reportResultTool.type == "function")
+        #expect(reportResultTool.strict == true)
+        #expect(reportResultTool.parameters.type == "object")
+        #expect(reportResultTool.parameters.additionalProperties == false)
+        #expect(reportResultTool.parameters.required == ["lie", "remainingDistanceM"])
+        #expect(reportResultTool.parameters.properties["lie"]?.enumValues == ["tee", "fairway", "rough", "bunker", "recovery"])
+        #expect(reportResultTool.parameters.properties["remainingDistanceM"]?.type == "number")
+        #expect(correctScoreTool.parameters.properties["strokesTaken"]?.type == "integer")
+    }
+
     @Test func conversationMapsRealtimeToolCallsToSessionActions() {
         let reportResultAction = HostCaddieSession.action(
             for: .init(
@@ -1158,6 +1195,102 @@ struct TrueCaddieHostTests {
         let encoded = try JSONEncoder().encode(wireResponse)
         let decoded = try JSONDecoder().decode(HostCaddieSession.WireSessionResponse.self, from: encoded)
         #expect(decoded == wireResponse)
+    }
+
+    @Test func conversationCanDispatchToolByNameAndArguments() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let context = HostCaddieSession.TurnContext(
+            bundle: bundle,
+            playerContext: .pilotSample,
+            roundContext: .pilotSample,
+            selectedHoleNumber: 1,
+            planMode: .stockNextShot,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(
+                        holeNumber: 1,
+                        status: .inProgress,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 2,
+                            remainingDistanceM: 220,
+                            lie: .fairway
+                        ),
+                        strokesTaken: 1
+                    )
+                ]
+            )
+        )
+
+        let wireResponse = try #require(
+            HostCaddieSession.VoiceSessionBridge.dispatchTool(
+                named: "report_result",
+                arguments: .init(
+                    lie: .rough,
+                    remainingDistanceM: 128
+                ),
+                context: context
+            )
+        )
+
+        #expect(wireResponse.actionName == "report_result")
+        #expect(wireResponse.state.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
+        #expect(wireResponse.assistantReply.contains("From rough at 128m"))
+    }
+
+    @Test func conversationCanBuildWireRequestFromOpenAIToolCall() {
+        let openAIToolCall = HostCaddieSession.OpenAIFunctionToolCall(
+            name: "report_result",
+            arguments: .init(
+                lie: .rough,
+                remainingDistanceM: 128
+            )
+        )
+
+        let wireRequest = HostCaddieSession.VoiceSessionBridge.wireRequest(
+            from: openAIToolCall
+        )
+
+        #expect(
+            wireRequest ==
+            .init(
+                utterance: nil,
+                toolCall: .init(
+                    name: "report_result",
+                    arguments: .init(
+                        lie: .rough,
+                        remainingDistanceM: 128
+                    )
+                )
+            )
+        )
+    }
+
+    @Test func conversationCanBuildWireRequestFromOpenAIArgumentsJSON() {
+        let wireRequest = HostCaddieSession.VoiceSessionBridge.wireRequest(
+            toolName: "correct_score",
+            argumentsJSON: #"{"strokesTaken":5,"holeNumber":1}"#
+        )
+
+        #expect(
+            wireRequest ==
+            .init(
+                utterance: nil,
+                toolCall: .init(
+                    name: "correct_score",
+                    arguments: .init(
+                        strokesTaken: 5,
+                        holeNumber: 1
+                    )
+                )
+            )
+        )
+        #expect(
+            HostCaddieSession.VoiceSessionBridge.wireRequest(
+                toolName: "report_result",
+                argumentsJSON: #"{"remainingDistanceM":"bad"}"#
+            ) == nil
+        )
     }
 
     @Test func conversationCanCorrectFinishedHoleScore() throws {
