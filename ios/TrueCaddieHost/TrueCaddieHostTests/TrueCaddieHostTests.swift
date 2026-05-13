@@ -753,35 +753,39 @@ struct TrueCaddieHostTests {
     }
 
     @Test func conversationParsesSaferPlayAndShotResultIntents() {
-        #expect(HostConversationModel.parse("safe play") == .askForSaferPlay)
-        #expect(HostConversationModel.parse("rough 128") == .reportShotResult(lie: .rough, remainingDistanceM: 128))
-        #expect(HostConversationModel.parse("repeat that") == .repeatLastGuidance)
+        #expect(HostCaddieSession.interpret("safe play") == .askForSaferPlay)
+        #expect(HostCaddieSession.interpret("rough 128") == .reportShotResult(lie: .rough, remainingDistanceM: 128))
+        #expect(HostCaddieSession.interpret("repeat that") == .repeatLastGuidance)
     }
 
     @Test func conversationShotResultAdvancesRoundStateAndRepliesFromNewContext() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let outcome = try #require(
-            HostConversationModel.handle(
-                input: "rough 128",
-                bundle: bundle,
-                playerContext: .pilotSample,
-                roundContext: .pilotSample,
-                selectedHoleNumber: 1,
-                planMode: .stockNextShot,
-                roundState: RoundState(
-                    courseId: bundle.courseId,
-                    holeStates: [
-                        .init(
-                            holeNumber: 1,
-                            status: .inProgress,
-                            shotStateContext: ShotStateContext(
-                                shotNumber: 2,
-                                remainingDistanceM: 220,
-                                lie: .fairway
-                            ),
-                            strokesTaken: 1
+            HostCaddieSession.respond(
+                to: .init(
+                    utterance: "rough 128",
+                    context: .init(
+                        bundle: bundle,
+                        playerContext: .pilotSample,
+                        roundContext: .pilotSample,
+                        selectedHoleNumber: 1,
+                        planMode: .stockNextShot,
+                        roundState: RoundState(
+                            courseId: bundle.courseId,
+                            holeStates: [
+                                .init(
+                                    holeNumber: 1,
+                                    status: .inProgress,
+                                    shotStateContext: ShotStateContext(
+                                        shotNumber: 2,
+                                        remainingDistanceM: 220,
+                                        lie: .fairway
+                                    ),
+                                    strokesTaken: 1
+                                )
+                            ]
                         )
-                    ]
+                    )
                 )
             )
         )
@@ -795,27 +799,31 @@ struct TrueCaddieHostTests {
     @Test func conversationHoleOutFinishesHoleAndMovesToNextHole() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let outcome = try #require(
-            HostConversationModel.handle(
-                input: "holed out",
-                bundle: bundle,
-                playerContext: .pilotSample,
-                roundContext: .pilotSample,
-                selectedHoleNumber: 1,
-                planMode: .stockNextShot,
-                roundState: RoundState(
-                    courseId: bundle.courseId,
-                    holeStates: [
-                        .init(
-                            holeNumber: 1,
-                            status: .inProgress,
-                            shotStateContext: ShotStateContext(
-                                shotNumber: 4,
-                                remainingDistanceM: 3,
-                                lie: .fairway
-                            ),
-                            strokesTaken: 3
+            HostCaddieSession.respond(
+                to: .init(
+                    utterance: "holed out",
+                    context: .init(
+                        bundle: bundle,
+                        playerContext: .pilotSample,
+                        roundContext: .pilotSample,
+                        selectedHoleNumber: 1,
+                        planMode: .stockNextShot,
+                        roundState: RoundState(
+                            courseId: bundle.courseId,
+                            holeStates: [
+                                .init(
+                                    holeNumber: 1,
+                                    status: .inProgress,
+                                    shotStateContext: ShotStateContext(
+                                        shotNumber: 4,
+                                        remainingDistanceM: 3,
+                                        lie: .fairway
+                                    ),
+                                    strokesTaken: 3
+                                )
+                            ]
                         )
-                    ]
+                    )
                 )
             )
         )
