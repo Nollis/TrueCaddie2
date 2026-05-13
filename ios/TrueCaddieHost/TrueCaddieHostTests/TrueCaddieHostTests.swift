@@ -5,6 +5,7 @@
 //  Created by user273008 on 5/12/26.
 //
 
+import Foundation
 import Testing
 import TrueCaddieDomain
 @testable import TrueCaddieHost
@@ -814,6 +815,32 @@ struct TrueCaddieHostTests {
         #expect(HostCaddieSession.toolCall(named: .reportResult, lie: .rough) == nil)
     }
 
+    @Test func conversationBridgesRealtimeToolCallsToWireCalls() {
+        let toolCall = HostCaddieSession.RealtimeToolCall(
+            name: .reportResult,
+            payload: .reportResult(
+                .init(lie: .rough, remainingDistanceM: 128)
+            )
+        )
+
+        let wireToolCall = HostCaddieSession.VoiceSessionBridge.wireToolCall(from: toolCall)
+
+        #expect(
+            wireToolCall ==
+            .init(
+                name: "report_result",
+                arguments: .init(
+                    lie: .rough,
+                    remainingDistanceM: 128
+                )
+            )
+        )
+        #expect(
+            HostCaddieSession.VoiceSessionBridge.toolCall(from: wireToolCall) ==
+            toolCall
+        )
+    }
+
     @Test func conversationMapsRealtimeToolCallsToSessionActions() {
         let reportResultAction = HostCaddieSession.action(
             for: .init(
@@ -853,6 +880,50 @@ struct TrueCaddieHostTests {
         #expect(snapshot.roundContext == .pilotSample)
         #expect(snapshot.roundState == RoundState(courseId: bundle.courseId, holeStates: []))
         #expect(snapshot.availableToolNames.contains(.reportResult))
+    }
+
+    @Test func conversationBuildsSessionEnvelopeFromWireRequest() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let context = HostCaddieSession.TurnContext(
+            bundle: bundle,
+            playerContext: .pilotSample,
+            roundContext: .pilotSample,
+            selectedHoleNumber: 1,
+            planMode: .stockNextShot,
+            roundState: RoundState(courseId: bundle.courseId, holeStates: [])
+        )
+        let wireRequest = HostCaddieSession.WireSessionRequest(
+            utterance: nil,
+            toolCall: .init(
+                name: "report_result",
+                arguments: .init(
+                    lie: .rough,
+                    remainingDistanceM: 128
+                )
+            )
+        )
+
+        let envelope = try #require(
+            HostCaddieSession.VoiceSessionBridge.requestEnvelope(
+                from: wireRequest,
+                context: context
+            )
+        )
+
+        #expect(
+            envelope.source ==
+            .toolCall(
+                .init(
+                    name: .reportResult,
+                    payload: .reportResult(
+                        .init(lie: .rough, remainingDistanceM: 128)
+                    )
+                )
+            )
+        )
+        #expect(envelope.context.selectedHoleNumber == context.selectedHoleNumber)
+        #expect(envelope.context.roundContext == context.roundContext)
+        #expect(envelope.context.roundState == context.roundState)
     }
 
     @Test func conversationShotResultAdvancesRoundStateAndRepliesFromNewContext() throws {
@@ -1034,6 +1105,59 @@ struct TrueCaddieHostTests {
         #expect(response.actionName == .reportResult)
         #expect(response.state.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
         #expect(response.assistantReply.contains("From rough at 128m"))
+    }
+
+    @Test func conversationCanRespondFromWireSessionRequest() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let context = HostCaddieSession.TurnContext(
+            bundle: bundle,
+            playerContext: .pilotSample,
+            roundContext: .pilotSample,
+            selectedHoleNumber: 1,
+            planMode: .stockNextShot,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(
+                        holeNumber: 1,
+                        status: .inProgress,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 2,
+                            remainingDistanceM: 220,
+                            lie: .fairway
+                        ),
+                        strokesTaken: 1
+                    )
+                ]
+            )
+        )
+        let wireRequest = HostCaddieSession.WireSessionRequest(
+            utterance: nil,
+            toolCall: .init(
+                name: "report_result",
+                arguments: .init(
+                    lie: .rough,
+                    remainingDistanceM: 128
+                )
+            )
+        )
+
+        let wireResponse = try #require(
+            HostCaddieSession.VoiceSessionBridge.respond(
+                to: wireRequest,
+                context: context
+            )
+        )
+
+        #expect(wireResponse.actionName == "report_result")
+        #expect(wireResponse.state.selectedHoleNumber == 1)
+        #expect(wireResponse.state.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
+        #expect(wireResponse.state.roundContext.strategyPreference == "balanced")
+        #expect(wireResponse.state.availableToolNames.contains("report_result"))
+
+        let encoded = try JSONEncoder().encode(wireResponse)
+        let decoded = try JSONDecoder().decode(HostCaddieSession.WireSessionResponse.self, from: encoded)
+        #expect(decoded == wireResponse)
     }
 
     @Test func conversationCanCorrectFinishedHoleScore() throws {

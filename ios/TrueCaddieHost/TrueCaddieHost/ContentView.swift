@@ -1479,7 +1479,7 @@ enum HostCaddieSession {
         }
     }
 
-    enum ActionName: String, CaseIterable, Equatable {
+    enum ActionName: String, CaseIterable, Equatable, Codable {
         case guidance
         case saferPlay = "safer_play"
         case aggressivePlay = "aggressive_play"
@@ -1520,6 +1520,30 @@ enum HostCaddieSession {
     struct RealtimeToolCall: Equatable {
         let name: ActionName
         let payload: RealtimeToolPayload
+    }
+
+    struct WireToolArguments: Codable, Equatable {
+        let lie: ShotLie?
+        let remainingDistanceM: Double?
+        let strokesTaken: Int?
+        let holeNumber: Int?
+
+        init(
+            lie: ShotLie? = nil,
+            remainingDistanceM: Double? = nil,
+            strokesTaken: Int? = nil,
+            holeNumber: Int? = nil
+        ) {
+            self.lie = lie
+            self.remainingDistanceM = remainingDistanceM
+            self.strokesTaken = strokesTaken
+            self.holeNumber = holeNumber
+        }
+    }
+
+    struct WireToolCall: Codable, Equatable {
+        let name: String
+        let arguments: WireToolArguments
     }
 
     enum SessionTurnSource: Equatable {
@@ -1588,7 +1612,7 @@ enum HostCaddieSession {
         let availableToolNames: [ActionName]
     }
 
-    struct SessionRequestEnvelope: Equatable {
+    struct SessionRequestEnvelope {
         let source: SessionTurnSource
         let context: TurnContext
     }
@@ -1598,6 +1622,137 @@ enum HostCaddieSession {
         let assistantReply: String
         let state: SessionStateSnapshot
         let strategyPreference: StrategyPreference?
+    }
+
+    struct WireRoundContextSnapshot: Codable, Equatable {
+        let teeSetId: String
+        let teeSetName: String
+        let strategyPreference: String
+        let windRelativeDirection: String?
+        let windSpeedMps: Double?
+    }
+
+    struct WireSessionStateSnapshot: Codable, Equatable {
+        let selectedHoleNumber: Int
+        let roundContext: WireRoundContextSnapshot
+        let roundState: RoundState
+        let availableToolNames: [String]
+    }
+
+    struct WireSessionRequest: Codable, Equatable {
+        let utterance: String?
+        let toolCall: WireToolCall?
+    }
+
+    struct WireSessionResponse: Codable, Equatable {
+        let actionName: String
+        let assistantReply: String
+        let state: WireSessionStateSnapshot
+        let strategyPreference: String?
+    }
+
+    enum VoiceSessionBridge {
+        static func wireToolCall(from toolCall: RealtimeToolCall) -> WireToolCall {
+            switch toolCall.payload {
+            case .none:
+                return WireToolCall(
+                    name: toolCall.name.rawValue,
+                    arguments: WireToolArguments()
+                )
+            case let .reportResult(payload):
+                return WireToolCall(
+                    name: toolCall.name.rawValue,
+                    arguments: WireToolArguments(
+                        lie: payload.lie,
+                        remainingDistanceM: payload.remainingDistanceM
+                    )
+                )
+            case let .correctScore(payload):
+                return WireToolCall(
+                    name: toolCall.name.rawValue,
+                    arguments: WireToolArguments(
+                        strokesTaken: payload.strokesTaken,
+                        holeNumber: payload.holeNumber
+                    )
+                )
+            }
+        }
+
+        static func toolCall(from wireToolCall: WireToolCall) -> RealtimeToolCall? {
+            guard let name = ActionName(rawValue: wireToolCall.name) else {
+                return nil
+            }
+
+            return HostCaddieSession.toolCall(
+                named: name,
+                lie: wireToolCall.arguments.lie,
+                remainingDistanceM: wireToolCall.arguments.remainingDistanceM,
+                strokesTaken: wireToolCall.arguments.strokesTaken,
+                holeNumber: wireToolCall.arguments.holeNumber
+            )
+        }
+
+        static func requestEnvelope(
+            from wireRequest: WireSessionRequest,
+            context: TurnContext
+        ) -> SessionRequestEnvelope? {
+            if let utterance = wireRequest.utterance?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !utterance.isEmpty {
+                return SessionRequestEnvelope(
+                    source: .utterance(utterance),
+                    context: context
+                )
+            }
+
+            guard let wireToolCall = wireRequest.toolCall,
+                  let toolCall = toolCall(from: wireToolCall) else {
+                return nil
+            }
+
+            return SessionRequestEnvelope(
+                source: .toolCall(toolCall),
+                context: context
+            )
+        }
+
+        static func wireState(from state: SessionStateSnapshot) -> WireSessionStateSnapshot {
+            WireSessionStateSnapshot(
+                selectedHoleNumber: state.selectedHoleNumber,
+                roundContext: WireRoundContextSnapshot(
+                    teeSetId: state.roundContext.teeSetId,
+                    teeSetName: state.roundContext.teeSetName,
+                    strategyPreference: state.roundContext.strategyPreference.rawValue,
+                    windRelativeDirection: state.roundContext.wind?.relativeDirection.rawValue,
+                    windSpeedMps: state.roundContext.wind?.speedMps
+                ),
+                roundState: state.roundState,
+                availableToolNames: state.availableToolNames.map(\.rawValue)
+            )
+        }
+
+        static func wireResponse(from response: SessionResponseEnvelope) -> WireSessionResponse {
+            WireSessionResponse(
+                actionName: response.actionName.rawValue,
+                assistantReply: response.assistantReply,
+                state: wireState(from: response.state),
+                strategyPreference: response.strategyPreference?.rawValue
+            )
+        }
+
+        static func respond(
+            to wireRequest: WireSessionRequest,
+            context: TurnContext
+        ) -> WireSessionResponse? {
+            guard let envelope = requestEnvelope(
+                from: wireRequest,
+                context: context
+            ),
+            let response = HostCaddieSession.respond(to: envelope) else {
+                return nil
+            }
+
+            return wireResponse(from: response)
+        }
     }
 
     static let supportedVoiceTools: [VoiceToolDefinition] = [
