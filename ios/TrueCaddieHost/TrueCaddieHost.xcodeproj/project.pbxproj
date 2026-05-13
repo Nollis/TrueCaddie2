@@ -9,8 +9,6 @@
 /* Begin PBXBuildFile section */
 		19C6F42F2FB3171100FE7C82 /* TrueCaddieDomain in Frameworks */ = {isa = PBXBuildFile; productRef = 19C6F42E2FB3171100FE7C82 /* TrueCaddieDomain */; };
 		19C6F4352FB3185500FE7C82 /* kungsbacka-nya.v1.json in Resources */ = {isa = PBXBuildFile; fileRef = 19C6F4342FB3185500FE7C82 /* kungsbacka-nya.v1.json */; };
-		7A11C0A92FBB000100A10001 /* HostCaddieSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0A72FBB000100A10001 /* HostCaddieSession.swift */; };
-		7A11C0AA2FBB000100A10001 /* RealtimeVoiceSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A11C0A82FBB000100A10001 /* RealtimeVoiceSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,8 +33,6 @@
 		19C6F4102FB3165900FE7C82 /* TrueCaddieHostTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrueCaddieHostTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19C6F41A2FB3165900FE7C82 /* TrueCaddieHostUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TrueCaddieHostUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		19C6F4342FB3185500FE7C82 /* kungsbacka-nya.v1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = "kungsbacka-nya.v1.json"; path = "../../shared/sample-bundles/kungsbacka-nya.v1.json"; sourceTree = SOURCE_ROOT; };
-		7A11C0A72FBB000100A10001 /* HostCaddieSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostCaddieSession.swift; sourceTree = "<group>"; };
-		7A11C0A82FBB000100A10001 /* RealtimeVoiceSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeVoiceSession.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -87,7 +83,6 @@
 			isa = PBXGroup;
 			children = (
 				19C6F4342FB3185500FE7C82 /* kungsbacka-nya.v1.json */,
-				7A11C0A62FBB000100A10001 /* ExplicitHostSources */,
 				19C6F4052FB3165800FE7C82 /* TrueCaddieHost */,
 				19C6F4132FB3165900FE7C82 /* TrueCaddieHostTests */,
 				19C6F41D2FB3165900FE7C82 /* TrueCaddieHostUITests */,
@@ -103,15 +98,6 @@
 				19C6F41A2FB3165900FE7C82 /* TrueCaddieHostUITests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		7A11C0A62FBB000100A10001 /* ExplicitHostSources */ = {
-			isa = PBXGroup;
-			children = (
-				7A11C0A72FBB000100A10001 /* HostCaddieSession.swift */,
-				7A11C0A82FBB000100A10001 /* RealtimeVoiceSession.swift */,
-			);
-			path = TrueCaddieHost/App;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -263,8 +249,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				7A11C0A92FBB000100A10001 /* HostCaddieSession.swift in Sources */,
-				7A11C0AA2FBB000100A10001 /* RealtimeVoiceSession.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
