@@ -60,6 +60,7 @@ private struct RoundPreviewView: View {
     @State private var selectedHoleNumber = 0
     @State private var selectedPlanMode: HostRoundPreviewModel.RoundPlanMode = .stockNextShot
     @State private var selectedScenarioId = ""
+    @State private var pendingHoleOutStrokes: Int?
     @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
     @State private var roundState: RoundState
 
@@ -158,10 +159,18 @@ private struct RoundPreviewView: View {
         List {
             if let preview {
                 Section("Round Summary") {
-                    LabeledContent("Current", value: "Hole \(roundSummary.currentHoleNumber)")
-                    LabeledContent("Status", value: roundSummary.currentStatusLabel)
-                    LabeledContent("Progress", value: roundSummary.progressLabel)
-                    LabeledContent("Score", value: roundSummary.scoreLabel)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(roundSummary.totalsHeader)
+                            .font(.title3.weight(.semibold))
+
+                        Text(roundSummary.currentHoleHeader)
+                            .foregroundStyle(.secondary)
+
+                        Text(roundSummary.progressLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
                 }
 
                 Section("Round") {
@@ -239,10 +248,34 @@ private struct RoundPreviewView: View {
 
                             Spacer()
 
-                            Button("Finish hole") {
-                                finishSelectedHole()
+                            Button("Hole out") {
+                                beginHoleOutFlow()
                             }
                             .tint(.green)
+                        }
+
+                        if let pendingHoleOutStrokes {
+                            Stepper(
+                                "Finish in \(pendingHoleOutStrokes) strokes",
+                                value: Binding(
+                                    get: { pendingHoleOutStrokes },
+                                    set: { self.pendingHoleOutStrokes = $0 }
+                                ),
+                                in: 1...15
+                            )
+
+                            HStack {
+                                Button("Confirm score") {
+                                    confirmHoleOut()
+                                }
+                                .tint(.green)
+
+                                Spacer()
+
+                                Button("Cancel") {
+                                    cancelHoleOut()
+                                }
+                            }
                         }
 
                         Stepper(
@@ -282,6 +315,7 @@ private struct RoundPreviewView: View {
                         )
                     } else if isHoleFinished {
                         LabeledContent("Status", value: "Finished")
+                        LabeledContent("Score", value: "\(selectedHoleState?.strokesTaken ?? 0)")
 
                         Button("Reset hole") {
                             resetSelectedHole()
@@ -370,6 +404,7 @@ private struct RoundPreviewView: View {
             syncSelection()
         }
         .onChange(of: selectedHoleNumber) {
+            pendingHoleOutStrokes = nil
             syncTeeSelection()
             syncScenarioSelection()
             persistRoundProgress()
@@ -442,6 +477,7 @@ private struct RoundPreviewView: View {
             return
         }
 
+        pendingHoleOutStrokes = nil
         roundState = roundState.startHole(hole, roundContext: effectiveRoundContext)
         selectedHoleNumber = hole.holeNumber
         syncScenarioSelection(forceReset: true)
@@ -451,8 +487,27 @@ private struct RoundPreviewView: View {
         roundState = roundState.advanceShot(for: selectedHoleNumber)
     }
 
-    private func finishSelectedHole() {
-        let finishedRoundState = roundState.finishHole(selectedHoleNumber)
+    private func beginHoleOutFlow() {
+        pendingHoleOutStrokes = selectedHoleState?.shotStateContext?.shotNumber
+            ?? selectedHoleState?.strokesTaken
+            ?? 1
+    }
+
+    private func confirmHoleOut() {
+        guard let pendingHoleOutStrokes else {
+            return
+        }
+
+        finishSelectedHole(strokesTaken: pendingHoleOutStrokes)
+    }
+
+    private func cancelHoleOut() {
+        pendingHoleOutStrokes = nil
+    }
+
+    private func finishSelectedHole(strokesTaken: Int) {
+        let finishedRoundState = roundState.finishHole(selectedHoleNumber, strokesTaken: strokesTaken)
+        pendingHoleOutStrokes = nil
         roundState = finishedRoundState
         selectedHoleNumber = HostRoundProgressModel.nextUnfinishedHoleNumber(
             after: selectedHoleNumber,
@@ -463,6 +518,7 @@ private struct RoundPreviewView: View {
     }
 
     private func resetSelectedHole() {
+        pendingHoleOutStrokes = nil
         roundState = roundState.resetHole(selectedHoleNumber)
         syncScenarioSelection(forceReset: true)
     }
@@ -780,9 +836,9 @@ struct HostSavedRoundProgress: Codable, Equatable {
 enum HostRoundProgressModel {
     struct RoundSummary: Equatable {
         let currentHoleNumber: Int
-        let currentStatusLabel: String
+        let currentHoleHeader: String
+        let totalsHeader: String
         let progressLabel: String
-        let scoreLabel: String
     }
 
     static func currentHoleNumber(
@@ -826,16 +882,16 @@ enum HostRoundProgressModel {
 
         return RoundSummary(
             currentHoleNumber: currentHoleNumber,
-            currentStatusLabel: currentStatusLabel(
+            currentHoleHeader: currentHoleHeader(
                 roundState: roundState,
                 holeNumber: currentHoleNumber
             ),
-            progressLabel: "\(finishedHoleCount) of \(totalHoleCount) complete",
-            scoreLabel: scoreLabel(
+            totalsHeader: totalsHeader(
                 relativeToPar: relativeToPar,
                 finishedHoleCount: finishedHoleCount,
                 inProgressHoleCount: inProgressHoles.count
-            )
+            ),
+            progressLabel: "\(finishedHoleCount) of \(totalHoleCount) complete",
         )
     }
 
@@ -856,27 +912,27 @@ enum HostRoundProgressModel {
         })
     }
 
-    private static func currentStatusLabel(
+    private static func currentHoleHeader(
         roundState: RoundState,
         holeNumber: Int
     ) -> String {
         switch roundState.holeState(for: holeNumber)?.status {
         case .inProgress:
-            return "In progress"
+            return "Current hole \(holeNumber)"
         case .finished:
-            return "Finished"
+            return "Hole \(holeNumber) complete"
         case nil:
-            return "Not started"
+            return "Current hole \(holeNumber)"
         }
     }
 
-    private static func scoreLabel(
+    private static func totalsHeader(
         relativeToPar: Int,
         finishedHoleCount: Int,
         inProgressHoleCount: Int
     ) -> String {
         guard finishedHoleCount > 0 else {
-            return inProgressHoleCount > 0 ? "Round started" : "Even"
+            return inProgressHoleCount > 0 ? "Round started" : "Round ready"
         }
 
         let relativeLabel: String
@@ -889,7 +945,7 @@ enum HostRoundProgressModel {
             relativeLabel = "+\(relativeToPar)"
         }
 
-        return "\(relativeLabel) through \(finishedHoleCount)"
+        return "Through \(finishedHoleCount): \(relativeLabel)"
     }
 }
 

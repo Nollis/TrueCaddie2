@@ -59,7 +59,7 @@ public struct RoundState: Codable, Equatable, Sendable {
         )
     }
 
-    public func finishHole(_ holeNumber: Int) -> RoundState {
+    public func finishHole(_ holeNumber: Int, strokesTaken: Int? = nil) -> RoundState {
         let existingHoleState = holeState(for: holeNumber)
 
         return upserting(
@@ -67,7 +67,9 @@ public struct RoundState: Codable, Equatable, Sendable {
                 holeNumber: holeNumber,
                 status: .finished,
                 shotStateContext: existingHoleState?.shotStateContext,
-                strokesTaken: existingHoleState?.shotStateContext?.shotNumber ?? existingHoleState?.strokesTaken
+                strokesTaken: strokesTaken
+                    ?? existingHoleState?.shotStateContext?.shotNumber
+                    ?? existingHoleState?.strokesTaken
             )
         )
     }

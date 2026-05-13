@@ -569,9 +569,9 @@ struct TrueCaddieHostTests {
         )
 
         #expect(summary.currentHoleNumber == 2)
-        #expect(summary.currentStatusLabel == "In progress")
+        #expect(summary.currentHoleHeader == "Current hole 2")
         #expect(summary.progressLabel == "1 of 9 complete")
-        #expect(summary.scoreLabel == "E through 1")
+        #expect(summary.totalsHeader == "Through 1: E")
     }
 
     @Test func roundSummaryShowsNotStartedWhenNoHoleHasBegun() throws {
@@ -582,9 +582,36 @@ struct TrueCaddieHostTests {
             currentHoleNumber: 1
         )
 
-        #expect(summary.currentStatusLabel == "Not started")
+        #expect(summary.currentHoleHeader == "Current hole 1")
         #expect(summary.progressLabel == "0 of 9 complete")
-        #expect(summary.scoreLabel == "Even")
+        #expect(summary.totalsHeader == "Round ready")
+    }
+
+    @Test func roundSummaryShowsPositiveTotalRelativeToPar() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let summary = HostRoundProgressModel.summary(
+            bundle: bundle,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(
+                        holeNumber: 1,
+                        status: .finished,
+                        shotStateContext: nil,
+                        strokesTaken: 8
+                    ),
+                    .init(
+                        holeNumber: 2,
+                        status: .finished,
+                        shotStateContext: nil,
+                        strokesTaken: 4
+                    )
+                ]
+            ),
+            currentHoleNumber: 3
+        )
+
+        #expect(summary.totalsHeader == "Through 2: +4")
     }
 
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
