@@ -58,6 +58,7 @@ private struct RoundPreviewView: View {
     let playerContext: PlayerContext
     let baseRoundContext: RoundContext
     @State private var selectedHoleNumber = 0
+    @State private var selectedPlanMode: HostRoundPreviewModel.RoundPlanMode = .stockNextShot
     @State private var selectedScenarioId = ""
     @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
 
@@ -93,7 +94,8 @@ private struct RoundPreviewView: View {
             bundle: bundle,
             playerContext: playerContext,
             roundContext: effectiveRoundContext,
-            holeNumber: selectedHoleNumber
+            holeNumber: selectedHoleNumber,
+            planMode: selectedPlanMode
         )
     }
 
@@ -101,7 +103,8 @@ private struct RoundPreviewView: View {
         HostRoundPreviewModel.roundPreviews(
             bundle: bundle,
             playerContext: playerContext,
-            roundContext: effectiveRoundContext
+            roundContext: effectiveRoundContext,
+            planMode: selectedPlanMode
         )
     }
 
@@ -111,6 +114,7 @@ private struct RoundPreviewView: View {
             playerContext: playerContext,
             roundContext: effectiveRoundContext,
             holeNumber: selectedHoleNumber,
+            planMode: selectedPlanMode,
             selectedScenarioId: selectedScenarioId
         )
     }
@@ -122,12 +126,16 @@ private struct RoundPreviewView: View {
                     ForEach(roundPreviews, id: \.holeNumber) { holePreview in
                         Button {
                             selectedHoleNumber = holePreview.holeNumber
+                            selectedScenarioId = ""
                         } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     Text("Hole \(holePreview.holeNumber)")
                                         .fontWeight(.semibold)
                                     Text("Par \(holePreview.par)")
+                                        .foregroundStyle(.secondary)
+                                    Text(holePreview.scenarioName)
+                                        .font(.caption)
                                         .foregroundStyle(.secondary)
                                     Spacer()
                                     if holePreview.holeNumber == selectedHoleNumber {
@@ -153,6 +161,13 @@ private struct RoundPreviewView: View {
                 }
 
                 Section("Round") {
+                    Picker("View", selection: $selectedPlanMode) {
+                        ForEach(HostRoundPreviewModel.RoundPlanMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
                     Picker("Strategy", selection: $roundOverrides.strategyPreference) {
                         ForEach(HoleInspectorModel.strategyOptions, id: \.rawValue) { strategy in
                             Text(strategy.rawValue.capitalized).tag(strategy)
@@ -187,6 +202,7 @@ private struct RoundPreviewView: View {
                     }
 
                     LabeledContent("Hole", value: "\(preview.holeNumber)")
+                    LabeledContent("Mode", value: selectedPlanMode.title)
 
                     Picker("Scenario", selection: $selectedScenarioId) {
                         ForEach(scenarioOptions) { scenario in
@@ -263,6 +279,9 @@ private struct RoundPreviewView: View {
             syncTeeSelection()
             syncScenarioSelection()
         }
+        .onChange(of: selectedPlanMode) {
+            syncScenarioSelection(forceReset: true)
+        }
         .onChange(of: effectiveRoundContext) {
             syncScenarioSelection()
         }
@@ -303,8 +322,8 @@ private struct RoundPreviewView: View {
             ?? roundOverrides.teeSetId
     }
 
-    private func syncScenarioSelection() {
-        if scenarioOptions.contains(where: { $0.id == selectedScenarioId }) {
+    private func syncScenarioSelection(forceReset: Bool = false) {
+        if !forceReset, scenarioOptions.contains(where: { $0.id == selectedScenarioId }) {
             return
         }
 
@@ -313,6 +332,25 @@ private struct RoundPreviewView: View {
 }
 
 enum HostRoundPreviewModel {
+    enum RoundPlanMode: String, CaseIterable, Identifiable {
+        case teePlan
+        case stockNextShot
+        case layupView
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .teePlan:
+                return "Tee"
+            case .stockNextShot:
+                return "Stock"
+            case .layupView:
+                return "Layup"
+            }
+        }
+    }
+
     struct HolePreview: Equatable {
         let holeNumber: Int
         let par: Int
@@ -335,6 +373,7 @@ enum HostRoundPreviewModel {
             playerContext: playerContext,
             roundContext: roundContext,
             holeNumber: firstHoleNumber,
+            planMode: .stockNextShot,
             selectedScenarioId: ""
         )
     }
@@ -343,10 +382,15 @@ enum HostRoundPreviewModel {
         bundle: CourseBundle,
         playerContext: PlayerContext,
         roundContext: RoundContext,
-        holeNumber: Int
+        holeNumber: Int,
+        planMode: RoundPlanMode
     ) -> [HoleInspectorModel.ShotStateScenario] {
         guard let hole = hole(bundle: bundle, holeNumber: holeNumber) else {
             return []
+        }
+
+        if planMode == .teePlan, let teeScenario = teeScenario(for: hole, roundContext: roundContext) {
+            return [teeScenario]
         }
 
         return HoleInspectorModel.makeShotStateScenarios(
@@ -362,6 +406,7 @@ enum HostRoundPreviewModel {
         playerContext: PlayerContext,
         roundContext: RoundContext,
         holeNumber: Int,
+        planMode: RoundPlanMode,
         selectedScenarioId: String
     ) -> HolePreview? {
         guard let hole = hole(bundle: bundle, holeNumber: holeNumber) else {
@@ -372,17 +417,37 @@ enum HostRoundPreviewModel {
             bundle: bundle,
             playerContext: playerContext,
             roundContext: roundContext,
-            holeNumber: holeNumber
+            holeNumber: holeNumber,
+            planMode: planMode
         )
-        let scenario = scenarios.first(where: { $0.id == selectedScenarioId }) ?? scenarios.first
-        guard let scenario,
-              let packet = HoleInspectorModel.nextShotRecommendation(
+        let defaultScenarioId = defaultScenarioId(for: hole, planMode: planMode, scenarios: scenarios)
+        let scenario = scenarios.first(where: { $0.id == selectedScenarioId })
+            ?? scenarios.first(where: { $0.id == defaultScenarioId })
+            ?? scenarios.first
+        guard let scenario else {
+            return nil
+        }
+
+        let packet: NextShotRecommendationPacket?
+        if planMode == .teePlan {
+            packet = NextShotRecommendationEngine.build(
+                courseId: bundle.courseId,
+                for: hole,
+                playerContext: playerContext,
+                roundContext: roundContext,
+                shotStateContext: scenario.shotStateContext
+            )
+        } else {
+            packet = HoleInspectorModel.nextShotRecommendation(
                 for: hole,
                 courseId: bundle.courseId,
                 playerContext: playerContext,
                 roundContext: roundContext,
                 selectedScenarioId: scenario.id
-              ) else {
+            )
+        }
+
+        guard let packet else {
             return nil
         }
 
@@ -398,7 +463,8 @@ enum HostRoundPreviewModel {
     static func roundPreviews(
         bundle: CourseBundle,
         playerContext: PlayerContext,
-        roundContext: RoundContext
+        roundContext: RoundContext,
+        planMode: RoundPlanMode
     ) -> [HolePreview] {
         bundle.holes.compactMap { hole in
             preview(
@@ -406,6 +472,7 @@ enum HostRoundPreviewModel {
                 playerContext: playerContext,
                 roundContext: roundContext,
                 holeNumber: hole.holeNumber,
+                planMode: planMode,
                 selectedScenarioId: ""
             )
         }
@@ -413,5 +480,56 @@ enum HostRoundPreviewModel {
 
     private static func hole(bundle: CourseBundle, holeNumber: Int) -> CourseHole? {
         bundle.holes.first(where: { $0.holeNumber == holeNumber })
+    }
+
+    private static func teeScenario(
+        for hole: CourseHole,
+        roundContext: RoundContext
+    ) -> HoleInspectorModel.ShotStateScenario? {
+        guard let tee = selectedTee(in: hole, roundContext: roundContext) else {
+            return nil
+        }
+
+        return HoleInspectorModel.ShotStateScenario(
+            id: "tee",
+            name: "Tee shot",
+            detail: "Opening shot plan from the tee",
+            shotStateContext: ShotStateContext(
+                shotNumber: 1,
+                remainingDistanceM: tee.teeLengthM,
+                lie: .tee
+            )
+        )
+    }
+
+    private static func defaultScenarioId(
+        for hole: CourseHole,
+        planMode: RoundPlanMode,
+        scenarios: [HoleInspectorModel.ShotStateScenario]
+    ) -> String? {
+        switch planMode {
+        case .teePlan:
+            return "tee"
+        case .stockNextShot:
+            return scenarios.first?.id
+        case .layupView:
+            if hole.par == 5, scenarios.contains(where: { $0.id == "layup" }) {
+                return "layup"
+            }
+
+            return scenarios.first?.id
+        }
+    }
+
+    private static func selectedTee(in hole: CourseHole, roundContext: RoundContext) -> Tee? {
+        if let matchedTee = hole.tees.first(where: { $0.teeSetId == roundContext.teeSetId }) {
+            return matchedTee
+        }
+
+        if let defaultTee = hole.tees.first(where: { $0.isDefault == true }) {
+            return defaultTee
+        }
+
+        return hole.tees.first
     }
 }

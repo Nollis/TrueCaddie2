@@ -258,6 +258,7 @@ struct TrueCaddieHostTests {
                 playerContext: .pilotSample,
                 roundContext: .pilotSample,
                 holeNumber: 1,
+                planMode: .stockNextShot,
                 selectedScenarioId: "rough"
             )
         )
@@ -275,6 +276,7 @@ struct TrueCaddieHostTests {
                 playerContext: .pilotSample,
                 roundContext: .pilotSample,
                 holeNumber: 7,
+                planMode: .stockNextShot,
                 selectedScenarioId: ""
             )
         )
@@ -303,6 +305,7 @@ struct TrueCaddieHostTests {
                 playerContext: .pilotSample,
                 roundContext: effectiveRoundContext,
                 holeNumber: 1,
+                planMode: .stockNextShot,
                 selectedScenarioId: "layup"
             )
         )
@@ -317,7 +320,8 @@ struct TrueCaddieHostTests {
         let previews = HostRoundPreviewModel.roundPreviews(
             bundle: bundle,
             playerContext: .pilotSample,
-            roundContext: .pilotSample
+            roundContext: .pilotSample,
+            planMode: .stockNextShot
         )
 
         #expect(previews.count == bundle.holes.count)
@@ -331,12 +335,48 @@ struct TrueCaddieHostTests {
         let previews = HostRoundPreviewModel.roundPreviews(
             bundle: bundle,
             playerContext: .pilotSample,
-            roundContext: .pilotSample
+            roundContext: .pilotSample,
+            planMode: .stockNextShot
         )
         let holeSeven = try #require(previews.first(where: { $0.holeNumber == 7 }))
 
         #expect(holeSeven.par == 5)
         #expect(holeSeven.packet.holeNumber == 7)
+    }
+
+    @Test func teePlanModeUsesOpeningShotContext() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let preview = try #require(
+            HostRoundPreviewModel.preview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                holeNumber: 4,
+                planMode: .teePlan,
+                selectedScenarioId: ""
+            )
+        )
+
+        #expect(preview.scenarioName == "Tee shot")
+        #expect(preview.packet.shotNumber == 1)
+        #expect(preview.packet.lie == .tee)
+    }
+
+    @Test func layupViewModePrefersLayupScenarioOnParFive() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let preview = try #require(
+            HostRoundPreviewModel.preview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                holeNumber: 1,
+                planMode: .layupView,
+                selectedScenarioId: ""
+            )
+        )
+
+        #expect(preview.scenarioName == "Layup leave")
+        #expect(preview.packet.shotNumber == 3)
     }
 
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
