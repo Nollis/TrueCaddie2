@@ -204,7 +204,7 @@ final class NextShotRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(packet?.lie, .fairway)
         XCTAssertEqual(packet?.shotDistanceM, 142)
         XCTAssertEqual(packet?.recommendedClub, "8 Iron")
-        XCTAssertEqual(packet?.headline, "8 Iron to Center green")
+        XCTAssertEqual(packet?.headline, "8 Iron toward Center green")
         XCTAssertEqual(packet?.executionNote, "8 Iron carry 144m fits a center green number.")
         XCTAssertNil(packet?.missNote)
         XCTAssertEqual(packet?.confidenceBand, "low")
@@ -243,7 +243,7 @@ final class NextShotRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(packet?.targetLabel, "Front-center green")
         XCTAssertEqual(packet?.shotDistanceM, 122)
         XCTAssertEqual(packet?.recommendedClub, "9 Iron")
-        XCTAssertEqual(packet?.headline, "9 Iron to Front-center green")
+        XCTAssertEqual(packet?.headline, "9 Iron toward Front-center green")
         XCTAssertEqual(packet?.executionNote, "9 Iron carry 132m fits a front-center green number.")
         XCTAssertNil(packet?.missNote)
         XCTAssertEqual(packet?.confidenceBand, "low")
@@ -454,7 +454,7 @@ final class NextShotRecommendationEngineTests: XCTestCase {
         XCTAssertEqual(packet?.recommendedClub, "PW")
         XCTAssertEqual(packet?.headline, "PW to Left-center layup shelf")
         XCTAssertEqual(packet?.executionNote, "PW carry 118m leaves about 102m in.")
-        XCTAssertEqual(packet?.fallbackNote, "If the green light is not there, leave yourself about 102m in.")
+        XCTAssertEqual(packet?.fallbackNote, "If it's not on, leave yourself about 102m in.")
     }
 
     private func loadBundle(from json: String) throws -> CourseBundle {

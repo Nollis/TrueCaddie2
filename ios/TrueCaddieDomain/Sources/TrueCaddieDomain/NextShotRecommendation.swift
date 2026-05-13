@@ -113,7 +113,8 @@ public enum NextShotRecommendationEngine {
     ) -> NextShotRecommendationPacket {
         let headline = headline(
             club: teePacket.recommendedClub,
-            targetLabel: teePacket.targetLabel
+            targetLabel: teePacket.targetLabel,
+            confidenceBand: teePacket.confidenceBand
         )
         let executionNote = teePacket.supportingReason ?? teePacket.primaryReason
 
@@ -160,7 +161,8 @@ public enum NextShotRecommendationEngine {
     ) -> NextShotRecommendationPacket {
         let headline = headline(
             club: approachPacket.recommendedClub,
-            targetLabel: approachPacket.targetLabel
+            targetLabel: approachPacket.targetLabel,
+            confidenceBand: approachPacket.confidenceBand
         )
         let executionNote = approachPacket.supportingReason ?? approachPacket.primaryReason
 
@@ -201,12 +203,14 @@ public enum NextShotRecommendationEngine {
         )
     }
 
-    private static func headline(club: String?, targetLabel: String) -> String {
+    private static func headline(club: String?, targetLabel: String, confidenceBand: String) -> String {
+        let connector = confidenceBand == "low" ? "toward" : "to"
+
         guard let club else {
             return targetLabel
         }
 
-        return "\(club) to \(targetLabel)"
+        return "\(club) \(connector) \(targetLabel)"
     }
 
     private static func missNote(
@@ -227,7 +231,7 @@ public enum NextShotRecommendationEngine {
     ) -> String? {
         if recommendationType == "layup",
            let plannedLeaveDistanceM {
-            return "If the green light is not there, leave yourself about \(format(number: plannedLeaveDistanceM))m in."
+            return "If it's not on, leave yourself about \(format(number: plannedLeaveDistanceM))m in."
         }
 
         guard confidenceBand == "low" else {

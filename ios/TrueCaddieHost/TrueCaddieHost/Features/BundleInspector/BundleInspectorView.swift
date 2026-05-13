@@ -59,16 +59,38 @@ private struct HoleInspectorDetail: View {
     let snapshot: HoleInspectionSnapshot
     let hole: CourseHole
     let playerContext: PlayerContext
-    let roundContext: RoundContext
+    let baseRoundContext: RoundContext
     @State private var selectedTab: HoleInspectorModel.HoleInspectorTab = .overview
+    @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
     @State private var selectedScenarioId = ""
+
+    init(
+        snapshot: HoleInspectionSnapshot,
+        hole: CourseHole,
+        playerContext: PlayerContext,
+        roundContext: RoundContext
+    ) {
+        self.snapshot = snapshot
+        self.hole = hole
+        self.playerContext = playerContext
+        self.baseRoundContext = roundContext
+        _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
+    }
+
+    private var effectiveRoundContext: RoundContext {
+        HoleInspectorModel.makeEffectiveRoundContext(
+            from: roundOverrides,
+            baseRoundContext: baseRoundContext,
+            hole: hole
+        )
+    }
 
     private var nextShotRecommendation: NextShotRecommendationPacket? {
         HoleInspectorModel.nextShotRecommendation(
             for: hole,
             courseId: snapshot.courseId,
             playerContext: playerContext,
-            roundContext: roundContext,
+            roundContext: effectiveRoundContext,
             selectedScenarioId: selectedScenarioId
         )
     }
@@ -107,7 +129,7 @@ private struct HoleInspectorDetail: View {
             for: hole,
             courseId: snapshot.courseId,
             playerContext: playerContext,
-            roundContext: roundContext
+            roundContext: effectiveRoundContext
         )
     }
 
@@ -212,12 +234,51 @@ private struct HoleInspectorDetail: View {
                 }
             }
 
+            if visibleSections.contains(.liveRoundControls) {
+                Section("Live Round Controls") {
+                    Picker("Strategy", selection: $roundOverrides.strategyPreference) {
+                        ForEach(HoleInspectorModel.strategyOptions, id: \.rawValue) { strategy in
+                            Text(strategy.rawValue.capitalized).tag(strategy)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Picker("Tee", selection: $roundOverrides.teeSetId) {
+                        ForEach(hole.tees) { tee in
+                            Text(tee.name).tag(tee.teeSetId)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Toggle("Wind", isOn: $roundOverrides.windEnabled)
+
+                    if roundOverrides.windEnabled {
+                        Picker("Direction", selection: $roundOverrides.windDirection) {
+                            ForEach(HoleInspectorModel.windDirectionOptions, id: \.rawValue) { direction in
+                                Text(direction.rawValue.capitalized).tag(direction)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        LabeledContent("Speed", value: "\(format(number: roundOverrides.windSpeedMps)) m/s")
+
+                        Slider(
+                            value: $roundOverrides.windSpeedMps,
+                            in: 0...12,
+                            step: 1
+                        )
+                    }
+                }
+            }
+
             if visibleSections.contains(.roundContext) {
                 Section("Round Context") {
-                    LabeledContent("Tee", value: roundContext.teeSetName)
-                    LabeledContent("Strategy", value: roundContext.strategyPreference.rawValue.capitalized)
-                    if let wind = roundContext.wind {
+                    LabeledContent("Tee", value: effectiveRoundContext.teeSetName)
+                    LabeledContent("Strategy", value: effectiveRoundContext.strategyPreference.rawValue.capitalized)
+                    if let wind = effectiveRoundContext.wind {
                         LabeledContent("Wind", value: windLabel(wind))
+                    } else {
+                        LabeledContent("Wind", value: "Calm")
                     }
                 }
             }
@@ -523,9 +584,10 @@ private struct HoleInspectorDetail: View {
         }
         .navigationTitle("Hole \(snapshot.holeNumber)")
         .onAppear {
-            if selectedScenarioId.isEmpty, let firstScenario = shotStateScenarios.first {
-                selectedScenarioId = firstScenario.id
-            }
+            syncScenarioSelection()
+        }
+        .onChange(of: effectiveRoundContext) { _ in
+            syncScenarioSelection()
         }
     }
 
@@ -638,6 +700,14 @@ private struct HoleInspectorDetail: View {
         default:
             return "exclamationmark.triangle.fill"
         }
+    }
+
+    private func syncScenarioSelection() {
+        if shotStateScenarios.contains(where: { $0.id == selectedScenarioId }) {
+            return
+        }
+
+        selectedScenarioId = shotStateScenarios.first?.id ?? ""
     }
 }
 
@@ -808,6 +878,7 @@ enum HoleInspectorModel {
         case holeSketch
         case nextShotRecommendation
         case shotState
+        case liveRoundControls
         case playerContext
         case roundContext
         case teeTargetCorridors
@@ -830,6 +901,17 @@ enum HoleInspectorModel {
         let detail: String
         let shotStateContext: ShotStateContext
     }
+
+    struct RoundOverrideState: Equatable {
+        var teeSetId: String
+        var strategyPreference: StrategyPreference
+        var windEnabled: Bool
+        var windDirection: WindRelativeDirection
+        var windSpeedMps: Double
+    }
+
+    static let strategyOptions: [StrategyPreference] = [.conservative, .balanced, .aggressive]
+    static let windDirectionOptions: [WindRelativeDirection] = [.helping, .hurting, .cross]
 
     static func makeShotStateScenarios(
         for hole: CourseHole,
@@ -972,12 +1054,45 @@ enum HoleInspectorModel {
             .joined(separator: " ")
     }
 
+    static func makeRoundOverrideState(from roundContext: RoundContext) -> RoundOverrideState {
+        RoundOverrideState(
+            teeSetId: roundContext.teeSetId,
+            strategyPreference: roundContext.strategyPreference,
+            windEnabled: roundContext.wind != nil,
+            windDirection: roundContext.wind?.relativeDirection ?? .helping,
+            windSpeedMps: roundContext.wind?.speedMps ?? 5
+        )
+    }
+
+    static func makeEffectiveRoundContext(
+        from overrides: RoundOverrideState,
+        baseRoundContext: RoundContext,
+        hole: CourseHole?
+    ) -> RoundContext {
+        let teeSetName = hole?.tees.first(where: { $0.teeSetId == overrides.teeSetId })?.name
+            ?? baseRoundContext.teeSetName
+
+        let wind = overrides.windEnabled
+            ? WindContext(
+                relativeDirection: overrides.windDirection,
+                speedMps: overrides.windSpeedMps
+            )
+            : nil
+
+        return RoundContext(
+            teeSetId: overrides.teeSetId,
+            teeSetName: teeSetName,
+            strategyPreference: overrides.strategyPreference,
+            wind: wind
+        )
+    }
+
     static func sections(for tab: HoleInspectorTab) -> [HoleInspectorSection] {
         switch tab {
         case .overview:
             return [.holeSketch, .nextShotRecommendation, .shotState]
         case .strategy:
-            return [.playerContext, .roundContext, .teeTargetCorridors, .preferredMiss, .hazardSeverity]
+            return [.liveRoundControls, .playerContext, .roundContext, .teeTargetCorridors, .preferredMiss, .hazardSeverity]
         case .debug:
             return [.bundle, .hole, .green, .tees, .featureTypes, .featureHighlights, .overlayContainers, .qualityNotes, .provenance]
         }

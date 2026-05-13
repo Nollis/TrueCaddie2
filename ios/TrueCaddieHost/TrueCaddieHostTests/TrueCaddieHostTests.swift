@@ -106,12 +106,12 @@ struct TrueCaddieHostTests {
             headline: "7I to Right-center layup shelf",
             executionNote: "7I puts the ball on the shelf without bringing the front bunker in.",
             missNote: "Favor left. Avoid right.",
-            fallbackNote: "If the green light is not there, leave yourself about 100m in."
+            fallbackNote: "If it's not on, leave yourself about 100m in."
         )
 
         #expect(
             HoleInspectorModel.voicePreviewText(for: packet) ==
-            "7I to Right-center layup shelf. 7I puts the ball on the shelf without bringing the front bunker in. Favor left. Avoid right. If the green light is not there, leave yourself about 100m in."
+            "7I to Right-center layup shelf. 7I puts the ball on the shelf without bringing the front bunker in. Favor left. Avoid right. If it's not on, leave yourself about 100m in."
         )
     }
 
@@ -129,11 +129,61 @@ struct TrueCaddieHostTests {
         )
         #expect(
             HoleInspectorModel.sections(for: .strategy) ==
-            [.playerContext, .roundContext, .teeTargetCorridors, .preferredMiss, .hazardSeverity]
+            [.liveRoundControls, .playerContext, .roundContext, .teeTargetCorridors, .preferredMiss, .hazardSeverity]
         )
         #expect(
             HoleInspectorModel.sections(for: .debug) ==
             [.bundle, .hole, .green, .tees, .featureTypes, .featureHighlights, .overlayContainers, .qualityNotes, .provenance]
         )
+    }
+
+    @Test func roundOverridesCanDisableWindAndChangeStrategy() {
+        let overrides = HoleInspectorModel.RoundOverrideState(
+            teeSetId: "white",
+            strategyPreference: .conservative,
+            windEnabled: false,
+            windDirection: .hurting,
+            windSpeedMps: 7
+        )
+
+        let effectiveRoundContext = HoleInspectorModel.makeEffectiveRoundContext(
+            from: overrides,
+            baseRoundContext: .pilotSample,
+            hole: nil
+        )
+
+        #expect(effectiveRoundContext.teeSetId == "white")
+        #expect(effectiveRoundContext.teeSetName == "White")
+        #expect(effectiveRoundContext.strategyPreference == .conservative)
+        #expect(effectiveRoundContext.wind == nil)
+    }
+
+    @Test func layupPacketRespondsToRoundOverrides() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let hole = try #require(bundle.holes.first(where: { $0.holeNumber == 1 }))
+        let roundOverrides = HoleInspectorModel.RoundOverrideState(
+            teeSetId: "white",
+            strategyPreference: .conservative,
+            windEnabled: false,
+            windDirection: .helping,
+            windSpeedMps: 5
+        )
+        let effectiveRoundContext = HoleInspectorModel.makeEffectiveRoundContext(
+            from: roundOverrides,
+            baseRoundContext: .pilotSample,
+            hole: hole
+        )
+        let packet = HoleInspectorModel.nextShotRecommendation(
+            for: hole,
+            courseId: bundle.courseId,
+            playerContext: .pilotSample,
+            roundContext: effectiveRoundContext,
+            selectedScenarioId: "layup"
+        )
+
+        #expect(packet?.shotNumber == 3)
+        #expect(packet?.remainingDistanceM == 110)
+        #expect(packet?.strategyPreference == "conservative")
+        #expect(packet?.executionNote == "PW carry 118m fits a center green number.")
     }
 }
