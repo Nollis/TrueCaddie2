@@ -283,6 +283,62 @@ struct TrueCaddieHostTests {
         #expect(preview.packet.holeNumber == 7)
     }
 
+    @Test func roundPreviewRespondsToRoundOverrides() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let hole = try #require(bundle.holes.first(where: { $0.holeNumber == 1 }))
+        let effectiveRoundContext = HoleInspectorModel.makeEffectiveRoundContext(
+            from: .init(
+                teeSetId: "white",
+                strategyPreference: .conservative,
+                windEnabled: false,
+                windDirection: .helping,
+                windSpeedMps: 5
+            ),
+            baseRoundContext: .pilotSample,
+            hole: hole
+        )
+        let preview = try #require(
+            HostRoundPreviewModel.preview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: effectiveRoundContext,
+                holeNumber: 1,
+                selectedScenarioId: "layup"
+            )
+        )
+
+        #expect(preview.packet.remainingDistanceM == 110)
+        #expect(preview.packet.strategyPreference == "conservative")
+        #expect(preview.voicePreview == "PW to Center green. PW carry 118m fits a center green number.")
+    }
+
+    @Test func roundPreviewsCoverEachHoleWithUnifiedPackets() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let previews = HostRoundPreviewModel.roundPreviews(
+            bundle: bundle,
+            playerContext: .pilotSample,
+            roundContext: .pilotSample
+        )
+
+        #expect(previews.count == bundle.holes.count)
+        #expect(previews.first?.holeNumber == 1)
+        #expect(previews.last?.holeNumber == 9)
+        #expect(previews.allSatisfy { !$0.packet.headline.isEmpty })
+    }
+
+    @Test func roundPreviewsRespectSelectedHoleOrder() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let previews = HostRoundPreviewModel.roundPreviews(
+            bundle: bundle,
+            playerContext: .pilotSample,
+            roundContext: .pilotSample
+        )
+        let holeSeven = try #require(previews.first(where: { $0.holeNumber == 7 }))
+
+        #expect(holeSeven.par == 5)
+        #expect(holeSeven.packet.holeNumber == 7)
+    }
+
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
         NextShotRecommendationPacket(
             courseId: "course",
