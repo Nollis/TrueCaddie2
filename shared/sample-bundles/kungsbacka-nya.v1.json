@@ -3,7 +3,7 @@
   "bundle_version": "kungsbacka-nya.v1.foundation",
   "course_id": "kungsbacka-nya",
   "course_name": "Kungsbacka Nya",
-  "published_at": "2026-05-12T10:36:40.004Z",
+  "published_at": "2026-05-13T09:06:37.277Z",
   "provenance": {
     "source_system": "truecaddie-pilot-json",
     "source_path": "C:\\Users\\niklasb\\Documents\\New project 2\\shared\\pilot-data\\kungsbacka-nya",
@@ -1430,7 +1430,63 @@
           }
         ],
         "aggressive_tee_corridors": [],
-        "layup_candidates": [],
+        "layup_candidates": [
+          {
+            "overlay_id": "layup-1-stock",
+            "overlay_type": "layup_candidate",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "1",
+            "tee_set_id": "all",
+            "shot_phase": "layup",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.991255995490523,
+                    57.49161635326374
+                  ],
+                  [
+                    11.991536380752706,
+                    57.49143790285727
+                  ],
+                  [
+                    11.991817344518235,
+                    57.49156540605435
+                  ],
+                  [
+                    11.991536959256052,
+                    57.491743856460815
+                  ],
+                  [
+                    11.991255995490523,
+                    57.49161635326374
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "target_distance_m": 358,
+              "planned_leave_distance_m": 102,
+              "target_label": "Right-center layup shelf",
+              "strategy_mode": "stock"
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.76
+            },
+            "rationale": {
+              "primary_reason": "shelf stays clear of woods on the left at 397.83m along can turn a miss into recovery golf while preserving a full wedge look"
+            },
+            "constraints": {
+              "derived_from": "course_studio_layup_candidate_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-1.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ],
         "preferred_miss": [
           {
             "overlay_id": "preferred-miss-1",
@@ -2315,7 +2371,7 @@
         "overlay_scores": {
           "tee_target_corridor": 0.67,
           "preferred_miss": 0.76,
-          "layup_candidates": 0,
+          "layup_candidates": 0.67,
           "hazard_severity": 0.73
         },
         "notes": [
@@ -8930,7 +8986,63 @@
           }
         ],
         "aggressive_tee_corridors": [],
-        "layup_candidates": [],
+        "layup_candidates": [
+          {
+            "overlay_id": "layup-7-stock",
+            "overlay_type": "layup_candidate",
+            "course_id": "kungsbacka-nya",
+            "hole_id": "7",
+            "tee_set_id": "all",
+            "shot_phase": "layup",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [
+                    11.993484539204545,
+                    57.48743289371944
+                  ],
+                  [
+                    11.993917254465861,
+                    57.48745430855714
+                  ],
+                  [
+                    11.993883541310172,
+                    57.48765110455366
+                  ],
+                  [
+                    11.993450826048855,
+                    57.487629689715966
+                  ],
+                  [
+                    11.993484539204545,
+                    57.48743289371944
+                  ]
+                ]
+              ]
+            },
+            "properties": {
+              "target_distance_m": 423,
+              "planned_leave_distance_m": 102,
+              "target_label": "Left-center layup shelf",
+              "strategy_mode": "stock"
+            },
+            "confidence": {
+              "band": "medium",
+              "score": 0.72
+            },
+            "rationale": {
+              "primary_reason": "shelf stays clear of woods on the right at 401.34m along can turn a miss into recovery golf while preserving a full wedge look"
+            },
+            "constraints": {
+              "derived_from": "course_studio_layup_candidate_v1"
+            },
+            "provenance": {
+              "source_file": "kungsbacka-nya-hole-7.json",
+              "derivation_version": "course-studio-foundation-v2"
+            }
+          }
+        ],
         "preferred_miss": [
           {
             "overlay_id": "preferred-miss-7",
@@ -9974,7 +10086,7 @@
         "overlay_scores": {
           "tee_target_corridor": 0.67,
           "preferred_miss": 0.78,
-          "layup_candidates": 0,
+          "layup_candidates": 0.67,
           "hazard_severity": 0.85
         },
         "notes": [

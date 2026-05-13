@@ -389,15 +389,20 @@ struct TrueCaddieHostTests {
                 holeNumber: 4,
                 planMode: .stockNextShot,
                 selectedScenarioId: "",
-                holeStates: [
-                    4: .init(
-                        shotStateContext: ShotStateContext(
-                            shotNumber: 3,
-                            remainingDistanceM: 96,
-                            lie: .fairway
+                roundState: RoundState(
+                    courseId: bundle.courseId,
+                    holeStates: [
+                        .init(
+                            holeNumber: 4,
+                            status: .inProgress,
+                            shotStateContext: ShotStateContext(
+                                shotNumber: 3,
+                                remainingDistanceM: 96,
+                                lie: .fairway
+                            )
                         )
-                    )
-                ]
+                    ]
+                )
             )
         )
 
@@ -413,15 +418,20 @@ struct TrueCaddieHostTests {
             playerContext: .pilotSample,
             roundContext: .pilotSample,
             planMode: .stockNextShot,
-            holeStates: [
-                1: .init(
-                    shotStateContext: ShotStateContext(
-                        shotNumber: 3,
-                        remainingDistanceM: 88,
-                        lie: .fairway
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(
+                        holeNumber: 1,
+                        status: .inProgress,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 3,
+                            remainingDistanceM: 88,
+                            lie: .fairway
+                        )
                     )
-                )
-            ]
+                ]
+            )
         )
         let holeOne = try #require(previews.first(where: { $0.holeNumber == 1 }))
 

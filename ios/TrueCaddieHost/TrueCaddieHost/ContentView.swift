@@ -61,7 +61,7 @@ private struct RoundPreviewView: View {
     @State private var selectedPlanMode: HostRoundPreviewModel.RoundPlanMode = .stockNextShot
     @State private var selectedScenarioId = ""
     @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
-    @State private var holeStates: [Int: HostRoundPreviewModel.HoleRoundState] = [:]
+    @State private var roundState: RoundState
 
     init(
         bundle: CourseBundle,
@@ -72,6 +72,7 @@ private struct RoundPreviewView: View {
         self.playerContext = playerContext
         self.baseRoundContext = roundContext
         _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
+        _roundState = State(initialValue: RoundState(courseId: bundle.courseId, holeStates: []))
     }
 
     private var selectedHole: CourseHole? {
@@ -90,12 +91,16 @@ private struct RoundPreviewView: View {
         )
     }
 
-    private var usesLiveState: Bool {
-        holeStates[selectedHoleNumber] != nil
+    private var selectedHoleState: HoleRoundState? {
+        roundState.holeState(for: selectedHoleNumber)
     }
 
-    private var selectedHoleState: HostRoundPreviewModel.HoleRoundState? {
-        holeStates[selectedHoleNumber]
+    private var usesLiveState: Bool {
+        selectedHoleState?.status == .inProgress
+    }
+
+    private var isHoleFinished: Bool {
+        selectedHoleState?.status == .finished
     }
 
     private var liveDistanceRange: ClosedRange<Double> {
@@ -108,7 +113,7 @@ private struct RoundPreviewView: View {
             return []
         }
 
-        HostRoundPreviewModel.scenarios(
+        return HostRoundPreviewModel.scenarios(
             bundle: bundle,
             playerContext: playerContext,
             roundContext: effectiveRoundContext,
@@ -123,7 +128,7 @@ private struct RoundPreviewView: View {
             playerContext: playerContext,
             roundContext: effectiveRoundContext,
             planMode: selectedPlanMode,
-            holeStates: holeStates
+            roundState: roundState
         )
     }
 
@@ -135,7 +140,7 @@ private struct RoundPreviewView: View {
             holeNumber: selectedHoleNumber,
             planMode: selectedPlanMode,
             selectedScenarioId: selectedScenarioId,
-            holeStates: holeStates
+            roundState: roundState
         )
     }
 
@@ -154,7 +159,7 @@ private struct RoundPreviewView: View {
                                         .fontWeight(.semibold)
                                     Text("Par \(holePreview.par)")
                                         .foregroundStyle(.secondary)
-                                    Text(holePreview.scenarioName)
+                                    Text(roundPlanStatusLabel(for: holePreview))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                     Spacer()
@@ -224,7 +229,9 @@ private struct RoundPreviewView: View {
                     LabeledContent("Hole", value: "\(preview.holeNumber)")
                     LabeledContent("Mode", value: selectedPlanMode.title)
 
-                    if usesLiveState {
+                    if isHoleFinished {
+                        LabeledContent("Scenario", value: "Hole finished")
+                    } else if usesLiveState {
                         LabeledContent("Scenario", value: "Live hole state")
                     } else {
                         Picker("Scenario", selection: $selectedScenarioId) {
@@ -237,19 +244,26 @@ private struct RoundPreviewView: View {
                 }
 
                 Section("Hole State") {
-                    Toggle(
-                        "Use live hole state",
-                        isOn: Binding(
-                            get: { usesLiveState },
-                            set: setLiveStateEnabled
-                        )
-                    )
+                    if usesLiveState,
+                       let selectedHoleState,
+                       let shotStateContext = selectedHoleState.shotStateContext {
+                        HStack {
+                            Button("Advance shot") {
+                                advanceSelectedHole()
+                            }
 
-                    if let selectedHoleState {
+                            Spacer()
+
+                            Button("Finish hole") {
+                                finishSelectedHole()
+                            }
+                            .tint(.green)
+                        }
+
                         Stepper(
-                            "Shot \(selectedHoleState.shotStateContext.shotNumber)",
+                            "Shot \(shotStateContext.shotNumber)",
                             value: Binding(
-                                get: { selectedHoleState.shotStateContext.shotNumber },
+                                get: { shotStateContext.shotNumber },
                                 set: updateSelectedHoleShotNumber
                             ),
                             in: 1...10
@@ -258,7 +272,7 @@ private struct RoundPreviewView: View {
                         Picker(
                             "Lie",
                             selection: Binding(
-                                get: { selectedHoleState.shotStateContext.lie },
+                                get: { shotStateContext.lie },
                                 set: updateSelectedHoleLie
                             )
                         ) {
@@ -270,68 +284,91 @@ private struct RoundPreviewView: View {
 
                         LabeledContent(
                             "Remaining",
-                            value: "\(metric(selectedHoleState.shotStateContext.remainingDistanceM)) m"
+                            value: "\(metric(shotStateContext.remainingDistanceM)) m"
                         )
 
                         Slider(
                             value: Binding(
-                                get: { selectedHoleState.shotStateContext.remainingDistanceM },
+                                get: { shotStateContext.remainingDistanceM },
                                 set: updateSelectedHoleRemainingDistance
                             ),
                             in: liveDistanceRange,
                             step: 1
                         )
-                    }
-                }
+                    } else if isHoleFinished {
+                        LabeledContent("Status", value: "Finished")
 
-                Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Today’s caddie line")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        Text("Hole \(preview.holeNumber) • Par \(preview.par)")
-                            .font(.headline)
-
-                        Text(preview.packet.headline)
-                            .font(.title3.weight(.semibold))
-
-                        Text(preview.packet.primaryReason)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Section("Current Shot") {
-                    LabeledContent("Scenario", value: preview.scenarioName)
-                    LabeledContent("Lie", value: preview.packet.lie.rawValue.capitalized)
-                    LabeledContent("Remaining", value: "\(metric(preview.packet.remainingDistanceM)) m")
-                    LabeledContent("Tee", value: effectiveRoundContext.teeSetName)
-                    LabeledContent(
-                        "Plan",
-                        value: (preview.packet.strategyPreference ?? effectiveRoundContext.strategyPreference.rawValue).capitalized
-                    )
-                    if let wind = effectiveRoundContext.wind {
-                        LabeledContent("Wind", value: windLabel(wind))
-                    } else {
-                        LabeledContent("Wind", value: "Calm")
-                    }
-                }
-
-                Section("Recommendation") {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(preview.voicePreview)
-                            .font(.body)
-
-                        HStack(spacing: 12) {
-                            Text("Club \(preview.packet.recommendedClub ?? "n/a")")
-                            Text("Risk \(preview.packet.riskLevel.capitalized)")
+                        Button("Reset hole") {
+                            resetSelectedHole()
                         }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    } else {
+                        Button("Start hole") {
+                            startSelectedHole()
+                        }
                     }
-                    .padding(.vertical, 2)
+                }
+
+                if isHoleFinished {
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Hole complete")
+                                .font(.title3.weight(.semibold))
+
+                            Text("Hole \(preview.holeNumber) is marked finished in the live round state.")
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } else {
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Today’s caddie line")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            Text("Hole \(preview.holeNumber) • Par \(preview.par)")
+                                .font(.headline)
+
+                            Text(preview.packet.headline)
+                                .font(.title3.weight(.semibold))
+
+                            Text(preview.packet.primaryReason)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+
+                    Section("Current Shot") {
+                        LabeledContent("Scenario", value: currentScenarioLabel(for: preview))
+                        LabeledContent("Lie", value: preview.packet.lie.rawValue.capitalized)
+                        LabeledContent("Remaining", value: "\(metric(preview.packet.remainingDistanceM)) m")
+                        LabeledContent("Tee", value: effectiveRoundContext.teeSetName)
+                        LabeledContent(
+                            "Plan",
+                            value: (preview.packet.strategyPreference ?? effectiveRoundContext.strategyPreference.rawValue).capitalized
+                        )
+                        if let wind = effectiveRoundContext.wind {
+                            LabeledContent("Wind", value: windLabel(wind))
+                        } else {
+                            LabeledContent("Wind", value: "Calm")
+                        }
+                    }
+
+                    Section("Recommendation") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(preview.voicePreview)
+                                .font(.body)
+
+                            HStack(spacing: 12) {
+                                Text("Club \(preview.packet.recommendedClub ?? "n/a")")
+                                Text("Risk \(preview.packet.riskLevel.capitalized)")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 2)
+                    }
                 }
             } else {
                 Section {
@@ -407,27 +444,41 @@ private struct RoundPreviewView: View {
         selectedScenarioId = scenarioOptions.first?.id ?? ""
     }
 
-    private func setLiveStateEnabled(_ isEnabled: Bool) {
+    private func roundPlanStatusLabel(for preview: HostRoundPreviewModel.HolePreview) -> String {
+        switch roundState.holeState(for: preview.holeNumber)?.status {
+        case .inProgress:
+            return "Live state"
+        case .finished:
+            return "Finished"
+        case nil:
+            return preview.scenarioName
+        }
+    }
+
+    private func currentScenarioLabel(for preview: HostRoundPreviewModel.HolePreview) -> String {
+        usesLiveState ? "Live state" : preview.scenarioName
+    }
+
+    private func startSelectedHole() {
         guard let hole = selectedHole else {
             return
         }
 
-        if isEnabled {
-            if holeStates[hole.holeNumber] == nil {
-                holeStates[hole.holeNumber] = HostRoundPreviewModel.HoleRoundState(
-                    shotStateContext: HostRoundPreviewModel.defaultLiveShotState(
-                        for: hole,
-                        courseId: bundle.courseId,
-                        playerContext: playerContext,
-                        roundContext: effectiveRoundContext,
-                        planMode: selectedPlanMode
-                    )
-                )
-            }
-        } else {
-            holeStates.removeValue(forKey: hole.holeNumber)
-        }
+        roundState = roundState.startHole(hole, roundContext: effectiveRoundContext)
+        syncScenarioSelection(forceReset: true)
+    }
 
+    private func advanceSelectedHole() {
+        roundState = roundState.advanceShot(for: selectedHoleNumber)
+    }
+
+    private func finishSelectedHole() {
+        roundState = roundState.finishHole(selectedHoleNumber)
+        syncScenarioSelection(forceReset: true)
+    }
+
+    private func resetSelectedHole() {
+        roundState = roundState.resetHole(selectedHoleNumber)
         syncScenarioSelection(forceReset: true)
     }
 
@@ -436,12 +487,13 @@ private struct RoundPreviewView: View {
             return
         }
 
-        holeStates[selectedHoleNumber] = HostRoundPreviewModel.HoleRoundState(
-            shotStateContext: ShotStateContext(
+        roundState = roundState.updateShotState(
+            ShotStateContext(
                 shotNumber: shotNumber,
                 remainingDistanceM: shotStateContext.remainingDistanceM,
                 lie: shotStateContext.lie
-            )
+            ),
+            for: selectedHoleNumber
         )
     }
 
@@ -450,12 +502,13 @@ private struct RoundPreviewView: View {
             return
         }
 
-        holeStates[selectedHoleNumber] = HostRoundPreviewModel.HoleRoundState(
-            shotStateContext: ShotStateContext(
+        roundState = roundState.updateShotState(
+            ShotStateContext(
                 shotNumber: shotStateContext.shotNumber,
                 remainingDistanceM: shotStateContext.remainingDistanceM,
                 lie: lie
-            )
+            ),
+            for: selectedHoleNumber
         )
     }
 
@@ -464,12 +517,13 @@ private struct RoundPreviewView: View {
             return
         }
 
-        holeStates[selectedHoleNumber] = HostRoundPreviewModel.HoleRoundState(
-            shotStateContext: ShotStateContext(
+        roundState = roundState.updateShotState(
+            ShotStateContext(
                 shotNumber: shotStateContext.shotNumber,
                 remainingDistanceM: remainingDistanceM,
                 lie: shotStateContext.lie
-            )
+            ),
+            for: selectedHoleNumber
         )
     }
 }
@@ -502,10 +556,6 @@ enum HostRoundPreviewModel {
         let voicePreview: String
     }
 
-    struct HoleRoundState: Equatable {
-        let shotStateContext: ShotStateContext
-    }
-
     static let lieOptions: [ShotLie] = [
         .tee,
         .fairway,
@@ -529,7 +579,8 @@ enum HostRoundPreviewModel {
             roundContext: roundContext,
             holeNumber: firstHoleNumber,
             planMode: .stockNextShot,
-            selectedScenarioId: ""
+            selectedScenarioId: "",
+            roundState: RoundState(courseId: bundle.courseId, holeStates: [])
         )
     }
 
@@ -560,13 +611,14 @@ enum HostRoundPreviewModel {
         holeNumber: Int,
         planMode: RoundPlanMode,
         selectedScenarioId: String,
-        holeStates: [Int: HoleRoundState] = [:]
+        roundState: RoundState = RoundState(courseId: "", holeStates: [])
     ) -> HolePreview? {
         guard let hole = hole(bundle: bundle, holeNumber: holeNumber) else {
             return nil
         }
 
-        if let liveState = holeStates[holeNumber],
+        if let liveState = roundState.holeState(for: holeNumber),
+           liveState.status == .inProgress,
            let packet = NextShotRecommendationEngine.build(
             courseId: bundle.courseId,
             for: hole,
@@ -635,7 +687,7 @@ enum HostRoundPreviewModel {
         playerContext: PlayerContext,
         roundContext: RoundContext,
         planMode: RoundPlanMode,
-        holeStates: [Int: HoleRoundState] = [:]
+        roundState: RoundState = RoundState(courseId: "", holeStates: [])
     ) -> [HolePreview] {
         bundle.holes.compactMap { hole in
             preview(
@@ -645,34 +697,9 @@ enum HostRoundPreviewModel {
                 holeNumber: hole.holeNumber,
                 planMode: planMode,
                 selectedScenarioId: "",
-                holeStates: holeStates
+                roundState: roundState
             )
         }
-    }
-
-    static func defaultLiveShotState(
-        for hole: CourseHole,
-        courseId: String,
-        playerContext: PlayerContext,
-        roundContext: RoundContext,
-        planMode: RoundPlanMode
-    ) -> ShotStateContext {
-        let scenarios = scenarios(
-            for: hole,
-            courseId: courseId,
-            playerContext: playerContext,
-            roundContext: roundContext,
-            planMode: planMode
-        )
-        let defaultScenarioId = defaultScenarioId(for: hole, planMode: planMode, scenarios: scenarios)
-
-        return scenarios.first(where: { $0.id == defaultScenarioId })?.shotStateContext
-            ?? scenarios.first?.shotStateContext
-            ?? ShotStateContext(
-                shotNumber: 1,
-                remainingDistanceM: selectedTee(in: hole, roundContext: roundContext)?.teeLengthM ?? 0,
-                lie: .tee
-            )
     }
 
     private static func scenarios(
