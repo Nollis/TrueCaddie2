@@ -1302,6 +1302,147 @@ struct TrueCaddieHostTests {
         #expect(configuration.tools.contains(where: { $0.name == "correct_score" }))
     }
 
+    @Test func realtimeVoiceCatalogUsesNativeSwiftToolDefinitions() throws {
+        let catalog = VoiceToolDispatch.catalog()
+        let reportResultTool = try #require(catalog.tool(named: "report_result"))
+        let guidanceTool = try #require(catalog.tool(named: "guidance"))
+
+        #expect(guidanceTool.actionName == .guidance)
+        #expect(reportResultTool.parameters.map(\.name) == ["lie", "remainingDistanceM"])
+        #expect(reportResultTool.parameters.first?.type == .shotLie)
+        #expect(
+            reportResultTool.parameters.first?.allowedValues ==
+            ["tee", "fairway", "rough", "bunker", "recovery"]
+        )
+        #expect(reportResultTool.parameters.last?.type == .decimal)
+    }
+
+    @Test func realtimeVoiceDispatchBuildsSessionEnvelopeFromNativeToolInvocation() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let request = VoiceTurnRequest(
+            turnID: UUID(uuidString: "D0607E54-87BE-4DB2-A359-0D16D34AB98C")!,
+            input: .toolInvocation(
+                VoiceToolInvocation(
+                    actionName: .reportResult,
+                    arguments: VoiceToolInvocationArguments(
+                        lie: .rough,
+                        remainingDistanceM: 128
+                    )
+                )
+            ),
+            context: makeConversationContext(bundle: bundle)
+        )
+
+        let envelope = try #require(VoiceToolDispatch.sessionEnvelope(from: request))
+
+        #expect(
+            envelope.source ==
+            .toolCall(
+                .init(
+                    name: .reportResult,
+                    payload: .reportResult(
+                        .init(lie: .rough, remainingDistanceM: 128)
+                    )
+                )
+            )
+        )
+    }
+
+    @Test func realtimeVoiceSessionManagerConnectsWithPilotDirectAuthMode() {
+        let manager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+        )
+
+        let result = Result {
+            try manager.connect()
+        }
+
+        #expect({
+            if case .success = result {
+                return true
+            }
+
+            return false
+        }())
+        #expect(
+            manager.state.connectionState ==
+            .connected(
+                .init(
+                    model: "gpt-realtime-2",
+                    transport: .rawRealtimeWebRTC,
+                    authMode: .pilotDirectEmbedded
+                )
+            )
+        )
+        #expect(manager.toolCatalog().tools.contains(where: { $0.actionName == .reportResult }))
+    }
+
+    @Test func realtimeVoiceSessionManagerRoutesGroundedTurnResponses() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let manager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+        )
+        try manager.connect()
+
+        let request = VoiceTurnRequest(
+            turnID: UUID(uuidString: "93B8DC93-4D91-4581-B3D7-88D0DD90D6C4")!,
+            input: .utterance("rough 128"),
+            context: makeConversationContext(
+                bundle: bundle,
+                roundState: makeInProgressRoundState(courseId: bundle.courseId)
+            )
+        )
+
+        let response = try #require(manager.handleTurn(request))
+
+        #expect(response.turnID == request.turnID)
+        #expect(response.actionName == .reportResult)
+        #expect(response.spokenReply.contains("From rough at 128m"))
+        #expect(response.sessionSnapshot.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
+        #expect(manager.state.latestSnapshot == response.sessionSnapshot)
+        #expect(manager.state.turnState == .speaking(request.turnID))
+    }
+
+    @Test func realtimeVoiceSessionManagerOwnsTypedHarnessTranscript() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let manager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+        )
+
+        let response = try #require(
+            manager.submitTypedUtterance(
+                "what do you like here",
+                context: makeConversationContext(bundle: bundle)
+            )
+        )
+
+        #expect(manager.state.transcriptEntries.count == 2)
+        #expect(manager.state.transcriptEntries.first == .user("what do you like here"))
+        #expect(manager.state.transcriptEntries.last == .assistant(response.spokenReply))
+        #expect(manager.state.turnState == .idle)
+    }
+
+    @Test func realtimeVoiceSessionManagerInterruptsActiveTurnWithoutLosingSnapshot() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let manager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+        )
+        try manager.connect()
+
+        let request = VoiceTurnRequest(
+            turnID: UUID(uuidString: "045D5515-BFFE-4668-8DCC-49C7E18F05C6")!,
+            input: .utterance("what do you like here"),
+            context: makeConversationContext(bundle: bundle)
+        )
+
+        _ = manager.handleTurn(request)
+        manager.interruptCurrentTurn()
+
+        #expect(manager.state.turnState == .idle)
+        #expect(manager.state.lastInterruptedTurnID == request.turnID)
+        #expect(manager.state.lastResponse?.turnID == request.turnID)
+    }
+
     @Test func conversationCanResolveToolCallThroughRealtimeAgentStub() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let context = HostCaddieSession.TurnContext(
@@ -1436,6 +1577,40 @@ struct TrueCaddieHostTests {
             executionNote: "7I puts the ball on the shelf without bringing the front bunker in.",
             missNote: "Favor left. Avoid right.",
             fallbackNote: "If it's not on, leave yourself about 100m in."
+        )
+    }
+
+    private func makeConversationContext(
+        bundle: CourseBundle,
+        selectedHoleNumber: Int = 1,
+        roundContext: RoundContext = .pilotSample,
+        roundState: RoundState? = nil
+    ) -> HostCaddieSession.TurnContext {
+        HostCaddieSession.TurnContext(
+            bundle: bundle,
+            playerContext: .pilotSample,
+            roundContext: roundContext,
+            selectedHoleNumber: selectedHoleNumber,
+            planMode: .stockNextShot,
+            roundState: roundState ?? RoundState(courseId: bundle.courseId, holeStates: [])
+        )
+    }
+
+    private func makeInProgressRoundState(courseId: String) -> RoundState {
+        RoundState(
+            courseId: courseId,
+            holeStates: [
+                .init(
+                    holeNumber: 1,
+                    status: .inProgress,
+                    shotStateContext: ShotStateContext(
+                        shotNumber: 2,
+                        remainingDistanceM: 220,
+                        lie: .fairway
+                    ),
+                    strokesTaken: 1
+                )
+            ]
         )
     }
 }

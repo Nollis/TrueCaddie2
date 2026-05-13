@@ -16,10 +16,18 @@ The realtime voice system MUST support interruption-friendly conversation so the
 - **WHEN** the player speaks while the system is responding
 - **THEN** the active response can be interrupted and the next turn can continue with preserved round context
 
-### Requirement: Tool orchestration must stay server-side
+### Requirement: Swift-first pilot sessions must keep golf logic out of the view layer
 
-The realtime voice system MUST keep deterministic strategy logic and protected business rules on the server side rather than exposing them as client-only prompt logic.
+The realtime voice system MUST support a Swift-first iOS pilot architecture where session transport and audio coordination can live in-app, while deterministic strategy and round-state mutations stay inside a dedicated caddie session layer rather than in SwiftUI views or prompt-only logic.
 
 #### Scenario: Realtime session needs fresh strategy
 - **WHEN** the voice session needs an updated recommendation
-- **THEN** the backend handles the strategy tool interaction and returns structured results to the session without leaking private business logic into the client
+- **THEN** the app routes the request through the dedicated caddie session layer and returns structured results without moving recommendation logic into the view or prompt text
+
+### Requirement: Pilot direct auth must stay replaceable
+
+The realtime voice system MUST allow a pilot direct-app authentication mode while isolating credential and session bootstrap logic behind replaceable abstractions for later hardening.
+
+#### Scenario: Pilot build uses embedded credential
+- **WHEN** the iOS pilot connects directly to the realtime service
+- **THEN** credential retrieval and realtime session bootstrap are owned by dedicated abstractions and can later be replaced without rewriting the golf/session logic
