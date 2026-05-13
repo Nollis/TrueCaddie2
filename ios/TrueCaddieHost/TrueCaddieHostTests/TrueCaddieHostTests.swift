@@ -379,6 +379,57 @@ struct TrueCaddieHostTests {
         #expect(preview.packet.shotNumber == 3)
     }
 
+    @Test func liveHoleStateOverridesSyntheticScenario() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let preview = try #require(
+            HostRoundPreviewModel.preview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                holeNumber: 4,
+                planMode: .stockNextShot,
+                selectedScenarioId: "",
+                holeStates: [
+                    4: .init(
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 3,
+                            remainingDistanceM: 96,
+                            lie: .fairway
+                        )
+                    )
+                ]
+            )
+        )
+
+        #expect(preview.scenarioName == "Live state")
+        #expect(preview.packet.shotNumber == 3)
+        #expect(preview.packet.remainingDistanceM == 96)
+    }
+
+    @Test func roundPreviewsShowLiveStateWhenHoleHasStarted() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let previews = HostRoundPreviewModel.roundPreviews(
+            bundle: bundle,
+            playerContext: .pilotSample,
+            roundContext: .pilotSample,
+            planMode: .stockNextShot,
+            holeStates: [
+                1: .init(
+                    shotStateContext: ShotStateContext(
+                        shotNumber: 3,
+                        remainingDistanceM: 88,
+                        lie: .fairway
+                    )
+                )
+            ]
+        )
+        let holeOne = try #require(previews.first(where: { $0.holeNumber == 1 }))
+
+        #expect(holeOne.scenarioName == "Live state")
+        #expect(holeOne.packet.shotNumber == 3)
+        #expect(holeOne.packet.remainingDistanceM == 88)
+    }
+
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
         NextShotRecommendationPacket(
             courseId: "course",

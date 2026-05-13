@@ -61,6 +61,7 @@ private struct RoundPreviewView: View {
     @State private var selectedPlanMode: HostRoundPreviewModel.RoundPlanMode = .stockNextShot
     @State private var selectedScenarioId = ""
     @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
+    @State private var holeStates: [Int: HostRoundPreviewModel.HoleRoundState] = [:]
 
     init(
         bundle: CourseBundle,
@@ -89,7 +90,24 @@ private struct RoundPreviewView: View {
         )
     }
 
+    private var usesLiveState: Bool {
+        holeStates[selectedHoleNumber] != nil
+    }
+
+    private var selectedHoleState: HostRoundPreviewModel.HoleRoundState? {
+        holeStates[selectedHoleNumber]
+    }
+
+    private var liveDistanceRange: ClosedRange<Double> {
+        let maxTeeLength = selectedHole?.tees.map(\.teeLengthM).max() ?? 250
+        return 0...max(150, maxTeeLength)
+    }
+
     private var scenarioOptions: [HoleInspectorModel.ShotStateScenario] {
+        guard !usesLiveState else {
+            return []
+        }
+
         HostRoundPreviewModel.scenarios(
             bundle: bundle,
             playerContext: playerContext,
@@ -104,7 +122,8 @@ private struct RoundPreviewView: View {
             bundle: bundle,
             playerContext: playerContext,
             roundContext: effectiveRoundContext,
-            planMode: selectedPlanMode
+            planMode: selectedPlanMode,
+            holeStates: holeStates
         )
     }
 
@@ -115,7 +134,8 @@ private struct RoundPreviewView: View {
             roundContext: effectiveRoundContext,
             holeNumber: selectedHoleNumber,
             planMode: selectedPlanMode,
-            selectedScenarioId: selectedScenarioId
+            selectedScenarioId: selectedScenarioId,
+            holeStates: holeStates
         )
     }
 
@@ -204,12 +224,64 @@ private struct RoundPreviewView: View {
                     LabeledContent("Hole", value: "\(preview.holeNumber)")
                     LabeledContent("Mode", value: selectedPlanMode.title)
 
-                    Picker("Scenario", selection: $selectedScenarioId) {
-                        ForEach(scenarioOptions) { scenario in
-                            Text(scenario.name).tag(scenario.id)
+                    if usesLiveState {
+                        LabeledContent("Scenario", value: "Live hole state")
+                    } else {
+                        Picker("Scenario", selection: $selectedScenarioId) {
+                            ForEach(scenarioOptions) { scenario in
+                                Text(scenario.name).tag(scenario.id)
+                            }
                         }
+                        .pickerStyle(.menu)
                     }
-                    .pickerStyle(.menu)
+                }
+
+                Section("Hole State") {
+                    Toggle(
+                        "Use live hole state",
+                        isOn: Binding(
+                            get: { usesLiveState },
+                            set: setLiveStateEnabled
+                        )
+                    )
+
+                    if let selectedHoleState {
+                        Stepper(
+                            "Shot \(selectedHoleState.shotStateContext.shotNumber)",
+                            value: Binding(
+                                get: { selectedHoleState.shotStateContext.shotNumber },
+                                set: updateSelectedHoleShotNumber
+                            ),
+                            in: 1...10
+                        )
+
+                        Picker(
+                            "Lie",
+                            selection: Binding(
+                                get: { selectedHoleState.shotStateContext.lie },
+                                set: updateSelectedHoleLie
+                            )
+                        ) {
+                            ForEach(HostRoundPreviewModel.lieOptions, id: \.rawValue) { lie in
+                                Text(lie.rawValue.capitalized).tag(lie)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+
+                        LabeledContent(
+                            "Remaining",
+                            value: "\(metric(selectedHoleState.shotStateContext.remainingDistanceM)) m"
+                        )
+
+                        Slider(
+                            value: Binding(
+                                get: { selectedHoleState.shotStateContext.remainingDistanceM },
+                                set: updateSelectedHoleRemainingDistance
+                            ),
+                            in: liveDistanceRange,
+                            step: 1
+                        )
+                    }
                 }
 
                 Section {
@@ -323,11 +395,82 @@ private struct RoundPreviewView: View {
     }
 
     private func syncScenarioSelection(forceReset: Bool = false) {
+        guard !usesLiveState else {
+            selectedScenarioId = ""
+            return
+        }
+
         if !forceReset, scenarioOptions.contains(where: { $0.id == selectedScenarioId }) {
             return
         }
 
         selectedScenarioId = scenarioOptions.first?.id ?? ""
+    }
+
+    private func setLiveStateEnabled(_ isEnabled: Bool) {
+        guard let hole = selectedHole else {
+            return
+        }
+
+        if isEnabled {
+            if holeStates[hole.holeNumber] == nil {
+                holeStates[hole.holeNumber] = HostRoundPreviewModel.HoleRoundState(
+                    shotStateContext: HostRoundPreviewModel.defaultLiveShotState(
+                        for: hole,
+                        courseId: bundle.courseId,
+                        playerContext: playerContext,
+                        roundContext: effectiveRoundContext,
+                        planMode: selectedPlanMode
+                    )
+                )
+            }
+        } else {
+            holeStates.removeValue(forKey: hole.holeNumber)
+        }
+
+        syncScenarioSelection(forceReset: true)
+    }
+
+    private func updateSelectedHoleShotNumber(_ shotNumber: Int) {
+        guard let shotStateContext = selectedHoleState?.shotStateContext else {
+            return
+        }
+
+        holeStates[selectedHoleNumber] = HostRoundPreviewModel.HoleRoundState(
+            shotStateContext: ShotStateContext(
+                shotNumber: shotNumber,
+                remainingDistanceM: shotStateContext.remainingDistanceM,
+                lie: shotStateContext.lie
+            )
+        )
+    }
+
+    private func updateSelectedHoleLie(_ lie: ShotLie) {
+        guard let shotStateContext = selectedHoleState?.shotStateContext else {
+            return
+        }
+
+        holeStates[selectedHoleNumber] = HostRoundPreviewModel.HoleRoundState(
+            shotStateContext: ShotStateContext(
+                shotNumber: shotStateContext.shotNumber,
+                remainingDistanceM: shotStateContext.remainingDistanceM,
+                lie: lie
+            )
+        )
+    }
+
+    private func updateSelectedHoleRemainingDistance(_ remainingDistanceM: Double) {
+        guard let shotStateContext = selectedHoleState?.shotStateContext else {
+            return
+        }
+
+        holeStates[selectedHoleNumber] = HostRoundPreviewModel.HoleRoundState(
+            shotStateContext: ShotStateContext(
+                shotNumber: shotStateContext.shotNumber,
+                remainingDistanceM: remainingDistanceM,
+                lie: shotStateContext.lie
+            )
+        )
     }
 }
 
@@ -359,6 +502,18 @@ enum HostRoundPreviewModel {
         let voicePreview: String
     }
 
+    struct HoleRoundState: Equatable {
+        let shotStateContext: ShotStateContext
+    }
+
+    static let lieOptions: [ShotLie] = [
+        .tee,
+        .fairway,
+        .rough,
+        .bunker,
+        .recovery
+    ]
+
     static func firstHolePreview(
         bundle: CourseBundle,
         playerContext: PlayerContext,
@@ -389,15 +544,12 @@ enum HostRoundPreviewModel {
             return []
         }
 
-        if planMode == .teePlan, let teeScenario = teeScenario(for: hole, roundContext: roundContext) {
-            return [teeScenario]
-        }
-
-        return HoleInspectorModel.makeShotStateScenarios(
+        return scenarios(
             for: hole,
             courseId: bundle.courseId,
             playerContext: playerContext,
-            roundContext: roundContext
+            roundContext: roundContext,
+            planMode: planMode
         )
     }
 
@@ -407,10 +559,28 @@ enum HostRoundPreviewModel {
         roundContext: RoundContext,
         holeNumber: Int,
         planMode: RoundPlanMode,
-        selectedScenarioId: String
+        selectedScenarioId: String,
+        holeStates: [Int: HoleRoundState] = [:]
     ) -> HolePreview? {
         guard let hole = hole(bundle: bundle, holeNumber: holeNumber) else {
             return nil
+        }
+
+        if let liveState = holeStates[holeNumber],
+           let packet = NextShotRecommendationEngine.build(
+            courseId: bundle.courseId,
+            for: hole,
+            playerContext: playerContext,
+            roundContext: roundContext,
+            shotStateContext: liveState.shotStateContext
+           ) {
+            return HolePreview(
+                holeNumber: hole.holeNumber,
+                par: hole.par,
+                scenarioName: "Live state",
+                packet: packet,
+                voicePreview: HoleInspectorModel.voicePreviewText(for: packet)
+            )
         }
 
         let scenarios = scenarios(
@@ -464,7 +634,8 @@ enum HostRoundPreviewModel {
         bundle: CourseBundle,
         playerContext: PlayerContext,
         roundContext: RoundContext,
-        planMode: RoundPlanMode
+        planMode: RoundPlanMode,
+        holeStates: [Int: HoleRoundState] = [:]
     ) -> [HolePreview] {
         bundle.holes.compactMap { hole in
             preview(
@@ -473,9 +644,54 @@ enum HostRoundPreviewModel {
                 roundContext: roundContext,
                 holeNumber: hole.holeNumber,
                 planMode: planMode,
-                selectedScenarioId: ""
+                selectedScenarioId: "",
+                holeStates: holeStates
             )
         }
+    }
+
+    static func defaultLiveShotState(
+        for hole: CourseHole,
+        courseId: String,
+        playerContext: PlayerContext,
+        roundContext: RoundContext,
+        planMode: RoundPlanMode
+    ) -> ShotStateContext {
+        let scenarios = scenarios(
+            for: hole,
+            courseId: courseId,
+            playerContext: playerContext,
+            roundContext: roundContext,
+            planMode: planMode
+        )
+        let defaultScenarioId = defaultScenarioId(for: hole, planMode: planMode, scenarios: scenarios)
+
+        return scenarios.first(where: { $0.id == defaultScenarioId })?.shotStateContext
+            ?? scenarios.first?.shotStateContext
+            ?? ShotStateContext(
+                shotNumber: 1,
+                remainingDistanceM: selectedTee(in: hole, roundContext: roundContext)?.teeLengthM ?? 0,
+                lie: .tee
+            )
+    }
+
+    private static func scenarios(
+        for hole: CourseHole,
+        courseId: String,
+        playerContext: PlayerContext,
+        roundContext: RoundContext,
+        planMode: RoundPlanMode
+    ) -> [HoleInspectorModel.ShotStateScenario] {
+        if planMode == .teePlan, let teeScenario = teeScenario(for: hole, roundContext: roundContext) {
+            return [teeScenario]
+        }
+
+        return HoleInspectorModel.makeShotStateScenarios(
+            for: hole,
+            courseId: courseId,
+            playerContext: playerContext,
+            roundContext: roundContext
+        )
     }
 
     private static func hole(bundle: CourseBundle, holeNumber: Int) -> CourseHole? {
