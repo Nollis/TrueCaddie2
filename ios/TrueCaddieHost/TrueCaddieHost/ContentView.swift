@@ -1467,13 +1467,57 @@ enum HostCaddieSession {
         }
     }
 
-    enum Intent: Equatable {
-        case askForRecommendation
-        case askForSaferPlay
-        case askForAggressivePlay
-        case repeatLastGuidance
+    enum ActionName: String, CaseIterable, Equatable {
+        case guidance
+        case saferPlay = "safer_play"
+        case aggressivePlay = "aggressive_play"
+        case balancedPlay = "balanced_play"
+        case repeatGuidance = "repeat_guidance"
+        case reportResult = "report_result"
+        case holeOut = "hole_out"
+        case correctScore = "correct_score"
+    }
+
+    struct VoiceToolDefinition: Equatable, Identifiable {
+        let name: ActionName
+        let description: String
+        let sampleUtterances: [String]
+
+        var id: String {
+            name.rawValue
+        }
+    }
+
+    enum Action: Equatable {
+        case guidance
+        case saferPlay
+        case aggressivePlay
+        case balancedPlay
+        case repeatGuidance
         case reportShotResult(lie: ShotLie, remainingDistanceM: Double)
-        case reportHoleOut
+        case holeOut
+        case correctScore(strokesTaken: Int, holeNumber: Int?)
+
+        var name: ActionName {
+            switch self {
+            case .guidance:
+                return .guidance
+            case .saferPlay:
+                return .saferPlay
+            case .aggressivePlay:
+                return .aggressivePlay
+            case .balancedPlay:
+                return .balancedPlay
+            case .repeatGuidance:
+                return .repeatGuidance
+            case .reportShotResult:
+                return .reportResult
+            case .holeOut:
+                return .holeOut
+            case .correctScore:
+                return .correctScore
+            }
+        }
     }
 
     struct TurnContext {
@@ -1491,144 +1535,221 @@ enum HostCaddieSession {
     }
 
     struct TurnOutcome: Equatable {
+        let actionName: ActionName
         let assistantReply: String
         let roundState: RoundState
         let selectedHoleNumber: Int
         let strategyPreference: StrategyPreference?
     }
 
+    static let supportedVoiceTools: [VoiceToolDefinition] = [
+        VoiceToolDefinition(
+            name: .guidance,
+            description: "Get the grounded caddie recommendation for the current shot.",
+            sampleUtterances: ["what do you like here", "what's the play"]
+        ),
+        VoiceToolDefinition(
+            name: .saferPlay,
+            description: "Shift the recommendation toward the conservative play.",
+            sampleUtterances: ["safe play", "give me the safer option"]
+        ),
+        VoiceToolDefinition(
+            name: .aggressivePlay,
+            description: "Shift the recommendation toward the aggressive play.",
+            sampleUtterances: ["aggressive", "let's attack"]
+        ),
+        VoiceToolDefinition(
+            name: .balancedPlay,
+            description: "Return to the balanced default strategy.",
+            sampleUtterances: ["back to balanced", "normal plan"]
+        ),
+        VoiceToolDefinition(
+            name: .repeatGuidance,
+            description: "Repeat the current grounded recommendation.",
+            sampleUtterances: ["repeat that", "say it again"]
+        ),
+        VoiceToolDefinition(
+            name: .reportResult,
+            description: "Report the lie and remaining distance after a shot.",
+            sampleUtterances: ["rough 128", "fairway 96"]
+        ),
+        VoiceToolDefinition(
+            name: .holeOut,
+            description: "Finish the current hole using the current live shot count.",
+            sampleUtterances: ["holed out", "that's in"]
+        ),
+        VoiceToolDefinition(
+            name: .correctScore,
+            description: "Correct a finished hole's score.",
+            sampleUtterances: ["make that 5", "hole 1 was 6"]
+        )
+    ]
+
     static func respond(to request: TurnRequest) -> TurnOutcome? {
-        guard let intent = interpret(request.utterance) else {
+        guard let action = interpret(request.utterance) else {
             return nil
         }
 
-        switch intent {
-        case .askForRecommendation:
-            guard let preview = preview(for: request.context) else {
+        return perform(action, in: request.context)
+    }
+
+    static func perform(_ action: Action, in context: TurnContext) -> TurnOutcome? {
+        switch action {
+        case .guidance:
+            guard let preview = preview(for: context) else {
                 return nil
             }
 
             return TurnOutcome(
+                actionName: action.name,
                 assistantReply: preview.voicePreview,
-                roundState: request.context.roundState,
-                selectedHoleNumber: request.context.selectedHoleNumber,
+                roundState: context.roundState,
+                selectedHoleNumber: context.selectedHoleNumber,
                 strategyPreference: nil
             )
 
-        case .askForSaferPlay:
+        case .saferPlay:
             let saferRoundContext = RoundContext(
-                teeSetId: request.context.roundContext.teeSetId,
-                teeSetName: request.context.roundContext.teeSetName,
+                teeSetId: context.roundContext.teeSetId,
+                teeSetName: context.roundContext.teeSetName,
                 strategyPreference: .conservative,
-                wind: request.context.roundContext.wind
+                wind: context.roundContext.wind
             )
             guard let preview = preview(
-                for: request.context,
+                for: context,
                 roundContext: saferRoundContext
             ) else {
                 return nil
             }
 
             return TurnOutcome(
+                actionName: action.name,
                 assistantReply: "Let's take the safer play. \(preview.voicePreview)",
-                roundState: request.context.roundState,
-                selectedHoleNumber: request.context.selectedHoleNumber,
+                roundState: context.roundState,
+                selectedHoleNumber: context.selectedHoleNumber,
                 strategyPreference: .conservative
             )
 
-        case .askForAggressivePlay:
+        case .aggressivePlay:
             let aggressiveRoundContext = RoundContext(
-                teeSetId: request.context.roundContext.teeSetId,
-                teeSetName: request.context.roundContext.teeSetName,
+                teeSetId: context.roundContext.teeSetId,
+                teeSetName: context.roundContext.teeSetName,
                 strategyPreference: .aggressive,
-                wind: request.context.roundContext.wind
+                wind: context.roundContext.wind
             )
             guard let preview = preview(
-                for: request.context,
+                for: context,
                 roundContext: aggressiveRoundContext
             ) else {
                 return nil
             }
 
             return TurnOutcome(
+                actionName: action.name,
                 assistantReply: "If you want to press it, this is the line. \(preview.voicePreview)",
-                roundState: request.context.roundState,
-                selectedHoleNumber: request.context.selectedHoleNumber,
+                roundState: context.roundState,
+                selectedHoleNumber: context.selectedHoleNumber,
                 strategyPreference: .aggressive
             )
 
-        case .repeatLastGuidance:
-            guard let preview = preview(for: request.context) else {
+        case .balancedPlay:
+            let balancedRoundContext = RoundContext(
+                teeSetId: context.roundContext.teeSetId,
+                teeSetName: context.roundContext.teeSetName,
+                strategyPreference: .balanced,
+                wind: context.roundContext.wind
+            )
+            guard let preview = preview(
+                for: context,
+                roundContext: balancedRoundContext
+            ) else {
                 return nil
             }
 
             return TurnOutcome(
+                actionName: action.name,
+                assistantReply: "Let's get back to the stock plan. \(preview.voicePreview)",
+                roundState: context.roundState,
+                selectedHoleNumber: context.selectedHoleNumber,
+                strategyPreference: .balanced
+            )
+
+        case .repeatGuidance:
+            guard let preview = preview(for: context) else {
+                return nil
+            }
+
+            return TurnOutcome(
+                actionName: action.name,
                 assistantReply: "Here it is again. \(preview.voicePreview)",
-                roundState: request.context.roundState,
-                selectedHoleNumber: request.context.selectedHoleNumber,
+                roundState: context.roundState,
+                selectedHoleNumber: context.selectedHoleNumber,
                 strategyPreference: nil
             )
 
         case let .reportShotResult(lie, remainingDistanceM):
-            let currentShotNumber = request.context.roundState.holeState(
-                for: request.context.selectedHoleNumber
+            let currentShotNumber = context.roundState.holeState(
+                for: context.selectedHoleNumber
             )?.shotStateContext?.shotNumber
             guard let currentShotNumber else {
                 return TurnOutcome(
+                    actionName: action.name,
                     assistantReply: "Start the hole first, then I can update the next shot from the result.",
-                    roundState: request.context.roundState,
-                    selectedHoleNumber: request.context.selectedHoleNumber,
+                    roundState: context.roundState,
+                    selectedHoleNumber: context.selectedHoleNumber,
                     strategyPreference: nil
                 )
             }
 
-            let updatedRoundState = request.context.roundState.updateShotState(
+            let updatedRoundState = context.roundState.updateShotState(
                 ShotStateContext(
                     shotNumber: currentShotNumber + 1,
                     remainingDistanceM: remainingDistanceM,
                     lie: lie
                 ),
-                for: request.context.selectedHoleNumber
+                for: context.selectedHoleNumber
             )
             guard let preview = preview(
-                for: request.context,
+                for: context,
                 roundState: updatedRoundState
             ) else {
                 return nil
             }
 
             return TurnOutcome(
+                actionName: action.name,
                 assistantReply: "Got it. From \(lie.rawValue) at \(format(number: remainingDistanceM))m: \(preview.voicePreview)",
                 roundState: updatedRoundState,
-                selectedHoleNumber: request.context.selectedHoleNumber,
+                selectedHoleNumber: context.selectedHoleNumber,
                 strategyPreference: nil
             )
 
-        case .reportHoleOut:
-            let strokesTaken = request.context.roundState.holeState(
-                for: request.context.selectedHoleNumber
+        case .holeOut:
+            let strokesTaken = context.roundState.holeState(
+                for: context.selectedHoleNumber
             )?.shotStateContext?.shotNumber
-                ?? request.context.roundState.holeState(
-                    for: request.context.selectedHoleNumber
+                ?? context.roundState.holeState(
+                    for: context.selectedHoleNumber
                 )?.strokesTaken
                 ?? 1
-            let finishedRoundState = request.context.roundState.finishHole(
-                request.context.selectedHoleNumber,
+            let finishedRoundState = context.roundState.finishHole(
+                context.selectedHoleNumber,
                 strokesTaken: strokesTaken
             )
             let nextHoleNumber = HostRoundProgressModel.nextUnfinishedHoleNumber(
-                after: request.context.selectedHoleNumber,
-                bundle: request.context.bundle,
+                after: context.selectedHoleNumber,
+                bundle: context.bundle,
                 roundState: finishedRoundState
-            ) ?? request.context.selectedHoleNumber
+            ) ?? context.selectedHoleNumber
             let summary = HostRoundProgressModel.summary(
-                bundle: request.context.bundle,
+                bundle: context.bundle,
                 roundState: finishedRoundState,
                 currentHoleNumber: nextHoleNumber
             )
 
             if summary.isRoundComplete {
                 return TurnOutcome(
+                    actionName: action.name,
                     assistantReply: "Nice work. Round complete. \(summary.totalsHeader).",
                     roundState: finishedRoundState,
                     selectedHoleNumber: nextHoleNumber,
@@ -1637,12 +1758,13 @@ enum HostCaddieSession {
             }
 
             if let nextPreview = preview(
-                for: request.context,
+                for: context,
                 selectedHoleNumber: nextHoleNumber,
                 roundState: finishedRoundState
             ) {
                 return TurnOutcome(
-                    assistantReply: "Nice. That's \(strokesTaken) on hole \(request.context.selectedHoleNumber). Current hole \(nextHoleNumber). \(nextPreview.voicePreview)",
+                    actionName: action.name,
+                    assistantReply: "Nice. That's \(strokesTaken) on hole \(context.selectedHoleNumber). Current hole \(nextHoleNumber). \(nextPreview.voicePreview)",
                     roundState: finishedRoundState,
                     selectedHoleNumber: nextHoleNumber,
                     strategyPreference: nil
@@ -1650,31 +1772,71 @@ enum HostCaddieSession {
             }
 
             return TurnOutcome(
-                assistantReply: "Nice. That's \(strokesTaken) on hole \(request.context.selectedHoleNumber).",
+                actionName: action.name,
+                assistantReply: "Nice. That's \(strokesTaken) on hole \(context.selectedHoleNumber).",
                 roundState: finishedRoundState,
                 selectedHoleNumber: nextHoleNumber,
+                strategyPreference: nil
+            )
+
+        case let .correctScore(strokesTaken, holeNumber):
+            let targetHoleNumber = holeNumber ?? context.selectedHoleNumber
+            guard let holeState = context.roundState.holeState(for: targetHoleNumber),
+                  holeState.status == .finished else {
+                return TurnOutcome(
+                    actionName: action.name,
+                    assistantReply: "I can correct the score once that hole is finished.",
+                    roundState: context.roundState,
+                    selectedHoleNumber: context.selectedHoleNumber,
+                    strategyPreference: nil
+                )
+            }
+
+            let updatedRoundState = context.roundState.updateFinishedHoleScore(
+                strokesTaken,
+                for: targetHoleNumber
+            )
+            let summary = HostRoundProgressModel.summary(
+                bundle: context.bundle,
+                roundState: updatedRoundState,
+                currentHoleNumber: context.selectedHoleNumber
+            )
+
+            return TurnOutcome(
+                actionName: action.name,
+                assistantReply: "Got it. Hole \(targetHoleNumber) is \(strokesTaken). \(summary.totalsHeader).",
+                roundState: updatedRoundState,
+                selectedHoleNumber: context.selectedHoleNumber,
                 strategyPreference: nil
             )
         }
     }
 
-    static func interpret(_ input: String) -> Intent? {
+    static func interpret(_ input: String) -> Action? {
         let normalizedInput = input.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
         if normalizedInput.contains("repeat") {
-            return .repeatLastGuidance
+            return .repeatGuidance
+        }
+
+        if normalizedInput.contains("balanced") || normalizedInput.contains("normal plan") || normalizedInput.contains("stock plan") {
+            return .balancedPlay
         }
 
         if normalizedInput.contains("safe") || normalizedInput.contains("safer") || normalizedInput.contains("conservative") {
-            return .askForSaferPlay
+            return .saferPlay
         }
 
         if normalizedInput.contains("aggressive") || normalizedInput.contains("attack") {
-            return .askForAggressivePlay
+            return .aggressivePlay
         }
 
         if normalizedInput.contains("holed out") || normalizedInput.contains("made it") || normalizedInput.contains("hole out") {
-            return .reportHoleOut
+            return .holeOut
+        }
+
+        if let correctionAction = scoreCorrection(in: normalizedInput) {
+            return correctionAction
         }
 
         if let lie = reportedLie(in: normalizedInput),
@@ -1682,7 +1844,7 @@ enum HostCaddieSession {
             return .reportShotResult(lie: lie, remainingDistanceM: remainingDistanceM)
         }
 
-        return .askForRecommendation
+        return .guidance
     }
 
     private static func preview(
@@ -1734,6 +1896,43 @@ enum HostCaddieSession {
         }
 
         return nil
+    }
+
+    private static func scoreCorrection(in input: String) -> Action? {
+        let looksLikeScoreCorrection =
+            input.contains("make that") ||
+            input.contains("put me down") ||
+            input.contains("score") ||
+            input.contains("strokes") ||
+            input.contains("card") ||
+            (input.contains("hole") && input.contains("was"))
+
+        guard looksLikeScoreCorrection else {
+            return nil
+        }
+
+        let numbers = integerNumbers(in: input)
+        guard let strokesTaken = numbers.last else {
+            return nil
+        }
+
+        let holeNumber: Int?
+        if input.contains("hole"), numbers.count >= 2 {
+            holeNumber = numbers.first
+        } else {
+            holeNumber = nil
+        }
+
+        return .correctScore(strokesTaken: strokesTaken, holeNumber: holeNumber)
+    }
+
+    private static func integerNumbers(in input: String) -> [Int] {
+        input.split { character in
+            !character.isNumber
+        }
+        .compactMap { token in
+            Int(token)
+        }
     }
 
     private static func format(number: Double) -> String {

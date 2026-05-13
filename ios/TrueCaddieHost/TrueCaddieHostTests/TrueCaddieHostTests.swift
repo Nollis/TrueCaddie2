@@ -752,10 +752,19 @@ struct TrueCaddieHostTests {
         #expect(result == .holeOut(strokesTaken: 4))
     }
 
-    @Test func conversationParsesSaferPlayAndShotResultIntents() {
-        #expect(HostCaddieSession.interpret("safe play") == .askForSaferPlay)
+    @Test func conversationParsesVoiceActions() {
+        #expect(HostCaddieSession.interpret("safe play") == .saferPlay)
+        #expect(HostCaddieSession.interpret("back to balanced") == .balancedPlay)
         #expect(HostCaddieSession.interpret("rough 128") == .reportShotResult(lie: .rough, remainingDistanceM: 128))
-        #expect(HostCaddieSession.interpret("repeat that") == .repeatLastGuidance)
+        #expect(HostCaddieSession.interpret("repeat that") == .repeatGuidance)
+        #expect(HostCaddieSession.interpret("make that 5") == .correctScore(strokesTaken: 5, holeNumber: nil))
+        #expect(HostCaddieSession.interpret("hole 1 was 6") == .correctScore(strokesTaken: 6, holeNumber: 1))
+    }
+
+    @Test func conversationExposesRealtimeVoiceToolDefinitions() {
+        #expect(HostCaddieSession.supportedVoiceTools.contains(where: { $0.name == .guidance }))
+        #expect(HostCaddieSession.supportedVoiceTools.contains(where: { $0.name == .reportResult }))
+        #expect(HostCaddieSession.supportedVoiceTools.contains(where: { $0.name == .correctScore }))
     }
 
     @Test func conversationShotResultAdvancesRoundStateAndRepliesFromNewContext() throws {
@@ -832,6 +841,74 @@ struct TrueCaddieHostTests {
         #expect(outcome.roundState.holeState(for: 1)?.strokesTaken == 4)
         #expect(outcome.selectedHoleNumber == 2)
         #expect(outcome.assistantReply.contains("Current hole 2"))
+    }
+
+    @Test func conversationCanCorrectFinishedHoleScore() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let outcome = try #require(
+            HostCaddieSession.respond(
+                to: .init(
+                    utterance: "hole 1 was 5",
+                    context: .init(
+                        bundle: bundle,
+                        playerContext: .pilotSample,
+                        roundContext: .pilotSample,
+                        selectedHoleNumber: 2,
+                        planMode: .stockNextShot,
+                        roundState: RoundState(
+                            courseId: bundle.courseId,
+                            holeStates: [
+                                .init(
+                                    holeNumber: 1,
+                                    status: .finished,
+                                    shotStateContext: ShotStateContext(
+                                        shotNumber: 4,
+                                        remainingDistanceM: 0,
+                                        lie: .fairway
+                                    ),
+                                    strokesTaken: 4
+                                )
+                            ]
+                        )
+                    )
+                )
+            )
+        )
+
+        #expect(outcome.actionName == .correctScore)
+        #expect(outcome.roundState.holeState(for: 1)?.strokesTaken == 5)
+        #expect(outcome.assistantReply.contains("Hole 1 is 5"))
+    }
+
+    @Test func conversationCanReturnToBalancedPlan() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let outcome = try #require(
+            HostCaddieSession.respond(
+                to: .init(
+                    utterance: "back to balanced",
+                    context: .init(
+                        bundle: bundle,
+                        playerContext: .pilotSample,
+                        roundContext: RoundContext(
+                            teeSetId: RoundContext.pilotSample.teeSetId,
+                            teeSetName: RoundContext.pilotSample.teeSetName,
+                            strategyPreference: .aggressive,
+                            wind: RoundContext.pilotSample.wind
+                        ),
+                        selectedHoleNumber: 1,
+                        planMode: .stockNextShot,
+                        roundState: RoundState(
+                            courseId: bundle.courseId,
+                            holeStates: []
+                        )
+                    )
+                )
+            )
+        )
+
+        #expect(outcome.actionName == .balancedPlay)
+        #expect(outcome.strategyPreference == .balanced)
+        #expect(outcome.assistantReply.contains("stock plan"))
     }
 
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
