@@ -86,6 +86,44 @@ struct NoopRealtimeVoiceAudioSessionCoordinator: RealtimeVoiceAudioSessionCoordi
     func endVoiceSession() {}
 }
 
+protocol RealtimeVoiceTransporting: AnyObject {
+    func connect(to descriptor: RealtimeVoiceSessionDescriptor) throws
+    func beginListening() throws
+    func stopListening()
+    func disconnect()
+}
+
+final class NoopRealtimeVoiceTransport: RealtimeVoiceTransporting {
+    func connect(to descriptor: RealtimeVoiceSessionDescriptor) throws {}
+    func beginListening() throws {}
+    func stopListening() {}
+    func disconnect() {}
+}
+
+final class StubRealtimeVoiceTransport: RealtimeVoiceTransporting {
+    private(set) var connectedDescriptor: RealtimeVoiceSessionDescriptor?
+    private(set) var isListening = false
+    private(set) var disconnectCount = 0
+
+    func connect(to descriptor: RealtimeVoiceSessionDescriptor) throws {
+        connectedDescriptor = descriptor
+    }
+
+    func beginListening() throws {
+        isListening = true
+    }
+
+    func stopListening() {
+        isListening = false
+    }
+
+    func disconnect() {
+        disconnectCount += 1
+        connectedDescriptor = nil
+        isListening = false
+    }
+}
+
 enum VoiceToolParameterType: String, Equatable {
     case shotLie
     case decimal
@@ -178,6 +216,16 @@ struct VoiceTurnResponse: Equatable {
     let spokenReply: String
     let sessionSnapshot: HostCaddieSession.SessionStateSnapshot
     let strategyPreference: StrategyPreference?
+}
+
+enum RealtimeVoiceTransportEvent: Equatable {
+    case listeningStarted
+    case listeningStopped
+    case finalUserUtterance(String)
+    case toolInvocation(VoiceToolInvocation)
+    case assistantPlaybackFinished
+    case interrupted
+    case transportFailed(String)
 }
 
 enum VoiceSessionConnectionState: Equatable {
@@ -313,17 +361,20 @@ final class RealtimeVoiceSessionManager: ObservableObject {
     private let credentialProvider: any RealtimeVoiceCredentialProviding
     private let bootstrapper: any RealtimeVoiceSessionBootstrapping
     private let audioCoordinator: any RealtimeVoiceAudioSessionCoordinating
+    private let transport: any RealtimeVoiceTransporting
 
     @Published private(set) var state = VoiceSessionState()
 
     init(
         credentialProvider: any RealtimeVoiceCredentialProviding,
         bootstrapper: any RealtimeVoiceSessionBootstrapping = DirectAppRealtimeSessionBootstrapper(),
-        audioCoordinator: any RealtimeVoiceAudioSessionCoordinating = NoopRealtimeVoiceAudioSessionCoordinator()
+        audioCoordinator: any RealtimeVoiceAudioSessionCoordinating = NoopRealtimeVoiceAudioSessionCoordinator(),
+        transport: any RealtimeVoiceTransporting = NoopRealtimeVoiceTransport()
     ) {
         self.credentialProvider = credentialProvider
         self.bootstrapper = bootstrapper
         self.audioCoordinator = audioCoordinator
+        self.transport = transport
     }
 
     func toolCatalog() -> VoiceToolCatalog {
@@ -341,6 +392,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             let credential = try credentialProvider.currentCredential()
             try audioCoordinator.prepareForVoiceSession()
             let descriptor = try bootstrapper.bootstrapSession(using: credential)
+            try transport.connect(to: descriptor)
             state.connectionState = .connected(descriptor)
         } catch {
             state.connectionState = .failed(String(describing: error))
@@ -350,6 +402,8 @@ final class RealtimeVoiceSessionManager: ObservableObject {
 
     func disconnect() {
         audioCoordinator.stopListening()
+        transport.stopListening()
+        transport.disconnect()
         audioCoordinator.endVoiceSession()
         state.connectionState = .disconnected
         state.turnState = .idle
@@ -361,6 +415,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         }
 
         try audioCoordinator.beginListening()
+        try transport.beginListening()
         state.turnState = .listening
     }
 
@@ -382,33 +437,58 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         _ utterance: String,
         context: HostCaddieSession.TurnContext
     ) -> VoiceTurnResponse? {
-        let trimmed = utterance.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        submitInput(
+            .utterance(utterance),
+            userVisibleText: utterance,
+            context: context,
+            autoFinishSpeaking: true
+        )
+    }
+
+    func handleTransportEvent(
+        _ event: RealtimeVoiceTransportEvent,
+        context: HostCaddieSession.TurnContext
+    ) -> VoiceTurnResponse? {
+        switch event {
+        case .listeningStarted:
+            state.turnState = .listening
+            return nil
+
+        case .listeningStopped:
+            if case .listening = state.turnState {
+                state.turnState = .idle
+            }
+            return nil
+
+        case let .finalUserUtterance(utterance):
+            return submitInput(
+                .utterance(utterance),
+                userVisibleText: utterance,
+                context: context,
+                autoFinishSpeaking: false
+            )
+
+        case let .toolInvocation(invocation):
+            return submitInput(
+                .toolInvocation(invocation),
+                userVisibleText: Self.transcriptText(for: invocation),
+                context: context,
+                autoFinishSpeaking: false
+            )
+
+        case .assistantPlaybackFinished:
+            finishSpeaking()
+            return nil
+
+        case .interrupted:
+            interruptCurrentTurn()
+            return nil
+
+        case let .transportFailed(message):
+            state.connectionState = .failed(message)
+            state.turnState = .idle
             return nil
         }
-
-        syncSnapshot(from: context)
-        state.transcriptEntries.append(.user(trimmed))
-
-        if case .disconnected = state.connectionState {
-            try? connect()
-        }
-
-        guard let response = handleTurn(
-            VoiceTurnRequest(
-                input: .utterance(trimmed),
-                context: context
-            )
-        ) else {
-            state.transcriptEntries.append(
-                .assistant("I couldn't ground that yet. Try asking for guidance or say something like rough 128.")
-            )
-            return nil
-        }
-
-        state.transcriptEntries.append(.assistant(response.spokenReply))
-        finishSpeaking()
-        return response
     }
 
     func interruptCurrentTurn() {
@@ -427,5 +507,77 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         if case .speaking = state.turnState {
             state.turnState = .idle
         }
+    }
+
+    private func submitInput(
+        _ input: VoiceTurnInput,
+        userVisibleText: String,
+        context: HostCaddieSession.TurnContext,
+        autoFinishSpeaking: Bool
+    ) -> VoiceTurnResponse? {
+        let trimmed = userVisibleText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        syncSnapshot(from: context)
+        state.transcriptEntries.append(.user(trimmed))
+
+        if case .disconnected = state.connectionState {
+            try? connect()
+        }
+
+        guard let response = handleTurn(
+            VoiceTurnRequest(
+                input: input,
+                context: context
+            )
+        ) else {
+            state.transcriptEntries.append(
+                .assistant("I couldn't ground that yet. Try asking for guidance or say something like rough 128.")
+            )
+            return nil
+        }
+
+        state.transcriptEntries.append(.assistant(response.spokenReply))
+        if autoFinishSpeaking {
+            finishSpeaking()
+        }
+        return response
+    }
+
+    private static func transcriptText(for invocation: VoiceToolInvocation) -> String {
+        switch invocation.actionName {
+        case .guidance:
+            return "what do you like here"
+        case .saferPlay:
+            return "safe play"
+        case .aggressivePlay:
+            return "aggressive"
+        case .balancedPlay:
+            return "back to balanced"
+        case .repeatGuidance:
+            return "repeat"
+        case .reportResult:
+            let lie = invocation.arguments.lie?.rawValue ?? "result"
+            let distance = invocation.arguments.remainingDistanceM.map(format(number:)) ?? ""
+            return distance.isEmpty ? lie : "\(lie) \(distance)"
+        case .holeOut:
+            return "holed out"
+        case .correctScore:
+            let strokes = invocation.arguments.strokesTaken ?? 0
+            if let holeNumber = invocation.arguments.holeNumber {
+                return "hole \(holeNumber) was \(strokes)"
+            }
+            return "make that \(strokes)"
+        }
+    }
+
+    private static func format(number: Double) -> String {
+        if number.rounded() == number {
+            return String(Int(number))
+        }
+
+        return String(format: "%.1f", number)
     }
 }

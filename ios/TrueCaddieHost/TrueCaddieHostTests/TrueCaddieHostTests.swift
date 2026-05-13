@@ -1349,8 +1349,10 @@ struct TrueCaddieHostTests {
     }
 
     @Test func realtimeVoiceSessionManagerConnectsWithPilotDirectAuthMode() {
+        let transport = StubRealtimeVoiceTransport()
         let manager = RealtimeVoiceSessionManager(
-            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+            transport: transport
         )
 
         let result = Result {
@@ -1375,6 +1377,14 @@ struct TrueCaddieHostTests {
             )
         )
         #expect(manager.toolCatalog().tools.contains(where: { $0.actionName == .reportResult }))
+        #expect(
+            transport.connectedDescriptor ==
+            .init(
+                model: "gpt-realtime-2",
+                transport: .rawRealtimeWebRTC,
+                authMode: .pilotDirectEmbedded
+            )
+        )
     }
 
     @Test func realtimeVoiceSessionManagerRoutesGroundedTurnResponses() throws {
@@ -1441,6 +1451,64 @@ struct TrueCaddieHostTests {
         #expect(manager.state.turnState == .idle)
         #expect(manager.state.lastInterruptedTurnID == request.turnID)
         #expect(manager.state.lastResponse?.turnID == request.turnID)
+    }
+
+    @Test func realtimeVoiceSessionManagerRespondsToTransportUtteranceEvents() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let transport = StubRealtimeVoiceTransport()
+        let manager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+            transport: transport
+        )
+        try manager.connect()
+
+        let response = try #require(
+            manager.handleTransportEvent(
+                .finalUserUtterance("what do you like here"),
+                context: makeConversationContext(bundle: bundle)
+            )
+        )
+
+        #expect(response.actionName == .guidance)
+        #expect(manager.state.turnState == .speaking(response.turnID))
+        #expect(manager.state.transcriptEntries.first == .user("what do you like here"))
+        #expect(manager.state.transcriptEntries.last == .assistant(response.spokenReply))
+
+        _ = manager.handleTransportEvent(
+            .assistantPlaybackFinished,
+            context: makeConversationContext(bundle: bundle)
+        )
+        #expect(manager.state.turnState == .idle)
+    }
+
+    @Test func realtimeVoiceSessionManagerRespondsToTransportToolInvocationEvents() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let manager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+        )
+
+        let response = try #require(
+            manager.handleTransportEvent(
+                .toolInvocation(
+                    VoiceToolInvocation(
+                        actionName: .reportResult,
+                        arguments: .init(
+                            lie: .rough,
+                            remainingDistanceM: 128
+                        )
+                    )
+                ),
+                context: makeConversationContext(
+                    bundle: bundle,
+                    roundState: makeInProgressRoundState(courseId: bundle.courseId)
+                )
+            )
+        )
+
+        #expect(response.actionName == .reportResult)
+        #expect(response.sessionSnapshot.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
+        #expect(manager.state.transcriptEntries.first == .user("rough 128"))
+        #expect(manager.state.transcriptEntries.last == .assistant(response.spokenReply))
     }
 
     @Test func conversationCanResolveToolCallThroughRealtimeAgentStub() throws {
