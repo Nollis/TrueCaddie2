@@ -250,6 +250,39 @@ struct TrueCaddieHostTests {
         )
     }
 
+    @Test func roundPreviewCanBuildSelectedScenario() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let preview = try #require(
+            HostRoundPreviewModel.preview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                holeNumber: 1,
+                selectedScenarioId: "rough"
+            )
+        )
+
+        #expect(preview.holeNumber == 1)
+        #expect(preview.scenarioName == "Missed right rough")
+        #expect(preview.packet.lie == .rough)
+    }
+
+    @Test func roundPreviewCanBuildDifferentHole() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let preview = try #require(
+            HostRoundPreviewModel.preview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                holeNumber: 7,
+                selectedScenarioId: ""
+            )
+        )
+
+        #expect(preview.holeNumber == 7)
+        #expect(preview.packet.holeNumber == 7)
+    }
+
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
         NextShotRecommendationPacket(
             courseId: "course",

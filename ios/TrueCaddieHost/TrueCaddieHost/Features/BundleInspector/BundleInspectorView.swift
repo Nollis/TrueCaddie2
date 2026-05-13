@@ -563,7 +563,7 @@ private struct HoleInspectorDetail: View {
         .onAppear {
             syncScenarioSelection()
         }
-        .onChange(of: effectiveRoundContext) { _ in
+        .onChange(of: effectiveRoundContext) {
             syncScenarioSelection()
         }
     }
