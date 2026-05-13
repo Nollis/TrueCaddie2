@@ -703,6 +703,55 @@ struct TrueCaddieHostTests {
         #expect(entries[1].relativeToParLabel == "-1")
     }
 
+    @Test func shotResultDraftDefaultsTeeResultToFairwayLie() {
+        let draft = HostRoundProgressModel.makeShotResultDraft(
+            from: ShotStateContext(
+                shotNumber: 1,
+                remainingDistanceM: 352,
+                lie: .tee
+            )
+        )
+
+        #expect(draft.currentShotNumber == 1)
+        #expect(draft.resultingLie == .fairway)
+        #expect(draft.remainingDistanceM == 352)
+        #expect(draft.holedOut == false)
+    }
+
+    @Test func shotResultDraftAdvancesToNextShotState() {
+        let result = HostRoundProgressModel.applyShotResultDraft(
+            .init(
+                currentShotNumber: 2,
+                resultingLie: .rough,
+                remainingDistanceM: 141,
+                holedOut: false
+            )
+        )
+
+        #expect(
+            result == .advance(
+                ShotStateContext(
+                    shotNumber: 3,
+                    remainingDistanceM: 141,
+                    lie: .rough
+                )
+            )
+        )
+    }
+
+    @Test func shotResultDraftCanHoleOutCurrentShot() {
+        let result = HostRoundProgressModel.applyShotResultDraft(
+            .init(
+                currentShotNumber: 4,
+                resultingLie: .fairway,
+                remainingDistanceM: 0,
+                holedOut: true
+            )
+        )
+
+        #expect(result == .holeOut(strokesTaken: 4))
+    }
+
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
         NextShotRecommendationPacket(
             courseId: "course",

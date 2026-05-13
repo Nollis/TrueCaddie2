@@ -60,6 +60,7 @@ private struct RoundPreviewView: View {
     @State private var selectedHoleNumber = 0
     @State private var selectedPlanMode: HostRoundPreviewModel.RoundPlanMode = .stockNextShot
     @State private var selectedScenarioId = ""
+    @State private var shotResultDraft: HostRoundProgressModel.ShotResultDraft?
     @State private var pendingHoleOutStrokes: Int?
     @State private var editingScoreHoleNumber: Int?
     @State private var editingScoreStrokes = 0
@@ -340,6 +341,13 @@ private struct RoundPreviewView: View {
 
                             Spacer()
 
+                            Button("Record shot result") {
+                                beginShotResultCapture(from: shotStateContext)
+                            }
+                            .tint(.blue)
+
+                            Spacer()
+
                             Button("Hole out") {
                                 beginHoleOutFlow()
                             }
@@ -495,7 +503,79 @@ private struct RoundPreviewView: View {
         .onAppear {
             syncSelection()
         }
+        .sheet(
+            isPresented: Binding(
+                get: { shotResultDraft != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        shotResultDraft = nil
+                    }
+                }
+            )
+        ) {
+            if let shotResultDraft {
+                NavigationStack {
+                    Form {
+                        Section("Shot Result") {
+                            LabeledContent("Shot", value: "\(shotResultDraft.currentShotNumber)")
+
+                            Toggle(
+                                "Holed out",
+                                isOn: Binding(
+                                    get: { shotResultDraft.holedOut },
+                                    set: { updateShotResultDraft(holedOut: $0) }
+                                )
+                            )
+
+                            if !shotResultDraft.holedOut {
+                                Picker(
+                                    "Lie",
+                                    selection: Binding(
+                                        get: { shotResultDraft.resultingLie },
+                                        set: { updateShotResultDraft(resultingLie: $0) }
+                                    )
+                                ) {
+                                    ForEach(HostRoundPreviewModel.lieOptions, id: \.rawValue) { lie in
+                                        Text(lie.rawValue.capitalized).tag(lie)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+
+                                LabeledContent(
+                                    "Remaining",
+                                    value: "\(metric(shotResultDraft.remainingDistanceM)) m"
+                                )
+
+                                Slider(
+                                    value: Binding(
+                                        get: { shotResultDraft.remainingDistanceM },
+                                        set: { updateShotResultDraft(remainingDistanceM: $0) }
+                                    ),
+                                    in: liveDistanceRange,
+                                    step: 1
+                                )
+                            }
+                        }
+                    }
+                    .navigationTitle("Record Result")
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") {
+                                shotResultDraft = nil
+                            }
+                        }
+
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Save") {
+                                saveShotResultDraft()
+                            }
+                        }
+                    }
+                }
+            }
+        }
         .onChange(of: selectedHoleNumber) {
+            shotResultDraft = nil
             pendingHoleOutStrokes = nil
             editingScoreHoleNumber = nil
             syncTeeSelection()
@@ -582,6 +662,7 @@ private struct RoundPreviewView: View {
     }
 
     private func beginHoleOutFlow() {
+        shotResultDraft = nil
         editingScoreHoleNumber = nil
         pendingHoleOutStrokes = selectedHoleState?.shotStateContext?.shotNumber
             ?? selectedHoleState?.strokesTaken
@@ -628,7 +709,47 @@ private struct RoundPreviewView: View {
         editingScoreHoleNumber = nil
     }
 
+    private func beginShotResultCapture(from shotStateContext: ShotStateContext) {
+        pendingHoleOutStrokes = nil
+        editingScoreHoleNumber = nil
+        shotResultDraft = HostRoundProgressModel.makeShotResultDraft(from: shotStateContext)
+    }
+
+    private func updateShotResultDraft(
+        resultingLie: ShotLie? = nil,
+        remainingDistanceM: Double? = nil,
+        holedOut: Bool? = nil
+    ) {
+        guard let draft = shotResultDraft else {
+            return
+        }
+
+        shotResultDraft = HostRoundProgressModel.ShotResultDraft(
+            currentShotNumber: draft.currentShotNumber,
+            resultingLie: resultingLie ?? draft.resultingLie,
+            remainingDistanceM: remainingDistanceM ?? draft.remainingDistanceM,
+            holedOut: holedOut ?? draft.holedOut
+        )
+    }
+
+    private func saveShotResultDraft() {
+        guard let shotResultDraft,
+              let result = HostRoundProgressModel.applyShotResultDraft(shotResultDraft) else {
+            return
+        }
+
+        switch result {
+        case .advance(let shotStateContext):
+            roundState = roundState.updateShotState(shotStateContext, for: selectedHoleNumber)
+        case .holeOut(let strokesTaken):
+            finishSelectedHole(strokesTaken: strokesTaken)
+        }
+
+        self.shotResultDraft = nil
+    }
+
     private func resetSelectedHole() {
+        shotResultDraft = nil
         pendingHoleOutStrokes = nil
         editingScoreHoleNumber = nil
         roundState = roundState.resetHole(selectedHoleNumber)
@@ -636,6 +757,7 @@ private struct RoundPreviewView: View {
     }
 
     private func resetRound() {
+        shotResultDraft = nil
         pendingHoleOutStrokes = nil
         editingScoreHoleNumber = nil
         roundState = RoundState(courseId: bundle.courseId, holeStates: [])
@@ -979,6 +1101,18 @@ enum HostRoundProgressModel {
         var id: Int { holeNumber }
     }
 
+    struct ShotResultDraft: Equatable {
+        let currentShotNumber: Int
+        let resultingLie: ShotLie
+        let remainingDistanceM: Double
+        let holedOut: Bool
+    }
+
+    enum ShotResultApplication: Equatable {
+        case advance(ShotStateContext)
+        case holeOut(strokesTaken: Int)
+    }
+
     static func currentHoleNumber(
         bundle: CourseBundle,
         roundState: RoundState,
@@ -1034,6 +1168,33 @@ enum HostRoundProgressModel {
             ),
             progressLabel: "\(finishedHoleCount) of \(totalHoleCount) complete",
             isRoundComplete: isRoundComplete
+        )
+    }
+
+    static func makeShotResultDraft(from shotStateContext: ShotStateContext) -> ShotResultDraft {
+        ShotResultDraft(
+            currentShotNumber: shotStateContext.shotNumber,
+            resultingLie: shotStateContext.lie == .tee ? .fairway : shotStateContext.lie,
+            remainingDistanceM: shotStateContext.remainingDistanceM,
+            holedOut: false
+        )
+    }
+
+    static func applyShotResultDraft(_ draft: ShotResultDraft) -> ShotResultApplication? {
+        if draft.holedOut {
+            return .holeOut(strokesTaken: draft.currentShotNumber)
+        }
+
+        guard draft.remainingDistanceM >= 0 else {
+            return nil
+        }
+
+        return .advance(
+            ShotStateContext(
+                shotNumber: draft.currentShotNumber + 1,
+                remainingDistanceM: draft.remainingDistanceM,
+                lie: draft.resultingLie
+            )
         )
     }
 
