@@ -1293,6 +1293,53 @@ struct TrueCaddieHostTests {
         )
     }
 
+    @Test func conversationBuildsRealtimeAgentStubConfiguration() {
+        let configuration = HostCaddieSession.RealtimeAgentStub.configuration()
+
+        #expect(configuration.agentName == "TrueCaddie Voice Caddie")
+        #expect(configuration.instructions.contains("Do not invent strategy"))
+        #expect(configuration.tools.contains(where: { $0.name == "report_result" }))
+        #expect(configuration.tools.contains(where: { $0.name == "correct_score" }))
+    }
+
+    @Test func conversationCanResolveToolCallThroughRealtimeAgentStub() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let context = HostCaddieSession.TurnContext(
+            bundle: bundle,
+            playerContext: .pilotSample,
+            roundContext: .pilotSample,
+            selectedHoleNumber: 1,
+            planMode: .stockNextShot,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(
+                        holeNumber: 1,
+                        status: .inProgress,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 2,
+                            remainingDistanceM: 220,
+                            lie: .fairway
+                        ),
+                        strokesTaken: 1
+                    )
+                ]
+            )
+        )
+
+        let response = try #require(
+            HostCaddieSession.RealtimeAgentStub.resolveToolCall(
+                name: "report_result",
+                argumentsJSON: #"{"lie":"rough","remainingDistanceM":128}"#,
+                context: context
+            )
+        )
+
+        #expect(response.actionName == "report_result")
+        #expect(response.state.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
+        #expect(response.assistantReply.contains("From rough at 128m"))
+    }
+
     @Test func conversationCanCorrectFinishedHoleScore() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let outcome = try #require(

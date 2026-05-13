@@ -1710,6 +1710,42 @@ enum HostCaddieSession {
         let arguments: WireToolArguments
     }
 
+    struct RealtimeAgentStubConfiguration: Codable, Equatable {
+        let agentName: String
+        let instructions: String
+        let tools: [OpenAIFunctionToolDefinition]
+    }
+
+    enum RealtimeAgentStub {
+        static func configuration() -> RealtimeAgentStubConfiguration {
+            RealtimeAgentStubConfiguration(
+                agentName: "TrueCaddie Voice Caddie",
+                instructions: """
+                You are a calm, concise golf caddie. Use tools to get grounded recommendations and update round state. Do not invent strategy. Prefer short spoken replies.
+                """,
+                tools: VoiceSessionBridge.openAIFunctionTools()
+            )
+        }
+
+        static func resolveToolCall(
+            name: String,
+            argumentsJSON: String,
+            context: TurnContext
+        ) -> WireSessionResponse? {
+            guard let wireRequest = VoiceSessionBridge.wireRequest(
+                toolName: name,
+                argumentsJSON: argumentsJSON
+            ) else {
+                return nil
+            }
+
+            return VoiceSessionBridge.respond(
+                to: wireRequest,
+                context: context
+            )
+        }
+    }
+
     enum VoiceSessionBridge {
         static func toolCatalog() -> [WireToolCatalogEntry] {
             supportedVoiceTools.map { tool in
