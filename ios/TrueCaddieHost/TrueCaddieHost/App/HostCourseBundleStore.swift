@@ -132,14 +132,22 @@ enum HostCaddieSession {
 
         var name: ActionName {
             switch self {
-            case .guidance: .guidance
-            case .saferPlay: .saferPlay
-            case .aggressivePlay: .aggressivePlay
-            case .balancedPlay: .balancedPlay
-            case .repeatGuidance: .repeatGuidance
-            case .reportShotResult: .reportResult
-            case .holeOut: .holeOut
-            case .correctScore: .correctScore
+            case .guidance:
+                return .guidance
+            case .saferPlay:
+                return .saferPlay
+            case .aggressivePlay:
+                return .aggressivePlay
+            case .balancedPlay:
+                return .balancedPlay
+            case .repeatGuidance:
+                return .repeatGuidance
+            case .reportShotResult:
+                return .reportResult
+            case .holeOut:
+                return .holeOut
+            case .correctScore:
+                return .correctScore
             }
         }
     }
@@ -485,11 +493,14 @@ enum HostCaddieSession {
             ]
         }
 
-        private static func jsonSchemaType(for parameterType: String) -> String {
+        nonisolated private static func jsonSchemaType(for parameterType: String) -> String {
             switch parameterType {
-            case "Double": "number"
-            case "Int": "integer"
-            default: "string"
+            case "Double":
+                return "number"
+            case "Int":
+                return "integer"
+            default:
+                return "string"
             }
         }
     }
@@ -1253,7 +1264,7 @@ enum VoiceToolDispatch {
         )
     }
 
-    private static func parameterDefinition(
+    nonisolated private static func parameterDefinition(
         from field: HostCaddieSession.VoiceToolFieldDefinition
     ) -> VoiceToolParameterDefinition {
         VoiceToolParameterDefinition(
@@ -1265,15 +1276,18 @@ enum VoiceToolDispatch {
         )
     }
 
-    private static func parameterType(for rawType: String) -> VoiceToolParameterType {
+    nonisolated private static func parameterType(for rawType: String) -> VoiceToolParameterType {
         switch rawType {
-        case "ShotLie": .shotLie
-        case "Int": .integer
-        default: .decimal
+        case "ShotLie":
+            return .shotLie
+        case "Int":
+            return .integer
+        default:
+            return .decimal
         }
     }
 
-    private static func allowedValues(for rawType: String) -> [String] {
+    nonisolated private static func allowedValues(for rawType: String) -> [String] {
         guard rawType == "ShotLie" else { return [] }
         return [
             ShotLie.tee.rawValue,
@@ -1469,18 +1483,24 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         return response
     }
 
-    private static func transcriptText(for invocation: VoiceToolInvocation) -> String {
+    nonisolated private static func transcriptText(for invocation: VoiceToolInvocation) -> String {
         switch invocation.actionName {
-        case .guidance: "what do you like here"
-        case .saferPlay: "safe play"
-        case .aggressivePlay: "aggressive"
-        case .balancedPlay: "back to balanced"
-        case .repeatGuidance: "repeat"
+        case .guidance:
+            return "what do you like here"
+        case .saferPlay:
+            return "safe play"
+        case .aggressivePlay:
+            return "aggressive"
+        case .balancedPlay:
+            return "back to balanced"
+        case .repeatGuidance:
+            return "repeat"
         case .reportResult:
             let lie = invocation.arguments.lie?.rawValue ?? "result"
             let distance = invocation.arguments.remainingDistanceM.map(format(number:)) ?? ""
             return distance.isEmpty ? lie : "\(lie) \(distance)"
-        case .holeOut: "holed out"
+        case .holeOut:
+            return "holed out"
         case .correctScore:
             let strokes = invocation.arguments.strokesTaken ?? 0
             if let holeNumber = invocation.arguments.holeNumber {
@@ -1490,7 +1510,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         }
     }
 
-    private static func format(number: Double) -> String {
+    nonisolated private static func format(number: Double) -> String {
         if number.rounded() == number {
             return String(Int(number))
         }
