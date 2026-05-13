@@ -354,6 +354,10 @@ private struct HoleInspectorDetail: View {
             if visibleSections.contains(.nextShotRecommendation) {
                 Section("Next Shot Recommendation") {
                     if let nextShotRecommendation {
+                        let confidenceGuidance = HoleInspectorModel.confidenceGuidance(for: nextShotRecommendation)
+                        let primaryFacts = HoleInspectorModel.primaryFacts(for: nextShotRecommendation)
+                        let debugFacts = HoleInspectorModel.debugFacts(for: nextShotRecommendation)
+
                         VStack(alignment: .leading, spacing: 8) {
                             HStack {
                                 Text(nextShotRecommendation.headline)
@@ -367,6 +371,14 @@ private struct HoleInspectorDetail: View {
                             Text(nextShotRecommendation.primaryReason)
                                 .font(.subheadline)
 
+                            if let confidenceGuidance {
+                                Label(confidenceGuidance, systemImage: "exclamationmark.triangle")
+                                    .font(.caption.weight(.medium))
+                                    .padding(10)
+                                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                    .foregroundStyle(.orange)
+                            }
+
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Voice Preview")
                                     .font(.caption.weight(.semibold))
@@ -378,63 +390,28 @@ private struct HoleInspectorDetail: View {
                             .padding(12)
                             .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                            Text(nextShotRecommendation.executionNote)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            if let missNote = nextShotRecommendation.missNote {
-                                Text(missNote)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(primaryFacts.enumerated()), id: \.offset) { item in
+                                    let fact = item.element
+                                    LabeledContent(fact.label, value: fact.value)
+                                        .font(.caption)
+                                }
                             }
-
-                            if let fallbackNote = nextShotRecommendation.fallbackNote {
-                                Text(fallbackNote)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            HStack(spacing: 12) {
-                                Text("\(nextShotRecommendation.recommendationType.capitalized) \(format(number: nextShotRecommendation.shotDistanceM)) m")
-                                Text("Risk \(nextShotRecommendation.riskLevel.capitalized)")
-                            }
-                            .font(.caption)
                             .foregroundStyle(.secondary)
 
-                            Text("Shot \(nextShotRecommendation.shotNumber) • \(nextShotRecommendation.lie.rawValue.capitalized)")
+                            if !debugFacts.isEmpty {
+                                DisclosureGroup("Packet details") {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(Array(debugFacts.enumerated()), id: \.offset) { item in
+                                            let fact = item.element
+                                            LabeledContent(fact.label, value: fact.value)
+                                                .font(.caption)
+                                        }
+                                    }
+                                    .padding(.top, 8)
+                                    .foregroundStyle(.secondary)
+                                }
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            if let strategyPreference = nextShotRecommendation.strategyPreference {
-                                Text("Today's plan: \(strategyPreference.capitalized)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if let plannedLeaveDistanceM = nextShotRecommendation.plannedLeaveDistanceM {
-                                Text("Leave \(format(number: plannedLeaveDistanceM)) m")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if let recommendedClub = nextShotRecommendation.recommendedClub,
-                               let clubCarryDistanceM = nextShotRecommendation.clubCarryDistanceM {
-                                Text("\(recommendedClub) • carry \(format(number: clubCarryDistanceM)) m")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if let preferredMissDirection = nextShotRecommendation.preferredMissDirection,
-                               let avoidDirection = nextShotRecommendation.avoidDirection {
-                                Text("Favor \(preferredMissDirection.capitalized), avoid \(avoidDirection.capitalized)")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if !nextShotRecommendation.hazardSummary.isEmpty {
-                                Text(nextShotRecommendation.hazardSummary.joined(separator: " • "))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
                             }
                         }
                         .padding(.vertical, 2)
@@ -910,6 +887,11 @@ enum HoleInspectorModel {
         var windSpeedMps: Double
     }
 
+    struct RecommendationFact: Equatable {
+        let label: String
+        let value: String
+    }
+
     static let strategyOptions: [StrategyPreference] = [.conservative, .balanced, .aggressive]
     static let windDirectionOptions: [WindRelativeDirection] = [.helping, .hurting, .cross]
 
@@ -1054,6 +1036,79 @@ enum HoleInspectorModel {
             .joined(separator: " ")
     }
 
+    static func confidenceGuidance(for packet: NextShotRecommendationPacket) -> String? {
+        guard packet.confidenceBand == "low" else {
+            return nil
+        }
+
+        return "Lower-confidence read. Confirm the picture and favor the stock outcome."
+    }
+
+    static func primaryFacts(for packet: NextShotRecommendationPacket) -> [RecommendationFact] {
+        var facts = [
+            RecommendationFact(
+                label: "Shot",
+                value: "\(packet.recommendationType.capitalized) \(metric(packet.shotDistanceM)) m"
+            ),
+            RecommendationFact(label: "Risk", value: packet.riskLevel.capitalized)
+        ]
+
+        if let strategyPreference = packet.strategyPreference {
+            facts.append(
+                RecommendationFact(label: "Plan", value: strategyPreference.capitalized)
+            )
+        }
+
+        if let plannedLeaveDistanceM = packet.plannedLeaveDistanceM {
+            facts.append(
+                RecommendationFact(label: "Leave", value: "\(metric(plannedLeaveDistanceM)) m")
+            )
+        }
+
+        return facts
+    }
+
+    static func debugFacts(for packet: NextShotRecommendationPacket) -> [RecommendationFact] {
+        var facts = [
+            RecommendationFact(
+                label: "Situation",
+                value: "Shot \(packet.shotNumber) • \(packet.lie.rawValue.capitalized)"
+            )
+        ]
+
+        if let recommendedClub = packet.recommendedClub,
+           let clubCarryDistanceM = packet.clubCarryDistanceM {
+            facts.append(
+                RecommendationFact(
+                    label: "Club",
+                    value: "\(recommendedClub) • carry \(metric(clubCarryDistanceM)) m"
+                )
+            )
+        }
+
+        if let missNote = packet.missNote {
+            let normalized = missNote
+                .replacingOccurrences(of: ".", with: "")
+                .replacingOccurrences(of: " Avoid ", with: ", avoid ")
+            facts.append(RecommendationFact(label: "Miss", value: normalized))
+        }
+
+        if let fallbackNote = packet.fallbackNote {
+            facts.append(RecommendationFact(label: "Fallback", value: fallbackNote))
+        }
+
+        if !packet.hazardSummary.isEmpty {
+            facts.append(
+                RecommendationFact(
+                    label: "Hazards",
+                    value: packet.hazardSummary.joined(separator: " • ")
+                )
+            )
+        }
+
+        return facts
+    }
+
     static func makeRoundOverrideState(from roundContext: RoundContext) -> RoundOverrideState {
         RoundOverrideState(
             teeSetId: roundContext.teeSetId,
@@ -1119,6 +1174,14 @@ enum HoleInspectorModel {
         case .balanced:
             return 100
         }
+    }
+
+    private static func metric(_ number: Double) -> String {
+        if number.rounded() == number {
+            return String(Int(number))
+        }
+
+        return String(format: "%.1f", number)
     }
 }
 #if DEBUG

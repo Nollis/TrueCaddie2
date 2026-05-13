@@ -186,4 +186,66 @@ struct TrueCaddieHostTests {
         #expect(packet?.strategyPreference == "conservative")
         #expect(packet?.executionNote == "PW carry 118m fits a center green number.")
     }
+
+    @Test func lowConfidenceGuidanceOnlyAppearsForLowBand() {
+        #expect(
+            HoleInspectorModel.confidenceGuidance(for: makePacket(confidenceBand: "low")) ==
+            "Lower-confidence read. Confirm the picture and favor the stock outcome."
+        )
+        #expect(HoleInspectorModel.confidenceGuidance(for: makePacket(confidenceBand: "medium")) == nil)
+    }
+
+    @Test func recommendationPrimaryFactsStayCompact() {
+        let facts = HoleInspectorModel.primaryFacts(for: makePacket())
+
+        #expect(
+            facts ==
+            [
+                .init(label: "Shot", value: "Layup 150 m"),
+                .init(label: "Risk", value: "Medium"),
+                .init(label: "Plan", value: "Balanced"),
+                .init(label: "Leave", value: "100 m")
+            ]
+        )
+    }
+
+    @Test func recommendationDebugFactsCollectSecondaryPacketDetails() {
+        let facts = HoleInspectorModel.debugFacts(for: makePacket())
+
+        #expect(facts.contains(.init(label: "Club", value: "7I • carry 150 m")))
+        #expect(facts.contains(.init(label: "Miss", value: "Favor left, avoid right")))
+        #expect(facts.contains(.init(label: "Fallback", value: "If it's not on, leave yourself about 100m in.")))
+        #expect(facts.contains(.init(label: "Hazards", value: "Bunker left")))
+    }
+
+    private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
+        NextShotRecommendationPacket(
+            courseId: "course",
+            holeId: "hole-1",
+            holeNumber: 1,
+            shotPhase: "layup",
+            recommendationType: "layup",
+            shotNumber: 2,
+            remainingDistanceM: 180,
+            lie: .fairway,
+            strategyPreference: "balanced",
+            targetLabel: "Right-center layup shelf",
+            recommendedClub: "7I",
+            clubCarryDistanceM: 150,
+            shotDistanceM: 150,
+            plannedLeaveDistanceM: 100,
+            preferredMissDirection: "left",
+            avoidDirection: "right",
+            riskLevel: "medium",
+            confidenceBand: confidenceBand,
+            confidenceScore: 0.8,
+            primaryReason: "Keep the next wedge simple.",
+            supportingReason: "7I puts the ball on the shelf without bringing the front bunker in.",
+            hazardSummary: ["Bunker left"],
+            headline: "7I to Right-center layup shelf",
+            executionNote: "7I puts the ball on the shelf without bringing the front bunker in.",
+            missNote: "Favor left. Avoid right.",
+            fallbackNote: "If it's not on, leave yourself about 100m in."
+        )
+    }
 }
