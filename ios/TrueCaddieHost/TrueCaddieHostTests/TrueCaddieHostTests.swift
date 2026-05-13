@@ -752,6 +752,80 @@ struct TrueCaddieHostTests {
         #expect(result == .holeOut(strokesTaken: 4))
     }
 
+    @Test func conversationParsesSaferPlayAndShotResultIntents() {
+        #expect(HostConversationModel.parse("safe play") == .askForSaferPlay)
+        #expect(HostConversationModel.parse("rough 128") == .reportShotResult(lie: .rough, remainingDistanceM: 128))
+        #expect(HostConversationModel.parse("repeat that") == .repeatLastGuidance)
+    }
+
+    @Test func conversationShotResultAdvancesRoundStateAndRepliesFromNewContext() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let outcome = try #require(
+            HostConversationModel.handle(
+                input: "rough 128",
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                selectedHoleNumber: 1,
+                planMode: .stockNextShot,
+                roundState: RoundState(
+                    courseId: bundle.courseId,
+                    holeStates: [
+                        .init(
+                            holeNumber: 1,
+                            status: .inProgress,
+                            shotStateContext: ShotStateContext(
+                                shotNumber: 2,
+                                remainingDistanceM: 220,
+                                lie: .fairway
+                            ),
+                            strokesTaken: 1
+                        )
+                    ]
+                )
+            )
+        )
+
+        #expect(outcome.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
+        #expect(outcome.roundState.holeState(for: 1)?.shotStateContext?.remainingDistanceM == 128)
+        #expect(outcome.roundState.holeState(for: 1)?.shotStateContext?.lie == .rough)
+        #expect(outcome.assistantReply.contains("From rough at 128m"))
+    }
+
+    @Test func conversationHoleOutFinishesHoleAndMovesToNextHole() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let outcome = try #require(
+            HostConversationModel.handle(
+                input: "holed out",
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                selectedHoleNumber: 1,
+                planMode: .stockNextShot,
+                roundState: RoundState(
+                    courseId: bundle.courseId,
+                    holeStates: [
+                        .init(
+                            holeNumber: 1,
+                            status: .inProgress,
+                            shotStateContext: ShotStateContext(
+                                shotNumber: 4,
+                                remainingDistanceM: 3,
+                                lie: .fairway
+                            ),
+                            strokesTaken: 3
+                        )
+                    ]
+                )
+            )
+        )
+
+        #expect(outcome.roundState.holeState(for: 1)?.status == .finished)
+        #expect(outcome.roundState.holeState(for: 1)?.strokesTaken == 4)
+        #expect(outcome.selectedHoleNumber == 2)
+        #expect(outcome.assistantReply.contains("Current hole 2"))
+    }
+
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
         NextShotRecommendationPacket(
             courseId: "course",
