@@ -618,7 +618,7 @@ private struct RoundPreviewView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") {
-                            shotResultDraft = nil
+                            self.shotResultDraft = nil
                         }
                     }
 
@@ -1731,5 +1731,13 @@ enum HostConversationModel {
         }
 
         return nil
+    }
+
+    private static func format(number: Double) -> String {
+        if number.rounded() == number {
+            return String(Int(number))
+        }
+
+        return String(format: "%.1f", number)
     }
 }
