@@ -614,6 +614,70 @@ struct TrueCaddieHostTests {
         #expect(summary.totalsHeader == "Through 2: +4")
     }
 
+    @Test func scorecardEntriesOnlyIncludeStartedHolesAndKeepHoleOrder() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let entries = HostRoundProgressModel.scorecardEntries(
+            bundle: bundle,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(
+                        holeNumber: 3,
+                        status: .finished,
+                        shotStateContext: nil,
+                        strokesTaken: 5
+                    ),
+                    .init(
+                        holeNumber: 1,
+                        status: .inProgress,
+                        shotStateContext: ShotStateContext(
+                            shotNumber: 2,
+                            remainingDistanceM: 188,
+                            lie: .fairway
+                        ),
+                        strokesTaken: 1
+                    )
+                ]
+            ),
+            currentHoleNumber: 1
+        )
+
+        #expect(entries.map(\.holeNumber) == [1, 3])
+        #expect(entries[0].isCurrentHole == true)
+        #expect(entries[0].statusLabel == "In progress")
+        #expect(entries[1].statusLabel == "Finished")
+    }
+
+    @Test func scorecardEntriesFormatStrokesAndRelativeToPar() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let entries = HostRoundProgressModel.scorecardEntries(
+            bundle: bundle,
+            roundState: RoundState(
+                courseId: bundle.courseId,
+                holeStates: [
+                    .init(
+                        holeNumber: 1,
+                        status: .finished,
+                        shotStateContext: nil,
+                        strokesTaken: 5
+                    ),
+                    .init(
+                        holeNumber: 2,
+                        status: .finished,
+                        shotStateContext: nil,
+                        strokesTaken: 2
+                    )
+                ]
+            ),
+            currentHoleNumber: 2
+        )
+
+        #expect(entries[0].strokesLabel == "5")
+        #expect(entries[0].relativeToParLabel == "E")
+        #expect(entries[1].strokesLabel == "2")
+        #expect(entries[1].relativeToParLabel == "-1")
+    }
+
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
         NextShotRecommendationPacket(
             courseId: "course",

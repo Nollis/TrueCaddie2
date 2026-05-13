@@ -129,6 +129,14 @@ private struct RoundPreviewView: View {
         )
     }
 
+    private var scorecardEntries: [HostRoundProgressModel.ScorecardEntry] {
+        HostRoundProgressModel.scorecardEntries(
+            bundle: bundle,
+            roundState: roundState,
+            currentHoleNumber: selectedHoleNumber
+        )
+    }
+
     private var scenarioOptions: [HoleInspectorModel.ShotStateScenario] {
         guard !usesLiveState else {
             return []
@@ -171,6 +179,56 @@ private struct RoundPreviewView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
+                }
+
+                Section("Round History") {
+                    if scorecardEntries.isEmpty {
+                        Text("No holes started yet.")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(scorecardEntries) { entry in
+                            Button {
+                                selectedHoleNumber = entry.holeNumber
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack(spacing: 6) {
+                                            Text("Hole \(entry.holeNumber)")
+                                                .fontWeight(.semibold)
+                                            Text("Par \(entry.par)")
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Text(entry.statusLabel)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    VStack(alignment: .trailing, spacing: 2) {
+                                        Text(entry.strokesLabel)
+                                            .fontWeight(.semibold)
+                                        Text(entry.relativeToParLabel)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        if entry.isCurrentHole {
+                                            Text("Current")
+                                                .font(.caption2.weight(.semibold))
+                                                .foregroundStyle(.blue)
+                                        }
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    Button("Reset round") {
+                        resetRound()
+                    }
+                    .tint(.red)
                 }
 
                 Section("Round") {
@@ -523,6 +581,17 @@ private struct RoundPreviewView: View {
         syncScenarioSelection(forceReset: true)
     }
 
+    private func resetRound() {
+        pendingHoleOutStrokes = nil
+        roundState = RoundState(courseId: bundle.courseId, holeStates: [])
+        selectedHoleNumber = HostRoundProgressModel.currentHoleNumber(
+            bundle: bundle,
+            roundState: roundState,
+            preferredHoleNumber: nil
+        ) ?? (bundle.holes.first?.holeNumber ?? 0)
+        syncScenarioSelection(forceReset: true)
+    }
+
     private func updateSelectedHoleShotNumber(_ shotNumber: Int) {
         guard let shotStateContext = selectedHoleState?.shotStateContext else {
             return
@@ -841,6 +910,17 @@ enum HostRoundProgressModel {
         let progressLabel: String
     }
 
+    struct ScorecardEntry: Equatable, Identifiable {
+        let holeNumber: Int
+        let par: Int
+        let statusLabel: String
+        let strokesLabel: String
+        let relativeToParLabel: String
+        let isCurrentHole: Bool
+
+        var id: Int { holeNumber }
+    }
+
     static func currentHoleNumber(
         bundle: CourseBundle,
         roundState: RoundState,
@@ -895,6 +975,30 @@ enum HostRoundProgressModel {
         )
     }
 
+    static func scorecardEntries(
+        bundle: CourseBundle,
+        roundState: RoundState,
+        currentHoleNumber: Int
+    ) -> [ScorecardEntry] {
+        bundle.holes.compactMap { hole in
+            guard let holeState = roundState.holeState(for: hole.holeNumber) else {
+                return nil
+            }
+
+            let strokesTaken = holeState.strokesTaken ?? max((holeState.shotStateContext?.shotNumber ?? 1) - 1, 0)
+            let relativeToPar = strokesTaken - hole.par
+
+            return ScorecardEntry(
+                holeNumber: hole.holeNumber,
+                par: hole.par,
+                statusLabel: statusLabel(for: holeState),
+                strokesLabel: strokesTaken == 0 ? "-" : "\(strokesTaken)",
+                relativeToParLabel: relativeLabel(for: relativeToPar),
+                isCurrentHole: hole.holeNumber == currentHoleNumber
+            )
+        }
+    }
+
     static func nextUnfinishedHoleNumber(
         after holeNumber: Int,
         bundle: CourseBundle,
@@ -946,6 +1050,26 @@ enum HostRoundProgressModel {
         }
 
         return "Through \(finishedHoleCount): \(relativeLabel)"
+    }
+
+    private static func statusLabel(for holeState: HoleRoundState) -> String {
+        switch holeState.status {
+        case .inProgress:
+            return "In progress"
+        case .finished:
+            return "Finished"
+        }
+    }
+
+    private static func relativeLabel(for relativeToPar: Int) -> String {
+        switch relativeToPar {
+        case ..<0:
+            return "\(relativeToPar)"
+        case 0:
+            return "E"
+        default:
+            return "+\(relativeToPar)"
+        }
     }
 }
 

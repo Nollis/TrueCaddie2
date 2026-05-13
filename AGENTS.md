@@ -54,6 +54,7 @@ When in doubt, preserve that direction. Prefer improving the shared recommendati
 - Keep voice output deterministic for now. Use structured packet fields, not freeform generation.
 - Treat Course Studio bundle output, shared schema, and Swift loaders as one contract. If one side changes, check the others.
 - Avoid speculative abstractions. Add only what the active recommendation flow needs.
+- When the user says `push`, stage only the relevant files for the accepted slice, commit them, and push to `main` unless the user asks for a branch instead.
 
 ## Recommendation Stack
 
