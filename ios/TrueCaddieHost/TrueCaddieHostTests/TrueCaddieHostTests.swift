@@ -767,6 +767,75 @@ struct TrueCaddieHostTests {
         #expect(HostCaddieSession.supportedVoiceTools.contains(where: { $0.name == .correctScore }))
     }
 
+    @Test func conversationExposesStructuredVoiceToolFields() throws {
+        let reportResultTool = try #require(
+            HostCaddieSession.supportedVoiceTools.first(where: { $0.name == .reportResult })
+        )
+        let correctScoreTool = try #require(
+            HostCaddieSession.supportedVoiceTools.first(where: { $0.name == .correctScore })
+        )
+
+        #expect(reportResultTool.fields.map(\.name) == ["lie", "remainingDistanceM"])
+        #expect(reportResultTool.fields.allSatisfy { $0.required })
+        #expect(correctScoreTool.fields.map(\.name) == ["strokesTaken", "holeNumber"])
+        #expect(correctScoreTool.fields.last?.required == false)
+    }
+
+    @Test func conversationBuildsRealtimeToolCallsWithMinimalPayloads() {
+        let reportResultCall = HostCaddieSession.toolCall(
+            named: .reportResult,
+            lie: .rough,
+            remainingDistanceM: 128
+        )
+        let correctScoreCall = HostCaddieSession.toolCall(
+            named: .correctScore,
+            strokesTaken: 5,
+            holeNumber: 1
+        )
+
+        #expect(
+            reportResultCall ==
+            .init(
+                name: .reportResult,
+                payload: .reportResult(
+                    .init(lie: .rough, remainingDistanceM: 128)
+                )
+            )
+        )
+        #expect(
+            correctScoreCall ==
+            .init(
+                name: .correctScore,
+                payload: .correctScore(
+                    .init(strokesTaken: 5, holeNumber: 1)
+                )
+            )
+        )
+        #expect(HostCaddieSession.toolCall(named: .reportResult, lie: .rough) == nil)
+    }
+
+    @Test func conversationMapsRealtimeToolCallsToSessionActions() {
+        let reportResultAction = HostCaddieSession.action(
+            for: .init(
+                name: .reportResult,
+                payload: .reportResult(
+                    .init(lie: .rough, remainingDistanceM: 128)
+                )
+            )
+        )
+        let balancedAction = HostCaddieSession.action(
+            for: .init(name: .balancedPlay, payload: .none)
+        )
+
+        #expect(reportResultAction == .reportShotResult(lie: .rough, remainingDistanceM: 128))
+        #expect(balancedAction == .balancedPlay)
+        #expect(
+            HostCaddieSession.action(
+                for: .init(name: .reportResult, payload: .none)
+            ) == nil
+        )
+    }
+
     @Test func conversationShotResultAdvancesRoundStateAndRepliesFromNewContext() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let outcome = try #require(
@@ -841,6 +910,46 @@ struct TrueCaddieHostTests {
         #expect(outcome.roundState.holeState(for: 1)?.strokesTaken == 4)
         #expect(outcome.selectedHoleNumber == 2)
         #expect(outcome.assistantReply.contains("Current hole 2"))
+    }
+
+    @Test func conversationCanRespondFromRealtimeToolCall() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let outcome = try #require(
+            HostCaddieSession.respond(
+                to: .init(
+                    name: .reportResult,
+                    payload: .reportResult(
+                        .init(lie: .rough, remainingDistanceM: 128)
+                    )
+                ),
+                in: .init(
+                    bundle: bundle,
+                    playerContext: .pilotSample,
+                    roundContext: .pilotSample,
+                    selectedHoleNumber: 1,
+                    planMode: .stockNextShot,
+                    roundState: RoundState(
+                        courseId: bundle.courseId,
+                        holeStates: [
+                            .init(
+                                holeNumber: 1,
+                                status: .inProgress,
+                                shotStateContext: ShotStateContext(
+                                    shotNumber: 2,
+                                    remainingDistanceM: 220,
+                                    lie: .fairway
+                                ),
+                                strokesTaken: 1
+                            )
+                        ]
+                    )
+                )
+            )
+        )
+
+        #expect(outcome.actionName == .reportResult)
+        #expect(outcome.roundState.holeState(for: 1)?.shotStateContext?.shotNumber == 3)
+        #expect(outcome.assistantReply.contains("From rough at 128m"))
     }
 
     @Test func conversationCanCorrectFinishedHoleScore() throws {

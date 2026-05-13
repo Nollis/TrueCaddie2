@@ -279,6 +279,7 @@ private struct RoundPreviewView: View {
                     .tint(.red)
                 }
 
+                // Temporary typed harness until the realtime voice session replaces this UI.
                 Section("Caddie Conversation") {
                     if conversationLog.isEmpty {
                         Text("Ask for guidance or report a shot result.")
@@ -1444,6 +1445,17 @@ private enum HostRoundProgressStore {
 }
 
 enum HostCaddieSession {
+    struct VoiceToolFieldDefinition: Equatable, Identifiable {
+        let name: String
+        let type: String
+        let required: Bool
+        let description: String
+
+        var id: String {
+            name
+        }
+    }
+
     struct TranscriptEntry: Equatable, Identifiable {
         enum Speaker: String, Equatable {
             case user
@@ -1481,11 +1493,33 @@ enum HostCaddieSession {
     struct VoiceToolDefinition: Equatable, Identifiable {
         let name: ActionName
         let description: String
+        let fields: [VoiceToolFieldDefinition]
         let sampleUtterances: [String]
 
         var id: String {
             name.rawValue
         }
+    }
+
+    struct ReportResultPayload: Equatable {
+        let lie: ShotLie
+        let remainingDistanceM: Double
+    }
+
+    struct CorrectScorePayload: Equatable {
+        let strokesTaken: Int
+        let holeNumber: Int?
+    }
+
+    enum RealtimeToolPayload: Equatable {
+        case none
+        case reportResult(ReportResultPayload)
+        case correctScore(CorrectScorePayload)
+    }
+
+    struct RealtimeToolCall: Equatable {
+        let name: ActionName
+        let payload: RealtimeToolPayload
     }
 
     enum Action: Equatable {
@@ -1546,44 +1580,161 @@ enum HostCaddieSession {
         VoiceToolDefinition(
             name: .guidance,
             description: "Get the grounded caddie recommendation for the current shot.",
+            fields: [],
             sampleUtterances: ["what do you like here", "what's the play"]
         ),
         VoiceToolDefinition(
             name: .saferPlay,
             description: "Shift the recommendation toward the conservative play.",
+            fields: [],
             sampleUtterances: ["safe play", "give me the safer option"]
         ),
         VoiceToolDefinition(
             name: .aggressivePlay,
             description: "Shift the recommendation toward the aggressive play.",
+            fields: [],
             sampleUtterances: ["aggressive", "let's attack"]
         ),
         VoiceToolDefinition(
             name: .balancedPlay,
             description: "Return to the balanced default strategy.",
+            fields: [],
             sampleUtterances: ["back to balanced", "normal plan"]
         ),
         VoiceToolDefinition(
             name: .repeatGuidance,
             description: "Repeat the current grounded recommendation.",
+            fields: [],
             sampleUtterances: ["repeat that", "say it again"]
         ),
         VoiceToolDefinition(
             name: .reportResult,
             description: "Report the lie and remaining distance after a shot.",
+            fields: [
+                VoiceToolFieldDefinition(
+                    name: "lie",
+                    type: "ShotLie",
+                    required: true,
+                    description: "The player's resulting lie after the shot."
+                ),
+                VoiceToolFieldDefinition(
+                    name: "remainingDistanceM",
+                    type: "Double",
+                    required: true,
+                    description: "The remaining distance to the target in meters."
+                )
+            ],
             sampleUtterances: ["rough 128", "fairway 96"]
         ),
         VoiceToolDefinition(
             name: .holeOut,
             description: "Finish the current hole using the current live shot count.",
+            fields: [],
             sampleUtterances: ["holed out", "that's in"]
         ),
         VoiceToolDefinition(
             name: .correctScore,
             description: "Correct a finished hole's score.",
+            fields: [
+                VoiceToolFieldDefinition(
+                    name: "strokesTaken",
+                    type: "Int",
+                    required: true,
+                    description: "The confirmed score for the finished hole."
+                ),
+                VoiceToolFieldDefinition(
+                    name: "holeNumber",
+                    type: "Int",
+                    required: false,
+                    description: "The finished hole to correct. Defaults to the current hole when omitted."
+                )
+            ],
             sampleUtterances: ["make that 5", "hole 1 was 6"]
         )
     ]
+
+    static func toolCall(
+        named name: ActionName,
+        lie: ShotLie? = nil,
+        remainingDistanceM: Double? = nil,
+        strokesTaken: Int? = nil,
+        holeNumber: Int? = nil
+    ) -> RealtimeToolCall? {
+        switch name {
+        case .guidance, .saferPlay, .aggressivePlay, .balancedPlay, .repeatGuidance, .holeOut:
+            return RealtimeToolCall(name: name, payload: .none)
+
+        case .reportResult:
+            guard let lie, let remainingDistanceM else {
+                return nil
+            }
+
+            return RealtimeToolCall(
+                name: name,
+                payload: .reportResult(
+                    ReportResultPayload(
+                        lie: lie,
+                        remainingDistanceM: remainingDistanceM
+                    )
+                )
+            )
+
+        case .correctScore:
+            guard let strokesTaken else {
+                return nil
+            }
+
+            return RealtimeToolCall(
+                name: name,
+                payload: .correctScore(
+                    CorrectScorePayload(
+                        strokesTaken: strokesTaken,
+                        holeNumber: holeNumber
+                    )
+                )
+            )
+        }
+    }
+
+    static func action(for toolCall: RealtimeToolCall) -> Action? {
+        switch (toolCall.name, toolCall.payload) {
+        case (.guidance, .none):
+            return .guidance
+        case (.saferPlay, .none):
+            return .saferPlay
+        case (.aggressivePlay, .none):
+            return .aggressivePlay
+        case (.balancedPlay, .none):
+            return .balancedPlay
+        case (.repeatGuidance, .none):
+            return .repeatGuidance
+        case let (.reportResult, .reportResult(payload)):
+            return .reportShotResult(
+                lie: payload.lie,
+                remainingDistanceM: payload.remainingDistanceM
+            )
+        case (.holeOut, .none):
+            return .holeOut
+        case let (.correctScore, .correctScore(payload)):
+            return .correctScore(
+                strokesTaken: payload.strokesTaken,
+                holeNumber: payload.holeNumber
+            )
+        default:
+            return nil
+        }
+    }
+
+    static func respond(
+        to toolCall: RealtimeToolCall,
+        in context: TurnContext
+    ) -> TurnOutcome? {
+        guard let action = action(for: toolCall) else {
+            return nil
+        }
+
+        return perform(action, in: context)
+    }
 
     static func respond(to request: TurnRequest) -> TurnOutcome? {
         guard let action = interpret(request.utterance) else {
