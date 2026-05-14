@@ -1419,6 +1419,34 @@ struct TrueCaddieHostTests {
         #expect(transport.currentSession == nil)
     }
 
+    @Test func directRealtimeVoiceEventSourceAdapterMapsProviderEventsIntoVoiceEnvelope() {
+        let invocation = VoiceToolInvocation(
+            actionName: .reportResult,
+            arguments: .init(lie: .rough, remainingDistanceM: 128)
+        )
+
+        #expect(
+            DirectRealtimeVoiceEventSourceAdapter.map(.inputTranscriptPartial("what do you")) ==
+            .transcript(.init(speaker: .user, kind: .partial, text: "what do you"))
+        )
+        #expect(
+            DirectRealtimeVoiceEventSourceAdapter.map(.outputTranscriptPartial("PW to lay up")) ==
+            .transcript(.init(speaker: .assistant, kind: .partial, text: "PW to lay up"))
+        )
+        #expect(
+            DirectRealtimeVoiceEventSourceAdapter.map(.toolEvent(.init(invocation: invocation, phase: .requested))) ==
+            .toolInvocation(invocation)
+        )
+        #expect(
+            DirectRealtimeVoiceEventSourceAdapter.map(.toolEvent(.init(invocation: invocation, phase: .completed))) ==
+            .toolCallback(.init(invocation: invocation, phase: .completed))
+        )
+        #expect(
+            DirectRealtimeVoiceEventSourceAdapter.map(.playbackStateChanged(.finished)) ==
+            .playbackStateChanged(.finished)
+        )
+    }
+
     @Test func realtimeVoiceSessionManagerRoutesGroundedTurnResponses() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let manager = RealtimeVoiceSessionManager(
@@ -1773,6 +1801,33 @@ struct TrueCaddieHostTests {
                 )
             ]
         )
+    }
+
+    @Test func hostVoiceSessionControllerCanUseDirectRealtimeClientAdapterStub() throws {
+        let client = StubDirectRealtimeClient()
+        let eventSource = DirectRealtimeVoiceEventSourceAdapter(client: client)
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            eventSource: eventSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.connectIfNeeded()
+        controller.submitPartialVoiceUtterance("what do you")
+        let response = try #require(controller.submitVoiceUtterance("what do you like here"))
+
+        #expect(client.outboundActions.starts(with: ["connect", "partial:what do you", "final:what do you like here"]))
+        #expect(controller.state.partialUserTranscript == nil)
+        #expect(response.actionName == .guidance)
+
+        client.emit(.outputTranscriptPartial("PW to"))
+        #expect(controller.state.partialAssistantTranscript == "PW to")
+
+        client.emit(.playbackStateChanged(.finished))
+        #expect(controller.state.playbackState == .idle)
     }
 
     @Test func hostVoiceSessionControllerSubmitsStructuredToolEventsThroughEventSource() throws {

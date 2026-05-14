@@ -1342,6 +1342,202 @@ protocol RealtimeVoiceEventSourcing: AnyObject {
     func failTransport(_ message: String)
 }
 
+enum DirectRealtimeClientPlaybackState: Equatable {
+    case speaking
+    case finished
+}
+
+enum DirectRealtimeClientToolPhase: Equatable {
+    case requested
+    case completed
+}
+
+struct DirectRealtimeClientToolEvent: Equatable {
+    let invocation: VoiceToolInvocation
+    let phase: DirectRealtimeClientToolPhase
+}
+
+enum DirectRealtimeClientEvent: Equatable {
+    case inputAudioStarted
+    case inputAudioStopped
+    case inputTranscriptPartial(String)
+    case inputTranscriptFinal(String)
+    case outputTranscriptPartial(String)
+    case outputTranscriptFinal(String)
+    case toolEvent(DirectRealtimeClientToolEvent)
+    case playbackStateChanged(DirectRealtimeClientPlaybackState)
+    case interrupted
+    case failed(String)
+}
+
+protocol DirectRealtimeClienting: AnyObject {
+    var onEvent: ((DirectRealtimeClientEvent) -> Void)? { get set }
+
+    func connect()
+    func beginListening()
+    func stopListening()
+    func sendPartialUtterance(_ utterance: String)
+    func sendFinalUtterance(_ utterance: String)
+    func sendToolInvocation(_ invocation: VoiceToolInvocation)
+    func interrupt()
+    func disconnect()
+}
+
+final class StubDirectRealtimeClient: DirectRealtimeClienting {
+    var onEvent: ((DirectRealtimeClientEvent) -> Void)?
+    private(set) var outboundActions: [String] = []
+
+    func connect() {
+        outboundActions.append("connect")
+    }
+
+    func beginListening() {
+        outboundActions.append("beginListening")
+    }
+
+    func stopListening() {
+        outboundActions.append("stopListening")
+    }
+
+    func sendPartialUtterance(_ utterance: String) {
+        outboundActions.append("partial:\(utterance)")
+        onEvent?(.inputTranscriptPartial(utterance))
+    }
+
+    func sendFinalUtterance(_ utterance: String) {
+        outboundActions.append("final:\(utterance)")
+        onEvent?(.inputTranscriptFinal(utterance))
+    }
+
+    func sendToolInvocation(_ invocation: VoiceToolInvocation) {
+        outboundActions.append("tool:\(invocation.actionName.rawValue)")
+        onEvent?(
+            .toolEvent(
+                .init(
+                    invocation: invocation,
+                    phase: .requested
+                )
+            )
+        )
+    }
+
+    func interrupt() {
+        outboundActions.append("interrupt")
+        onEvent?(.interrupted)
+    }
+
+    func disconnect() {
+        outboundActions.append("disconnect")
+    }
+
+    func emit(_ event: DirectRealtimeClientEvent) {
+        onEvent?(event)
+    }
+}
+
+final class DirectRealtimeVoiceEventSourceAdapter: RealtimeVoiceEventSourcing {
+    var onEvent: ((RealtimeVoiceTransportEvent) -> Void)?
+
+    private let client: any DirectRealtimeClienting
+
+    init(client: any DirectRealtimeClienting = StubDirectRealtimeClient()) {
+        self.client = client
+        self.client.onEvent = { [weak self] event in
+            guard let mapped = Self.map(event) else {
+                return
+            }
+
+            self?.onEvent?(mapped)
+        }
+    }
+
+    func connect() {
+        client.connect()
+    }
+
+    func beginListening() {
+        client.beginListening()
+        onEvent?(.listeningStarted)
+    }
+
+    func stopListening() {
+        client.stopListening()
+        onEvent?(.listeningStopped)
+    }
+
+    func submitPartialUtterance(_ utterance: String) {
+        client.sendPartialUtterance(utterance)
+    }
+
+    func submitFinalUtterance(_ utterance: String) {
+        client.sendFinalUtterance(utterance)
+    }
+
+    func submitToolInvocation(_ invocation: VoiceToolInvocation) {
+        client.sendToolInvocation(invocation)
+    }
+
+    func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent) {
+        onEvent?(.toolCallback(callback))
+    }
+
+    func setPlaybackState(_ state: RealtimeVoicePlaybackState) {
+        onEvent?(.playbackStateChanged(state))
+    }
+
+    func finishAssistantPlayback() {
+        onEvent?(.playbackStateChanged(.finished))
+    }
+
+    func interrupt() {
+        client.interrupt()
+    }
+
+    func failTransport(_ message: String) {
+        onEvent?(.transportFailed(message))
+    }
+
+    nonisolated static func map(_ event: DirectRealtimeClientEvent) -> RealtimeVoiceTransportEvent? {
+        switch event {
+        case .inputAudioStarted:
+            return .listeningStarted
+        case .inputAudioStopped:
+            return .listeningStopped
+        case let .inputTranscriptPartial(text):
+            return .transcript(.init(speaker: .user, kind: .partial, text: text))
+        case let .inputTranscriptFinal(text):
+            return .transcript(.init(speaker: .user, kind: .final, text: text))
+        case let .outputTranscriptPartial(text):
+            return .transcript(.init(speaker: .assistant, kind: .partial, text: text))
+        case let .outputTranscriptFinal(text):
+            return .transcript(.init(speaker: .assistant, kind: .final, text: text))
+        case let .toolEvent(toolEvent):
+            switch toolEvent.phase {
+            case .requested:
+                return .toolInvocation(toolEvent.invocation)
+            case .completed:
+                return .toolCallback(
+                    .init(
+                        invocation: toolEvent.invocation,
+                        phase: .completed
+                    )
+                )
+            }
+        case let .playbackStateChanged(state):
+            switch state {
+            case .speaking:
+                return .playbackStateChanged(.speaking)
+            case .finished:
+                return .playbackStateChanged(.finished)
+            }
+        case .interrupted:
+            return .interrupted
+        case let .failed(message):
+            return .transportFailed(message)
+        }
+    }
+}
+
 final class NoopRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
     var onEvent: ((RealtimeVoiceTransportEvent) -> Void)?
 
