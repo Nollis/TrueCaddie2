@@ -1573,6 +1573,37 @@ struct TrueCaddieHostTests {
         #expect(thirdEnvelope.type == "response.cancel")
     }
 
+    @MainActor @Test func openAIRealtimeClientShellSkipsInputBufferCommitWhenNoAudioIsBuffered() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+
+        client.connect()
+        client.sendFinalUtterance("typed text only")
+
+        let commitCount = connection.sentJSONMessages
+            .filter { $0.contains(#""type":"input_audio_buffer.commit""#) }
+            .count
+        #expect(commitCount == 0)
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellSkipsEmptyAudioBufferAppend() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+
+        client.connect()
+        client.sendAudioBufferAppend(Data())
+        client.sendFinalUtterance("anything")
+
+        let appendCount = connection.sentJSONMessages
+            .filter { $0.contains(#""type":"input_audio_buffer.append""#) }
+            .count
+        let commitCount = connection.sentJSONMessages
+            .filter { $0.contains(#""type":"input_audio_buffer.commit""#) }
+            .count
+        #expect(appendCount == 0)
+        #expect(commitCount == 0)
+    }
+
     @MainActor @Test func openAIRealtimeClientShellCanSendResponseCreate() throws {
         let connection = StubOpenAIRealtimeConnection()
         let client = OpenAIRealtimeClientShell(connection: connection)

@@ -2118,6 +2118,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     private let connection: any OpenAIRealtimeConnectioning
     private let configuration: OpenAIRealtimeSessionConfiguration
     private let microphoneEncoder: RealtimeMicrophonePCMEncoder
+    private var hasPendingInputAudio = false
 
     init(
         connection: any OpenAIRealtimeConnectioning = StubOpenAIRealtimeConnection(),
@@ -2160,7 +2161,11 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func sendFinalUtterance(_ utterance: String) {
         outboundActions.append("input_audio_buffer.commit:\(utterance)")
-        _ = utterance
+        guard hasPendingInputAudio else {
+            outboundActions.append("input_audio_buffer.commit:skipped-no-audio")
+            return
+        }
+        hasPendingInputAudio = false
         sendClientEvent(
             .init(
                 type: OpenAIRealtimeClientEventType.inputAudioBufferCommit.rawValue,
@@ -2233,6 +2238,8 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     }
 
     func sendAudioBufferAppend(_ audioData: Data) {
+        guard !audioData.isEmpty else { return }
+        hasPendingInputAudio = true
         sendClientEvent(
             .init(
                 type: OpenAIRealtimeClientEventType.inputAudioBufferAppend.rawValue,
