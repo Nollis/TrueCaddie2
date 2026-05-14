@@ -1175,6 +1175,15 @@ final class AVAudioEngineMicrophonePCMSource: MicrophonePCMSourcing {
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
+        // Simulator / no-mic environments return a degenerate format
+        // (typically 0 Hz, 2 ch). installTap throws an NSException for that,
+        // which try? can't catch — short-circuit with a real Swift error.
+        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+            throw MicrophonePCMSourceError.unableToStartEngine(
+                "Input audio format unavailable (sampleRate=\(inputFormat.sampleRate), channelCount=\(inputFormat.channelCount)). On Simulator, microphone input is not provided; run on a device for live mic."
+            )
+        }
+
         inputNode.removeTap(onBus: 0)
         inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) { [weak self] buffer, _ in
             self?.handle(buffer)
@@ -3294,7 +3303,11 @@ final class HostVoiceSessionController: ObservableObject {
 
         connectIfNeeded()
         try? sessionManager.beginListening()
-        try? microphoneSource.start()
+        do {
+            try microphoneSource.start()
+        } catch {
+            print("[HostVoiceSession] Microphone source unavailable: \(error)")
+        }
         eventSource.beginListening()
     }
 
