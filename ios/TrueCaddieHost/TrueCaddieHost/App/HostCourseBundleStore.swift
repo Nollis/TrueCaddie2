@@ -1498,6 +1498,7 @@ protocol RealtimeVoiceEventSourcing: AnyObject {
     func submitPartialUtterance(_ utterance: String)
     func submitFinalUtterance(_ utterance: String)
     func submitToolInvocation(_ invocation: VoiceToolInvocation)
+    func submitMicrophonePCMChunk(_ samples: [Float], format: RealtimeMicrophonePCMFormat)
     func playAssistantReply(_ reply: String)
     func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent)
     func setPlaybackState(_ state: RealtimeVoicePlaybackState)
@@ -2211,6 +2212,10 @@ final class DirectRealtimeVoiceEventSourceAdapter: RealtimeVoiceEventSourcing {
         client.sendToolInvocation(invocation)
     }
 
+    func submitMicrophonePCMChunk(_ samples: [Float], format: RealtimeMicrophonePCMFormat) {
+        client.sendMicrophonePCMChunk(samples, format: format)
+    }
+
     func playAssistantReply(_ reply: String) {
         client.emitAssistantReply(reply)
     }
@@ -2285,6 +2290,7 @@ final class NoopRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
     func submitPartialUtterance(_ utterance: String) {}
     func submitFinalUtterance(_ utterance: String) {}
     func submitToolInvocation(_ invocation: VoiceToolInvocation) {}
+    func submitMicrophonePCMChunk(_ samples: [Float], format: RealtimeMicrophonePCMFormat) {}
     func playAssistantReply(_ reply: String) {}
     func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent) {}
     func setPlaybackState(_ state: RealtimeVoicePlaybackState) {}
@@ -2296,6 +2302,7 @@ final class NoopRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
 final class StubRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
     var onEvent: ((RealtimeVoiceTransportEvent) -> Void)?
     private(set) var emittedEvents: [RealtimeVoiceTransportEvent] = []
+    private(set) var receivedMicrophoneChunks: [MicrophonePCMChunk] = []
     private(set) var connectCount = 0
 
     func connect() {
@@ -2336,6 +2343,10 @@ final class StubRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
 
     func submitToolInvocation(_ invocation: VoiceToolInvocation) {
         emit(.toolInvocation(invocation))
+    }
+
+    func submitMicrophonePCMChunk(_ samples: [Float], format: RealtimeMicrophonePCMFormat) {
+        receivedMicrophoneChunks.append(MicrophonePCMChunk(samples: samples, format: format))
     }
 
     func playAssistantReply(_ reply: String) {
@@ -2906,6 +2917,7 @@ final class HostVoiceSessionController: ObservableObject {
     private let sessionManager: RealtimeVoiceSessionManager
     private let permissionProvider: any RealtimeVoicePermissionProviding
     private let eventSource: any RealtimeVoiceEventSourcing
+    private let microphoneSource: any MicrophonePCMSourcing
     private var currentContext: HostCaddieSession.TurnContext?
     private var lastEventResponse: VoiceTurnResponse?
 
@@ -2914,11 +2926,13 @@ final class HostVoiceSessionController: ObservableObject {
             credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-placeholder")
         ),
         permissionProvider: any RealtimeVoicePermissionProviding = NativeRealtimeVoiceRuntimeFactory.permissionProvider(),
-        eventSource: any RealtimeVoiceEventSourcing = NativeRealtimeVoiceRuntimeFactory.eventSource()
+        eventSource: any RealtimeVoiceEventSourcing = NativeRealtimeVoiceRuntimeFactory.eventSource(),
+        microphoneSource: any MicrophonePCMSourcing = NativeRealtimeVoiceRuntimeFactory.microphoneSource()
     ) {
         self.sessionManager = sessionManager
         self.permissionProvider = permissionProvider
         self.eventSource = eventSource
+        self.microphoneSource = microphoneSource
         self.state = sessionManager.state
         self.permissionState = permissionProvider.currentPermissionState()
         self.permissionProvider.onStateChange = { [weak self] state in
@@ -2927,6 +2941,9 @@ final class HostVoiceSessionController: ObservableObject {
         }
         self.eventSource.onEvent = { [weak self] event in
             self?.receiveRealtimeEvent(event)
+        }
+        self.microphoneSource.onChunk = { [weak self] chunk in
+            self?.eventSource.submitMicrophonePCMChunk(chunk.samples, format: chunk.format)
         }
     }
 
@@ -3019,6 +3036,7 @@ final class HostVoiceSessionController: ObservableObject {
     }
 
     func disconnect() {
+        microphoneSource.stop()
         sessionManager.disconnect()
         refreshState()
     }
@@ -3034,6 +3052,7 @@ final class HostVoiceSessionController: ObservableObject {
 
         connectIfNeeded()
         try? sessionManager.beginListening()
+        try? microphoneSource.start()
         eventSource.beginListening()
     }
 
@@ -3042,6 +3061,7 @@ final class HostVoiceSessionController: ObservableObject {
             return
         }
 
+        microphoneSource.stop()
         sessionManager.stopListening()
         eventSource.stopListening()
     }

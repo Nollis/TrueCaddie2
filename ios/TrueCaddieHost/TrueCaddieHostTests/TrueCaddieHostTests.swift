@@ -2061,7 +2061,8 @@ struct TrueCaddieHostTests {
             sessionManager: RealtimeVoiceSessionManager(
                 credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
                 transport: transport
-            )
+            ),
+            microphoneSource: StubMicrophonePCMSource()
         )
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
 
@@ -2174,7 +2175,8 @@ struct TrueCaddieHostTests {
             sessionManager: RealtimeVoiceSessionManager(
                 credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
             ),
-            eventSource: eventSource
+            eventSource: eventSource,
+            microphoneSource: StubMicrophonePCMSource()
         )
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
 
@@ -2253,6 +2255,123 @@ struct TrueCaddieHostTests {
                 )
             ]
         )
+    }
+
+    @Test func directRealtimeVoiceEventSourceAdapterForwardsMicrophonePCMChunksToClient() {
+        let client = StubDirectRealtimeClient()
+        let adapter = DirectRealtimeVoiceEventSourceAdapter(client: client)
+
+        adapter.submitMicrophonePCMChunk(
+            [0.1, 0.2, 0.3],
+            format: RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 1)
+        )
+
+        #expect(client.outboundActions == ["mic:3@48000x1"])
+    }
+
+    @Test func stubRealtimeVoiceEventSourceRecordsMicrophonePCMChunks() {
+        let eventSource = StubRealtimeVoiceEventSource()
+        let format = RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 1)
+
+        eventSource.submitMicrophonePCMChunk([0.25, -0.25], format: format)
+
+        #expect(
+            eventSource.receivedMicrophoneChunks
+                == [MicrophonePCMChunk(samples: [0.25, -0.25], format: format)]
+        )
+        #expect(eventSource.emittedEvents.isEmpty)
+    }
+
+    @Test func hostVoiceSessionControllerStartsAndStopsMicrophoneSourceWithListening() throws {
+        let microphoneSource = StubMicrophonePCMSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: StubRealtimeVoiceTransport()
+            ),
+            permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
+            eventSource: StubRealtimeVoiceEventSource(),
+            microphoneSource: microphoneSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(makeConversationContext(bundle: bundle))
+
+        controller.beginListening()
+
+        #expect(microphoneSource.startCount == 1)
+        #expect(microphoneSource.isRunning)
+
+        controller.stopListening()
+
+        #expect(microphoneSource.stopCount == 1)
+        #expect(!microphoneSource.isRunning)
+    }
+
+    @Test func hostVoiceSessionControllerRoutesMicrophonePCMChunksThroughEventSource() throws {
+        let microphoneSource = StubMicrophonePCMSource()
+        let eventSource = StubRealtimeVoiceEventSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: StubRealtimeVoiceTransport()
+            ),
+            permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
+            eventSource: eventSource,
+            microphoneSource: microphoneSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.beginListening()
+
+        let chunk = MicrophonePCMChunk(
+            samples: [0.5, -0.5],
+            format: RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 1)
+        )
+        microphoneSource.emit(chunk)
+
+        #expect(eventSource.receivedMicrophoneChunks == [chunk])
+    }
+
+    @Test func hostVoiceSessionControllerStopsMicrophoneSourceOnDisconnect() throws {
+        let microphoneSource = StubMicrophonePCMSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: StubRealtimeVoiceTransport()
+            ),
+            permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
+            eventSource: StubRealtimeVoiceEventSource(),
+            microphoneSource: microphoneSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.beginListening()
+        #expect(microphoneSource.isRunning)
+
+        controller.disconnect()
+
+        #expect(microphoneSource.stopCount == 1)
+        #expect(!microphoneSource.isRunning)
+    }
+
+    @Test func hostVoiceSessionControllerDoesNotStartMicrophoneWithoutPermission() throws {
+        let microphoneSource = StubMicrophonePCMSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: StubRealtimeVoiceTransport()
+            ),
+            permissionProvider: StubRealtimeVoicePermissionProvider(state: .denied),
+            eventSource: StubRealtimeVoiceEventSource(),
+            microphoneSource: microphoneSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(makeConversationContext(bundle: bundle))
+
+        controller.beginListening()
+
+        #expect(microphoneSource.startCount == 0)
+        #expect(!microphoneSource.isRunning)
     }
 
     @Test func hostVoiceSessionControllerCanUseDirectRealtimeClientAdapterStub() throws {
