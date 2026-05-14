@@ -1555,7 +1555,7 @@ struct TrueCaddieHostTests {
         let sessionEnvelope = try JSONDecoder().decode(OpenAIRealtimeSessionUpdateEventEnvelope.self, from: sessionData)
         #expect(sessionEnvelope.type == "session.update")
         #expect(sessionEnvelope.session.model == "gpt-realtime")
-        #expect(sessionEnvelope.session.inputAudioFormat.type == "pcm16")
+        #expect(sessionEnvelope.session.inputAudioFormat == "pcm16")
         #expect(sessionEnvelope.session.inputAudioTranscription.model == "gpt-4o-mini-transcribe")
 
         let sentData = try #require(connection.sentJSONMessages.dropFirst().first?.data(using: .utf8))

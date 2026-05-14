@@ -1742,10 +1742,6 @@ struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
     )
 }
 
-struct OpenAIRealtimeSessionAudioFormat: Codable, Equatable {
-    let type: String
-}
-
 struct OpenAIRealtimeInputAudioTranscriptionConfiguration: Codable, Equatable {
     let model: String
 }
@@ -1758,8 +1754,8 @@ struct OpenAIRealtimeSessionUpdatePayload: Codable, Equatable {
     let model: String
     let instructions: String
     let voice: String
-    let inputAudioFormat: OpenAIRealtimeSessionAudioFormat
-    let outputAudioFormat: OpenAIRealtimeSessionAudioFormat
+    let inputAudioFormat: String
+    let outputAudioFormat: String
     let inputAudioTranscription: OpenAIRealtimeInputAudioTranscriptionConfiguration
     let turnDetection: OpenAIRealtimeTurnDetectionConfiguration?
 
@@ -2204,13 +2200,12 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     }
 
     func sendSessionUpdate(_ configuration: OpenAIRealtimeSessionConfiguration) {
-        let audioFormat = OpenAIRealtimeSessionAudioFormat(type: "pcm16")
         let payload = OpenAIRealtimeSessionUpdatePayload(
             model: configuration.model,
             instructions: configuration.instructions,
             voice: configuration.voice,
-            inputAudioFormat: audioFormat,
-            outputAudioFormat: audioFormat,
+            inputAudioFormat: "pcm16",
+            outputAudioFormat: "pcm16",
             inputAudioTranscription: .init(model: configuration.inputTranscriptionModel),
             turnDetection: configuration.turnDetection.map { .init(type: $0) }
         )
