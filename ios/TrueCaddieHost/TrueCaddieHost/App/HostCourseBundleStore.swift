@@ -1211,6 +1211,10 @@ enum NativeRealtimeVoiceRuntimeFactory {
     static func transport() -> any RealtimeVoiceTransporting {
         DirectAppRealtimeVoiceTransportAdapter()
     }
+
+    static func eventSource() -> any RealtimeVoiceEventSourcing {
+        DirectRealtimeVoiceEventSourceAdapter()
+    }
 }
 
 protocol RealtimeVoiceClientSessionStarting {
@@ -2166,7 +2170,7 @@ final class HostVoiceSessionController: ObservableObject {
             credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-placeholder")
         ),
         permissionProvider: any RealtimeVoicePermissionProviding = NativeRealtimeVoiceRuntimeFactory.permissionProvider(),
-        eventSource: any RealtimeVoiceEventSourcing = NoopRealtimeVoiceEventSource()
+        eventSource: any RealtimeVoiceEventSourcing = NativeRealtimeVoiceRuntimeFactory.eventSource()
     ) {
         self.sessionManager = sessionManager
         self.permissionProvider = permissionProvider

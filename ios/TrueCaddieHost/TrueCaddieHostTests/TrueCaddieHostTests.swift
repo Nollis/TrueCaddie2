@@ -1447,6 +1447,12 @@ struct TrueCaddieHostTests {
         )
     }
 
+    @Test func nativeRealtimeRuntimeFactoryDefaultsToDirectRealtimeEventSource() {
+        let eventSource = NativeRealtimeVoiceRuntimeFactory.eventSource()
+
+        #expect(eventSource is DirectRealtimeVoiceEventSourceAdapter)
+    }
+
     @Test func realtimeVoiceSessionManagerRoutesGroundedTurnResponses() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let manager = RealtimeVoiceSessionManager(
