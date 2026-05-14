@@ -1825,30 +1825,36 @@ protocol OpenAIRealtimeConnectioning: AnyObject {
     func sendJSON(_ json: String)
 }
 
-final class OpenAIRealtimeWebSocketConnection: OpenAIRealtimeConnectioning {
+final class OpenAIRealtimeWebSocketConnection: NSObject, OpenAIRealtimeConnectioning, URLSessionWebSocketDelegate {
     let configuration: OpenAIRealtimeSessionConfiguration
     var onJSONMessage: ((String) -> Void)?
     var onDisconnected: (() -> Void)?
     var onFailure: ((String) -> Void)?
 
     private let credentialProvider: (any RealtimeVoiceCredentialProviding)?
-    private let urlSession: URLSession
+    private let sessionConfiguration: URLSessionConfiguration
+    private var urlSession: URLSession?
     private var task: URLSessionWebSocketTask?
+    private var pendingOutbound: [String] = []
+    private var isOpen = false
     private var hasFinished = false
 
     init(
         configuration: OpenAIRealtimeSessionConfiguration = .default,
         credentialProvider: (any RealtimeVoiceCredentialProviding)? = nil,
-        urlSession: URLSession = .shared
+        sessionConfiguration: URLSessionConfiguration = .default
     ) {
         self.configuration = configuration
         self.credentialProvider = credentialProvider
-        self.urlSession = urlSession
+        self.sessionConfiguration = sessionConfiguration
+        super.init()
     }
 
     func connect() {
         guard task == nil else { return }
         hasFinished = false
+        isOpen = false
+        pendingOutbound.removeAll()
 
         guard let credentialProvider else {
             emitFailure("Realtime credential provider not configured")
@@ -1871,7 +1877,14 @@ final class OpenAIRealtimeWebSocketConnection: OpenAIRealtimeConnectioning {
             return
         }
 
-        let newTask = urlSession.webSocketTask(with: request)
+        let session = URLSession(
+            configuration: sessionConfiguration,
+            delegate: self,
+            delegateQueue: nil
+        )
+        urlSession = session
+
+        let newTask = session.webSocketTask(with: request)
         task = newTask
         newTask.resume()
         receiveNext()
@@ -1880,11 +1893,14 @@ final class OpenAIRealtimeWebSocketConnection: OpenAIRealtimeConnectioning {
     func disconnect() {
         guard let activeTask = task else { return }
         task = nil
+        isOpen = false
         if !hasFinished {
             hasFinished = true
             activeTask.cancel(with: .normalClosure, reason: nil)
             emitDisconnected()
         }
+        urlSession?.finishTasksAndInvalidate()
+        urlSession = nil
     }
 
     func sendJSON(_ json: String) {
@@ -1892,12 +1908,11 @@ final class OpenAIRealtimeWebSocketConnection: OpenAIRealtimeConnectioning {
             emitFailure("Cannot send realtime message before connect")
             return
         }
-        task.send(.string(json)) { [weak self] error in
-            guard let self, let error else { return }
-            if !self.hasFinished {
-                self.emitFailure("Realtime send failed: \(error.localizedDescription)")
-            }
+        if !isOpen {
+            pendingOutbound.append(json)
+            return
         }
+        deliver(json, on: task)
     }
 
     static func makeRequest(
@@ -1922,51 +1937,128 @@ final class OpenAIRealtimeWebSocketConnection: OpenAIRealtimeConnectioning {
         return request
     }
 
+    // MARK: URLSessionWebSocketDelegate
+
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didOpenWithProtocol protocolName: String?
+    ) {
+        DispatchQueue.main.async { [weak self] in
+            self?.handleSocketOpened()
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+        reason: Data?
+    ) {
+        let reasonText = reason.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        DispatchQueue.main.async { [weak self] in
+            self?.handleSocketClosed(code: closeCode, reason: reasonText)
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let error else { return }
+        let statusCode = (task.response as? HTTPURLResponse)?.statusCode
+        DispatchQueue.main.async { [weak self] in
+            self?.handleTaskFailed(error: error, statusCode: statusCode)
+        }
+    }
+
+    // MARK: Internal
+
     private func receiveNext() {
         guard let task else { return }
         task.receive { [weak self] result in
-            guard let self else { return }
-            switch result {
-            case let .success(message):
-                switch message {
-                case let .string(json):
-                    self.emitJSON(json)
-                case let .data(data):
-                    if let json = String(data: data, encoding: .utf8) {
-                        self.emitJSON(json)
-                    }
-                @unknown default:
-                    break
-                }
-                self.receiveNext()
-
-            case let .failure(error):
-                self.task = nil
-                if !self.hasFinished {
-                    self.hasFinished = true
-                    self.emitFailure("Realtime receive failed: \(error.localizedDescription)")
-                    self.emitDisconnected()
-                }
+            DispatchQueue.main.async {
+                self?.handleReceive(result)
             }
         }
     }
 
-    private func emitJSON(_ json: String) {
-        DispatchQueue.main.async { [weak self] in
-            self?.onJSONMessage?(json)
+    private func handleReceive(_ result: Result<URLSessionWebSocketTask.Message, Error>) {
+        switch result {
+        case let .success(message):
+            switch message {
+            case let .string(json):
+                onJSONMessage?(json)
+            case let .data(data):
+                if let json = String(data: data, encoding: .utf8) {
+                    onJSONMessage?(json)
+                }
+            @unknown default:
+                break
+            }
+            receiveNext()
+
+        case let .failure(error):
+            task = nil
+            isOpen = false
+            if !hasFinished {
+                hasFinished = true
+                emitFailure("Realtime receive failed: \(error.localizedDescription)")
+                onDisconnected?()
+            }
+        }
+    }
+
+    private func handleSocketOpened() {
+        isOpen = true
+        let flushable = pendingOutbound
+        pendingOutbound.removeAll()
+        guard let task else { return }
+        for json in flushable {
+            deliver(json, on: task)
+        }
+    }
+
+    private func handleSocketClosed(code: URLSessionWebSocketTask.CloseCode, reason: String) {
+        isOpen = false
+        task = nil
+        if !hasFinished {
+            hasFinished = true
+            if code != .normalClosure || !reason.isEmpty {
+                let suffix = reason.isEmpty ? "" : ": \(reason)"
+                emitFailure("Realtime closed (code \(code.rawValue))\(suffix)")
+            }
+            onDisconnected?()
+        }
+    }
+
+    private func handleTaskFailed(error: Error, statusCode: Int?) {
+        isOpen = false
+        task = nil
+        if hasFinished { return }
+        hasFinished = true
+        var detail = error.localizedDescription
+        if let statusCode {
+            detail = "HTTP \(statusCode): \(detail)"
+        }
+        emitFailure("Realtime task failed: \(detail)")
+        onDisconnected?()
+    }
+
+    private func deliver(_ json: String, on task: URLSessionWebSocketTask) {
+        task.send(.string(json)) { [weak self] error in
+            guard let self, let error else { return }
+            DispatchQueue.main.async {
+                guard !self.hasFinished else { return }
+                self.emitFailure("Realtime send failed: \(error.localizedDescription)")
+            }
         }
     }
 
     private func emitFailure(_ message: String) {
-        DispatchQueue.main.async { [weak self] in
-            self?.onFailure?(message)
-        }
+        print("[OpenAIRealtimeWebSocket] \(message)")
+        onFailure?(message)
     }
 
     private func emitDisconnected() {
-        DispatchQueue.main.async { [weak self] in
-            self?.onDisconnected?()
-        }
+        onDisconnected?()
     }
 }
 
