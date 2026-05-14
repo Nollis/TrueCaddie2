@@ -1447,7 +1447,7 @@ struct TrueCaddieHostTests {
         )
     }
 
-    @Test func openAIRealtimeClientShellMapsOfficialServerEvents() {
+    @MainActor @Test func openAIRealtimeClientShellMapsOfficialServerEvents() {
         #expect(
             OpenAIRealtimeClientShell.map(
                 .init(
@@ -1498,7 +1498,7 @@ struct TrueCaddieHostTests {
         )
     }
 
-    @Test func openAIRealtimeClientShellParsesFunctionCallArgumentsDone() {
+    @MainActor @Test func openAIRealtimeClientShellParsesFunctionCallArgumentsDone() {
         let event = OpenAIRealtimeClientShell.map(
             .init(
                 type: "response.function_call_arguments.done",
@@ -1524,7 +1524,7 @@ struct TrueCaddieHostTests {
         )
     }
 
-    @Test func openAIRealtimeClientShellCanDecodeServerEventJSON() {
+    @MainActor @Test func openAIRealtimeClientShellCanDecodeServerEventJSON() {
         let client = OpenAIRealtimeClientShell()
         var receivedEvents: [DirectRealtimeClientEvent] = []
         client.onEvent = { receivedEvents.append($0) }
@@ -1536,7 +1536,7 @@ struct TrueCaddieHostTests {
         #expect(receivedEvents == [.inputTranscriptFinal("what do you like here")])
     }
 
-    @Test func openAIRealtimeClientShellSendsOfficialClientEventJSONThroughConnection() throws {
+    @MainActor @Test func openAIRealtimeClientShellSendsOfficialClientEventJSONThroughConnection() throws {
         let connection = StubOpenAIRealtimeConnection()
         let client = OpenAIRealtimeClientShell(connection: connection)
 
@@ -1561,6 +1561,30 @@ struct TrueCaddieHostTests {
         let thirdData = try #require(connection.sentJSONMessages.last?.data(using: .utf8))
         let thirdEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: thirdData)
         #expect(thirdEnvelope.type == "response.cancel")
+    }
+
+    @Test func openAIRealtimeSessionConfigurationDefaultsMatchVoiceRequirements() {
+        let configuration = OpenAIRealtimeSessionConfiguration.default
+
+        #expect(configuration.model == "gpt-realtime-2")
+        #expect(configuration.webSocketURL == "wss://api.openai.com/v1/realtime")
+        #expect(configuration.audio.apiSampleRateHz == 24_000)
+        #expect(configuration.audio.apiChannelCount == 1)
+        #expect(configuration.audio.pcmBitDepth == 16)
+        #expect(configuration.audio.preferredInputSampleRateHz == 48_000)
+        #expect(configuration.audio.voiceProcessingEnabled)
+    }
+
+    @Test func openAIRealtimeWebSocketConnectionTracksLifecycleAndOutgoingJSON() {
+        let connection = OpenAIRealtimeWebSocketConnection(configuration: .default)
+
+        connection.connect()
+        connection.sendJSON(#"{"type":"input_audio_buffer.commit"}"#)
+        connection.disconnect()
+
+        #expect(connection.connectCount == 1)
+        #expect(connection.sentJSONMessages == [#"{"type":"input_audio_buffer.commit"}"#])
+        #expect(connection.disconnectCount == 1)
     }
 
     @Test func openAIRealtimeClientShellReceivesServerJSONThroughConnection() {

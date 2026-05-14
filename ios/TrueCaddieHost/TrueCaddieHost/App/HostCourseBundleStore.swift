@@ -1213,7 +1213,13 @@ enum NativeRealtimeVoiceRuntimeFactory {
     }
 
     static func eventSource() -> any RealtimeVoiceEventSourcing {
-        DirectRealtimeVoiceEventSourceAdapter()
+        DirectRealtimeVoiceEventSourceAdapter(
+            client: OpenAIRealtimeClientShell(
+                connection: OpenAIRealtimeWebSocketConnection(
+                    configuration: .default
+                )
+            )
+        )
     }
 }
 
@@ -1419,6 +1425,34 @@ enum OpenAIRealtimeClientEventType: String, Codable, Equatable {
     case responseCancel = "response.cancel"
 }
 
+struct OpenAIRealtimeAudioConfiguration: Equatable, Codable {
+    let apiSampleRateHz: Int
+    let apiChannelCount: Int
+    let pcmBitDepth: Int
+    let preferredInputSampleRateHz: Int
+    let voiceProcessingEnabled: Bool
+
+    static let `default` = OpenAIRealtimeAudioConfiguration(
+        apiSampleRateHz: 24_000,
+        apiChannelCount: 1,
+        pcmBitDepth: 16,
+        preferredInputSampleRateHz: 48_000,
+        voiceProcessingEnabled: true
+    )
+}
+
+struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
+    let model: String
+    let webSocketURL: String
+    let audio: OpenAIRealtimeAudioConfiguration
+
+    static let `default` = OpenAIRealtimeSessionConfiguration(
+        model: "gpt-realtime-2",
+        webSocketURL: "wss://api.openai.com/v1/realtime",
+        audio: .default
+    )
+}
+
 struct OpenAIRealtimeClientEventEnvelope: Codable, Equatable {
     let type: String
     let eventID: String?
@@ -1439,6 +1473,38 @@ protocol OpenAIRealtimeConnectioning: AnyObject {
     func connect()
     func disconnect()
     func sendJSON(_ json: String)
+}
+
+final class OpenAIRealtimeWebSocketConnection: OpenAIRealtimeConnectioning {
+    let configuration: OpenAIRealtimeSessionConfiguration
+    var onJSONMessage: ((String) -> Void)?
+    var onDisconnected: (() -> Void)?
+    var onFailure: ((String) -> Void)?
+
+    private(set) var sentJSONMessages: [String] = []
+    private(set) var connectCount = 0
+    private(set) var disconnectCount = 0
+
+    init(configuration: OpenAIRealtimeSessionConfiguration = .default) {
+        self.configuration = configuration
+    }
+
+    func connect() {
+        connectCount += 1
+    }
+
+    func disconnect() {
+        disconnectCount += 1
+        onDisconnected?()
+    }
+
+    func sendJSON(_ json: String) {
+        sentJSONMessages.append(json)
+    }
+
+    func receiveJSON(_ json: String) {
+        onJSONMessage?(json)
+    }
 }
 
 final class StubOpenAIRealtimeConnection: OpenAIRealtimeConnectioning {
@@ -1564,14 +1630,14 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     func receiveServerEventData(_ data: Data) {
         let decoder = JSONDecoder()
         guard let envelope = try? decoder.decode(OpenAIRealtimeServerEventEnvelope.self, from: data),
-              let event = map(envelope) else {
+              let event = Self.map(envelope) else {
             return
         }
 
         onEvent?(event)
     }
 
-    nonisolated static func map(_ envelope: OpenAIRealtimeServerEventEnvelope) -> DirectRealtimeClientEvent? {
+    static func map(_ envelope: OpenAIRealtimeServerEventEnvelope) -> DirectRealtimeClientEvent? {
         guard let type = OpenAIRealtimeServerEventType(rawValue: envelope.type) else {
             return nil
         }
@@ -1623,7 +1689,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
         connection.sendJSON(json)
     }
 
-    nonisolated private static func toolInvocation(
+    private static func toolInvocation(
         name: String,
         argumentsJSON: String
     ) -> VoiceToolInvocation? {
