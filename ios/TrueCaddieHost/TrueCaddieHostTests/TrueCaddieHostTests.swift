@@ -1511,6 +1511,100 @@ struct TrueCaddieHostTests {
         #expect(manager.state.transcriptEntries.last == .assistant(response.spokenReply))
     }
 
+    @Test func hostVoiceSessionControllerTracksConnectionAndListeningState() throws {
+        let transport = StubRealtimeVoiceTransport()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: transport
+            )
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.connectIfNeeded()
+        controller.beginListening()
+
+        #expect(controller.isConnected)
+        #expect(controller.isListening)
+        #expect(controller.statusLabel.contains("Listening live"))
+    }
+
+    @Test func hostVoiceSessionControllerRequiresMicrophonePermissionBeforeConnect() throws {
+        let permissionProvider = StubRealtimeVoicePermissionProvider(state: .undetermined)
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            permissionProvider: permissionProvider
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.connectIfNeeded()
+
+        #expect(controller.needsMicrophonePermission)
+        #expect(!controller.isConnected)
+        #expect(controller.statusLabel.contains("Microphone access is required"))
+    }
+
+    @Test func hostVoiceSessionControllerRequestsMicrophonePermission() throws {
+        let permissionProvider = StubRealtimeVoicePermissionProvider(state: .granted)
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            permissionProvider: permissionProvider
+        )
+
+        controller.requestMicrophoneAccess()
+
+        #expect(permissionProvider.requestedCount == 1)
+        #expect(!controller.needsMicrophonePermission)
+    }
+
+    @Test func hostVoiceSessionControllerSubmitsTypedUtterancesThroughSessionManager() throws {
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            )
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        let response = try #require(controller.submitTypedUtterance("what do you like here"))
+
+        #expect(response.actionName == .guidance)
+        #expect(controller.state.transcriptEntries.first == .user("what do you like here"))
+        #expect(controller.state.transcriptEntries.last == .assistant(response.spokenReply))
+        #expect(controller.state.turnState == .idle)
+    }
+
+    @Test func hostVoiceSessionControllerSubmitsVoiceUtterancesThroughTransportPath() throws {
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            )
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(
+            makeConversationContext(
+                bundle: bundle,
+                roundState: makeInProgressRoundState(courseId: bundle.courseId)
+            )
+        )
+        let response = try #require(controller.submitVoiceUtterance("rough 128"))
+
+        #expect(response.actionName == .reportResult)
+        #expect(controller.state.turnState == .speaking(response.turnID))
+        #expect(controller.state.transcriptEntries.first == .user("rough 128"))
+        #expect(controller.state.transcriptEntries.last == .assistant(response.spokenReply))
+
+        controller.finishPlayback()
+        #expect(controller.state.turnState == .idle)
+    }
+
     @Test func conversationCanResolveToolCallThroughRealtimeAgentStub() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let context = HostCaddieSession.TurnContext(

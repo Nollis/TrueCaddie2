@@ -1051,6 +1051,45 @@ struct NoopRealtimeVoiceAudioSessionCoordinator: RealtimeVoiceAudioSessionCoordi
     func endVoiceSession() {}
 }
 
+enum RealtimeVoicePermissionState: Equatable {
+    case undetermined
+    case granted
+    case denied
+}
+
+protocol RealtimeVoicePermissionProviding {
+    func currentPermissionState() -> RealtimeVoicePermissionState
+    func requestPermission() -> RealtimeVoicePermissionState
+}
+
+struct GrantedPilotVoicePermissionProvider: RealtimeVoicePermissionProviding {
+    func currentPermissionState() -> RealtimeVoicePermissionState {
+        .granted
+    }
+
+    func requestPermission() -> RealtimeVoicePermissionState {
+        .granted
+    }
+}
+
+final class StubRealtimeVoicePermissionProvider: RealtimeVoicePermissionProviding {
+    var state: RealtimeVoicePermissionState
+    var requestedCount = 0
+
+    init(state: RealtimeVoicePermissionState) {
+        self.state = state
+    }
+
+    func currentPermissionState() -> RealtimeVoicePermissionState {
+        state
+    }
+
+    func requestPermission() -> RealtimeVoicePermissionState {
+        requestedCount += 1
+        return state
+    }
+}
+
 protocol RealtimeVoiceTransporting: AnyObject {
     func connect(to descriptor: RealtimeVoiceSessionDescriptor) throws
     func beginListening() throws
@@ -1361,6 +1400,15 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         state.turnState = .listening
     }
 
+    func stopListening() {
+        audioCoordinator.stopListening()
+        transport.stopListening()
+
+        if case .listening = state.turnState {
+            state.turnState = .idle
+        }
+    }
+
     func handleTurn(_ request: VoiceTurnRequest) -> VoiceTurnResponse? {
         state.turnState = .resolving(request.turnID)
 
@@ -1516,5 +1564,168 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         }
 
         return String(format: "%.1f", number)
+    }
+}
+
+final class HostVoiceSessionController: ObservableObject {
+    @Published private(set) var state: VoiceSessionState
+    @Published private(set) var permissionState: RealtimeVoicePermissionState
+
+    private let sessionManager: RealtimeVoiceSessionManager
+    private let permissionProvider: any RealtimeVoicePermissionProviding
+    private var currentContext: HostCaddieSession.TurnContext?
+
+    init(
+        sessionManager: RealtimeVoiceSessionManager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-placeholder")
+        ),
+        permissionProvider: any RealtimeVoicePermissionProviding = GrantedPilotVoicePermissionProvider()
+    ) {
+        self.sessionManager = sessionManager
+        self.permissionProvider = permissionProvider
+        self.state = sessionManager.state
+        self.permissionState = permissionProvider.currentPermissionState()
+    }
+
+    var statusLabel: String {
+        switch permissionState {
+        case .undetermined:
+            return "Microphone access is required before starting voice."
+        case .denied:
+            return "Microphone access is denied. Enable it to test live voice."
+        case .granted:
+            break
+        }
+
+        switch state.connectionState {
+        case .disconnected:
+            return "Typed harness only. Voice session not connected."
+        case .connecting:
+            return "Connecting voice session..."
+        case let .connected(descriptor):
+            return state.turnState == .listening
+                ? "Listening live with \(descriptor.model)"
+                : "Voice session ready: \(descriptor.model)"
+        case let .failed(message):
+            return "Voice session unavailable: \(message)"
+        }
+    }
+
+    var needsMicrophonePermission: Bool {
+        permissionState != .granted
+    }
+
+    var isConnected: Bool {
+        if case .connected = state.connectionState {
+            return true
+        }
+
+        return false
+    }
+
+    var isListening: Bool {
+        state.turnState == .listening
+    }
+
+    var canConnect: Bool {
+        permissionState == .granted && !isConnected
+    }
+
+    var canStartListening: Bool {
+        permissionState == .granted && isConnected && !isListening
+    }
+
+    var canStopListening: Bool {
+        isListening
+    }
+
+    func updateContext(_ context: HostCaddieSession.TurnContext) {
+        currentContext = context
+        permissionState = permissionProvider.currentPermissionState()
+        sessionManager.syncSnapshot(from: context)
+        refreshState()
+    }
+
+    func requestMicrophoneAccess() {
+        permissionState = permissionProvider.requestPermission()
+        refreshState()
+    }
+
+    func connectIfNeeded() {
+        guard permissionState == .granted, !isConnected else {
+            return
+        }
+
+        try? sessionManager.connect()
+        refreshState()
+    }
+
+    func disconnect() {
+        sessionManager.disconnect()
+        refreshState()
+    }
+
+    func beginListening() {
+        guard let context = currentContext else {
+            return
+        }
+
+        guard permissionState == .granted else {
+            return
+        }
+
+        connectIfNeeded()
+        try? sessionManager.beginListening()
+        _ = sessionManager.handleTransportEvent(.listeningStarted, context: context)
+        refreshState()
+    }
+
+    func stopListening() {
+        guard let context = currentContext else {
+            return
+        }
+
+        sessionManager.stopListening()
+        _ = sessionManager.handleTransportEvent(.listeningStopped, context: context)
+        refreshState()
+    }
+
+    func finishPlayback() {
+        guard let context = currentContext else {
+            return
+        }
+
+        _ = sessionManager.handleTransportEvent(.assistantPlaybackFinished, context: context)
+        refreshState()
+    }
+
+    func submitTypedUtterance(_ utterance: String) -> VoiceTurnResponse? {
+        guard let currentContext else {
+            return nil
+        }
+
+        let response = sessionManager.submitTypedUtterance(
+            utterance,
+            context: currentContext
+        )
+        refreshState()
+        return response
+    }
+
+    func submitVoiceUtterance(_ utterance: String) -> VoiceTurnResponse? {
+        guard let currentContext else {
+            return nil
+        }
+
+        let response = sessionManager.handleTransportEvent(
+            .finalUserUtterance(utterance),
+            context: currentContext
+        )
+        refreshState()
+        return response
+    }
+
+    private func refreshState() {
+        state = sessionManager.state
     }
 }

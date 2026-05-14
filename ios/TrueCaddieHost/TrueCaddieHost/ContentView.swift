@@ -67,7 +67,7 @@ private struct RoundPreviewView: View {
     @State private var editingScoreStrokes = 0
     @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
     @State private var roundState: RoundState
-    @StateObject private var voiceSessionManager: RealtimeVoiceSessionManager
+    @StateObject private var voiceController: HostVoiceSessionController
 
     init(
         bundle: CourseBundle,
@@ -87,11 +87,7 @@ private struct RoundPreviewView: View {
         )
         _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
         _roundState = State(initialValue: savedProgress?.roundState ?? RoundState(courseId: bundle.courseId, holeStates: []))
-        _voiceSessionManager = StateObject(
-            wrappedValue: RealtimeVoiceSessionManager(
-                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-placeholder")
-            )
-        )
+        _voiceController = StateObject(wrappedValue: HostVoiceSessionController())
     }
 
     private var selectedHole: CourseHole? {
@@ -196,16 +192,7 @@ private struct RoundPreviewView: View {
     }
 
     private var voiceSessionStatusLabel: String? {
-        switch voiceSessionManager.state.connectionState {
-        case .disconnected:
-            return "Typed harness only. Voice session not connected."
-        case .connecting:
-            return "Connecting voice session..."
-        case let .connected(descriptor):
-            return "Voice session ready: \(descriptor.model)"
-        case let .failed(message):
-            return "Voice session unavailable: \(message)"
-        }
+        voiceController.statusLabel
     }
 
     var body: some View {
@@ -318,11 +305,48 @@ private struct RoundPreviewView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if voiceSessionManager.state.transcriptEntries.isEmpty {
+                    HStack(spacing: 8) {
+                        if voiceController.needsMicrophonePermission {
+                            Button("Enable Mic") {
+                                voiceController.requestMicrophoneAccess()
+                            }
+                        }
+
+                        Button(voiceController.isConnected ? "Disconnect" : "Connect") {
+                            if voiceController.isConnected {
+                                voiceController.disconnect()
+                            } else {
+                                voiceController.connectIfNeeded()
+                            }
+                        }
+                        .disabled(!voiceController.isConnected && !voiceController.canConnect)
+
+                        Button(voiceController.isListening ? "Stop Listening" : "Start Listening") {
+                            if voiceController.isListening {
+                                voiceController.stopListening()
+                            } else {
+                                voiceController.beginListening()
+                            }
+                        }
+                        .disabled(
+                            voiceController.isListening
+                                ? !voiceController.canStopListening
+                                : !voiceController.canStartListening
+                        )
+
+                        if case .speaking = voiceController.state.turnState {
+                            Button("Finish Playback") {
+                                voiceController.finishPlayback()
+                            }
+                        }
+                    }
+                    .font(.caption)
+
+                    if voiceController.state.transcriptEntries.isEmpty {
                         Text("Ask for guidance or report a shot result.")
                             .foregroundStyle(.secondary)
                     } else {
-                        ForEach(voiceSessionManager.state.transcriptEntries.suffix(6)) { entry in
+                        ForEach(voiceController.state.transcriptEntries.suffix(6)) { entry in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(entry.speakerLabel)
                                     .font(.caption.weight(.semibold))
@@ -337,6 +361,9 @@ private struct RoundPreviewView: View {
                         HStack(spacing: 8) {
                             quickPromptButton("What do you like?") {
                                 submitConversationInput("what do you like here")
+                            }
+                            quickPromptButton("Sim Voice") {
+                                submitVoiceDebugUtterance("what do you like here")
                             }
                             quickPromptButton("Safe play") {
                                 submitConversationInput("safe play")
@@ -766,13 +793,22 @@ private struct RoundPreviewView: View {
 
         conversationInput = ""
 
-        guard let response = voiceSessionManager.submitTypedUtterance(
-            trimmedInput,
-            context: currentTurnContext
-        ) else {
+        guard let response = voiceController.submitTypedUtterance(trimmedInput) else {
             return
         }
 
+        applyVoiceResponse(response)
+    }
+
+    private func submitVoiceDebugUtterance(_ utterance: String) {
+        guard let response = voiceController.submitVoiceUtterance(utterance) else {
+            return
+        }
+
+        applyVoiceResponse(response)
+    }
+
+    private func applyVoiceResponse(_ response: VoiceTurnResponse) {
         if let strategyPreference = response.strategyPreference {
             roundOverrides.strategyPreference = strategyPreference
         }
@@ -786,7 +822,7 @@ private struct RoundPreviewView: View {
     }
 
     private func syncVoiceSessionSnapshot() {
-        voiceSessionManager.syncSnapshot(from: currentTurnContext)
+        voiceController.updateContext(currentTurnContext)
     }
 
     private func startSelectedHole() {
