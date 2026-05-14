@@ -1496,7 +1496,13 @@ struct TrueCaddieHostTests {
 
         let response = try #require(
             manager.handleTransportEvent(
-                .finalUserUtterance("what do you like here"),
+                .transcript(
+                    .init(
+                        speaker: .user,
+                        kind: .final,
+                        text: "what do you like here"
+                    )
+                ),
                 context: makeConversationContext(bundle: bundle)
             )
         )
@@ -1507,10 +1513,36 @@ struct TrueCaddieHostTests {
         #expect(manager.state.transcriptEntries.last == .assistant(response.spokenReply))
 
         _ = manager.handleTransportEvent(
-            .assistantPlaybackFinished,
+            .playbackStateChanged(.finished),
             context: makeConversationContext(bundle: bundle)
         )
         #expect(manager.state.turnState == .idle)
+    }
+
+    @Test func realtimeVoiceSessionManagerTracksPartialTranscriptAndPlaybackState() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let manager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+        )
+        try manager.connect()
+
+        _ = manager.handleTransportEvent(
+            .transcript(
+                .init(
+                    speaker: .user,
+                    kind: .partial,
+                    text: "what do you"
+                )
+            ),
+            context: makeConversationContext(bundle: bundle)
+        )
+        _ = manager.handleTransportEvent(
+            .playbackStateChanged(.speaking),
+            context: makeConversationContext(bundle: bundle)
+        )
+
+        #expect(manager.state.partialUserTranscript == "what do you")
+        #expect(manager.state.playbackState == .speaking)
     }
 
     @Test func realtimeVoiceSessionManagerRespondsToTransportToolInvocationEvents() throws {
@@ -1685,6 +1717,62 @@ struct TrueCaddieHostTests {
         #expect(eventSource.emittedEvents.last == .interrupted)
         #expect(controller.state.turnState == .idle)
         #expect(controller.state.lastInterruptedTurnID == response.turnID)
+    }
+
+    @Test func hostVoiceSessionControllerExposesPartialTranscriptAndToolCallbacks() throws {
+        let eventSource = StubRealtimeVoiceEventSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            eventSource: eventSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.submitPartialVoiceUtterance("what do you")
+        controller.simulateToolCallback(
+            .init(
+                invocation: .init(
+                    actionName: .reportResult,
+                    arguments: .init(lie: .rough, remainingDistanceM: 128)
+                ),
+                phase: .requested
+            )
+        )
+
+        #expect(controller.state.partialUserTranscript == "what do you")
+        #expect(
+            controller.state.lastToolCallback ==
+            .init(
+                invocation: .init(
+                    actionName: .reportResult,
+                    arguments: .init(lie: .rough, remainingDistanceM: 128)
+                ),
+                phase: .requested
+            )
+        )
+        #expect(
+            eventSource.emittedEvents ==
+            [
+                .transcript(
+                    .init(
+                        speaker: .user,
+                        kind: .partial,
+                        text: "what do you"
+                    )
+                ),
+                .toolCallback(
+                    .init(
+                        invocation: .init(
+                            actionName: .reportResult,
+                            arguments: .init(lie: .rough, remainingDistanceM: 128)
+                        ),
+                        phase: .requested
+                    )
+                )
+            ]
+        )
     }
 
     @Test func hostVoiceSessionControllerSubmitsStructuredToolEventsThroughEventSource() throws {

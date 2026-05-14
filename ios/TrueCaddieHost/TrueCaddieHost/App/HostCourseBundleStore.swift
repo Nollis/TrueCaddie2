@@ -1332,8 +1332,11 @@ protocol RealtimeVoiceEventSourcing: AnyObject {
     func connect()
     func beginListening()
     func stopListening()
+    func submitPartialUtterance(_ utterance: String)
     func submitFinalUtterance(_ utterance: String)
     func submitToolInvocation(_ invocation: VoiceToolInvocation)
+    func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent)
+    func setPlaybackState(_ state: RealtimeVoicePlaybackState)
     func finishAssistantPlayback()
     func interrupt()
     func failTransport(_ message: String)
@@ -1345,8 +1348,11 @@ final class NoopRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
     func connect() {}
     func beginListening() {}
     func stopListening() {}
+    func submitPartialUtterance(_ utterance: String) {}
     func submitFinalUtterance(_ utterance: String) {}
     func submitToolInvocation(_ invocation: VoiceToolInvocation) {}
+    func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent) {}
+    func setPlaybackState(_ state: RealtimeVoicePlaybackState) {}
     func finishAssistantPlayback() {}
     func interrupt() {}
     func failTransport(_ message: String) {}
@@ -1369,16 +1375,44 @@ final class StubRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
         emit(.listeningStopped)
     }
 
+    func submitPartialUtterance(_ utterance: String) {
+        emit(
+            .transcript(
+                RealtimeVoiceTranscriptEvent(
+                    speaker: .user,
+                    kind: .partial,
+                    text: utterance
+                )
+            )
+        )
+    }
+
     func submitFinalUtterance(_ utterance: String) {
-        emit(.finalUserUtterance(utterance))
+        emit(
+            .transcript(
+                RealtimeVoiceTranscriptEvent(
+                    speaker: .user,
+                    kind: .final,
+                    text: utterance
+                )
+            )
+        )
     }
 
     func submitToolInvocation(_ invocation: VoiceToolInvocation) {
         emit(.toolInvocation(invocation))
     }
 
+    func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent) {
+        emit(.toolCallback(callback))
+    }
+
+    func setPlaybackState(_ state: RealtimeVoicePlaybackState) {
+        emit(.playbackStateChanged(state))
+    }
+
     func finishAssistantPlayback() {
-        emit(.assistantPlaybackFinished)
+        emit(.playbackStateChanged(.finished))
     }
 
     func interrupt() {
@@ -1482,12 +1516,45 @@ struct VoiceTurnResponse: Equatable {
     let strategyPreference: StrategyPreference?
 }
 
+enum RealtimeVoiceTranscriptSpeaker: Equatable {
+    case user
+    case assistant
+}
+
+enum RealtimeVoiceTranscriptKind: Equatable {
+    case partial
+    case final
+}
+
+struct RealtimeVoiceTranscriptEvent: Equatable {
+    let speaker: RealtimeVoiceTranscriptSpeaker
+    let kind: RealtimeVoiceTranscriptKind
+    let text: String
+}
+
+enum RealtimeVoicePlaybackState: Equatable {
+    case idle
+    case speaking
+    case finished
+}
+
+enum RealtimeVoiceToolCallbackPhase: Equatable {
+    case requested
+    case completed
+}
+
+struct RealtimeVoiceToolCallbackEvent: Equatable {
+    let invocation: VoiceToolInvocation
+    let phase: RealtimeVoiceToolCallbackPhase
+}
+
 enum RealtimeVoiceTransportEvent: Equatable {
     case listeningStarted
     case listeningStopped
-    case finalUserUtterance(String)
+    case transcript(RealtimeVoiceTranscriptEvent)
     case toolInvocation(VoiceToolInvocation)
-    case assistantPlaybackFinished
+    case toolCallback(RealtimeVoiceToolCallbackEvent)
+    case playbackStateChanged(RealtimeVoicePlaybackState)
     case interrupted
     case transportFailed(String)
 }
@@ -1510,6 +1577,10 @@ struct VoiceSessionState: Equatable {
     var connectionState: VoiceSessionConnectionState = .disconnected
     var turnState: VoiceSessionTurnState = .idle
     var activeSession: RealtimeVoiceClientSession?
+    var playbackState: RealtimeVoicePlaybackState = .idle
+    var partialUserTranscript: String?
+    var partialAssistantTranscript: String?
+    var lastToolCallback: RealtimeVoiceToolCallbackEvent?
     var latestSnapshot: HostCaddieSession.SessionStateSnapshot?
     var lastResponse: VoiceTurnResponse?
     var lastInterruptedTurnID: UUID?
@@ -1644,6 +1715,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             try transport.connect(to: descriptor)
             state.activeSession = transport.currentSession
             state.connectionState = .connected(descriptor)
+            state.playbackState = .idle
         } catch {
             state.activeSession = nil
             state.connectionState = .failed(String(describing: error))
@@ -1659,6 +1731,9 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         state.activeSession = nil
         state.connectionState = .disconnected
         state.turnState = .idle
+        state.playbackState = .idle
+        state.partialUserTranscript = nil
+        state.partialAssistantTranscript = nil
     }
 
     func beginListening() throws {
@@ -1669,6 +1744,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         try audioCoordinator.beginListening()
         try transport.beginListening()
         state.turnState = .listening
+        state.partialUserTranscript = nil
     }
 
     func stopListening() {
@@ -1721,15 +1797,11 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             }
             return nil
 
-        case let .finalUserUtterance(utterance):
-            return submitInput(
-                .utterance(utterance),
-                userVisibleText: utterance,
-                context: context,
-                autoFinishSpeaking: false
-            )
+        case let .transcript(transcript):
+            return handleTranscriptEvent(transcript, context: context)
 
         case let .toolInvocation(invocation):
+            state.lastToolCallback = .init(invocation: invocation, phase: .requested)
             return submitInput(
                 .toolInvocation(invocation),
                 userVisibleText: Self.transcriptText(for: invocation),
@@ -1737,8 +1809,15 @@ final class RealtimeVoiceSessionManager: ObservableObject {
                 autoFinishSpeaking: false
             )
 
-        case .assistantPlaybackFinished:
-            finishSpeaking()
+        case let .toolCallback(callback):
+            state.lastToolCallback = callback
+            return nil
+
+        case let .playbackStateChanged(playbackState):
+            state.playbackState = playbackState
+            if playbackState == .finished {
+                finishSpeaking()
+            }
             return nil
 
         case .interrupted:
@@ -1749,6 +1828,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             state.activeSession = nil
             state.connectionState = .failed(message)
             state.turnState = .idle
+            state.playbackState = .idle
             return nil
         }
     }
@@ -1763,12 +1843,17 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         case .idle:
             break
         }
+
+        state.playbackState = .idle
+        state.partialAssistantTranscript = nil
     }
 
     func finishSpeaking() {
         if case .speaking = state.turnState {
             state.turnState = .idle
         }
+        state.playbackState = .idle
+        state.partialAssistantTranscript = nil
     }
 
     private func submitInput(
@@ -1781,6 +1866,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         guard !trimmed.isEmpty else { return nil }
 
         syncSnapshot(from: context)
+        state.partialUserTranscript = nil
         state.transcriptEntries.append(.user(trimmed))
 
         if case .disconnected = state.connectionState {
@@ -1797,10 +1883,40 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         }
 
         state.transcriptEntries.append(.assistant(response.spokenReply))
+        state.playbackState = .speaking
         if autoFinishSpeaking {
             finishSpeaking()
         }
         return response
+    }
+
+    private func handleTranscriptEvent(
+        _ transcript: RealtimeVoiceTranscriptEvent,
+        context: HostCaddieSession.TurnContext
+    ) -> VoiceTurnResponse? {
+        switch (transcript.speaker, transcript.kind) {
+        case (.user, .partial):
+            state.partialUserTranscript = transcript.text
+            return nil
+
+        case (.user, .final):
+            return submitInput(
+                .utterance(transcript.text),
+                userVisibleText: transcript.text,
+                context: context,
+                autoFinishSpeaking: false
+            )
+
+        case (.assistant, .partial):
+            state.partialAssistantTranscript = transcript.text
+            state.playbackState = .speaking
+            return nil
+
+        case (.assistant, .final):
+            state.partialAssistantTranscript = nil
+            state.playbackState = .speaking
+            return nil
+        }
     }
 
     nonisolated private static func transcriptText(for invocation: VoiceToolInvocation) -> String {
@@ -2025,6 +2141,14 @@ final class HostVoiceSessionController: ObservableObject {
         return lastEventResponse
     }
 
+    func submitPartialVoiceUtterance(_ utterance: String) {
+        guard currentContext != nil else {
+            return
+        }
+
+        eventSource.submitPartialUtterance(utterance)
+    }
+
     func submitVoiceToolInvocation(_ invocation: VoiceToolInvocation) -> VoiceTurnResponse? {
         guard currentContext != nil else {
             return nil
@@ -2033,6 +2157,22 @@ final class HostVoiceSessionController: ObservableObject {
         lastEventResponse = nil
         eventSource.submitToolInvocation(invocation)
         return lastEventResponse
+    }
+
+    func simulateToolCallback(_ callback: RealtimeVoiceToolCallbackEvent) {
+        guard currentContext != nil else {
+            return
+        }
+
+        eventSource.emitToolCallback(callback)
+    }
+
+    func simulatePlaybackState(_ state: RealtimeVoicePlaybackState) {
+        guard currentContext != nil else {
+            return
+        }
+
+        eventSource.setPlaybackState(state)
     }
 
     func simulateTransportFailure(_ message: String) {

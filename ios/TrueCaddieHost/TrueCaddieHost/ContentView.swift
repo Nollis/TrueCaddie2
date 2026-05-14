@@ -305,6 +305,13 @@ private struct RoundPreviewView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    if let partialUserTranscript = voiceController.state.partialUserTranscript,
+                       !partialUserTranscript.isEmpty {
+                        Text("Heard so far: \(partialUserTranscript)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     HStack(spacing: 8) {
                         if voiceController.needsMicrophonePermission {
                             Button("Enable Mic") {
@@ -370,6 +377,9 @@ private struct RoundPreviewView: View {
                             }
                             quickPromptButton("Sim Voice") {
                                 submitVoiceDebugUtterance("what do you like here")
+                            }
+                            quickPromptButton("Partial") {
+                                voiceController.submitPartialVoiceUtterance("what do you")
                             }
                             quickPromptButton("Sim Result") {
                                 submitVoiceDebugToolInvocation(
