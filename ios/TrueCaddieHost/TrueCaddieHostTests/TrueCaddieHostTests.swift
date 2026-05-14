@@ -1868,16 +1868,117 @@ struct TrueCaddieHostTests {
     }
 #endif
 
-    @Test func openAIRealtimeWebSocketConnectionTracksLifecycleAndOutgoingJSON() {
+    @Test func openAIRealtimeWebSocketConnectionRequestIncludesModelQueryParamAndBetaHeader() throws {
+        let request = try #require(
+            OpenAIRealtimeWebSocketConnection.makeRequest(
+                configuration: .default,
+                credential: nil
+            )
+        )
+
+        let url = try #require(request.url)
+        let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let modelValue = components.queryItems?.first(where: { $0.name == "model" })?.value
+
+        #expect(components.scheme == "wss")
+        #expect(components.host == "api.openai.com")
+        #expect(components.path == "/v1/realtime")
+        #expect(modelValue == "gpt-realtime-2")
+        #expect(request.value(forHTTPHeaderField: "OpenAI-Beta") == "realtime=v1")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+    }
+
+    @Test func openAIRealtimeWebSocketConnectionRequestAddsBearerAuthorizationFromCredential() throws {
+        let credential = RealtimeVoiceCredential(
+            apiKey: "sk-test-123",
+            authMode: .pilotDirectEmbedded
+        )
+        let request = try #require(
+            OpenAIRealtimeWebSocketConnection.makeRequest(
+                configuration: .default,
+                credential: credential
+            )
+        )
+
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer sk-test-123")
+    }
+
+    @Test func openAIRealtimeWebSocketConnectionRequestRejectsInvalidWebSocketURL() {
+        let configuration = OpenAIRealtimeSessionConfiguration(
+            model: "gpt-realtime-2",
+            webSocketURL: "",
+            audio: .default,
+            instructions: "",
+            voice: "alloy",
+            inputTranscriptionModel: "gpt-4o-mini-transcribe",
+            turnDetection: nil
+        )
+
+        #expect(
+            OpenAIRealtimeWebSocketConnection.makeRequest(
+                configuration: configuration,
+                credential: nil
+            ) == nil
+        )
+    }
+
+    @Test func nativeRealtimeRuntimeFactoryAcceptsOptionalCredentialProviderForEventSource() {
+        let withCredential = NativeRealtimeVoiceRuntimeFactory.eventSource(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+        )
+        let withoutCredential = NativeRealtimeVoiceRuntimeFactory.eventSource()
+
+        #expect(withCredential is DirectRealtimeVoiceEventSourceAdapter)
+        #expect(withoutCredential is DirectRealtimeVoiceEventSourceAdapter)
+    }
+
+    @Test func openAIRealtimeWebSocketConnectionFailsSendBeforeConnect() async {
         let connection = OpenAIRealtimeWebSocketConnection(configuration: .default)
 
-        connection.connect()
-        connection.sendJSON(#"{"type":"input_audio_buffer.commit"}"#)
-        connection.disconnect()
+        let message: String = await withCheckedContinuation { continuation in
+            connection.onFailure = { failureMessage in
+                continuation.resume(returning: failureMessage)
+            }
+            connection.sendJSON(#"{}"#)
+        }
 
-        #expect(connection.connectCount == 1)
-        #expect(connection.sentJSONMessages == [#"{"type":"input_audio_buffer.commit"}"#])
-        #expect(connection.disconnectCount == 1)
+        #expect(message.contains("before connect"))
+    }
+
+    @Test func openAIRealtimeWebSocketConnectionFailsConnectWithoutCredentialProvider() async {
+        let connection = OpenAIRealtimeWebSocketConnection(configuration: .default)
+
+        let message: String = await withCheckedContinuation { continuation in
+            connection.onFailure = { failureMessage in
+                continuation.resume(returning: failureMessage)
+            }
+            connection.connect()
+        }
+
+        #expect(message.contains("credential provider not configured"))
+    }
+
+    @Test func openAIRealtimeWebSocketConnectionFailsConnectWhenCredentialProviderThrows() async {
+        struct ThrowingProvider: RealtimeVoiceCredentialProviding {
+            struct InjectedError: Error {}
+            func currentCredential() throws -> RealtimeVoiceCredential {
+                throw InjectedError()
+            }
+        }
+
+        let connection = OpenAIRealtimeWebSocketConnection(
+            configuration: .default,
+            credentialProvider: ThrowingProvider()
+        )
+
+        let message: String = await withCheckedContinuation { continuation in
+            connection.onFailure = { failureMessage in
+                continuation.resume(returning: failureMessage)
+            }
+            connection.connect()
+        }
+
+        #expect(message.contains("Missing realtime credential"))
     }
 
     @Test func openAIRealtimeClientShellReceivesServerJSONThroughConnection() {

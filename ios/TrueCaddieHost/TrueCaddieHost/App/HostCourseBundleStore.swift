@@ -1357,12 +1357,23 @@ enum NativeRealtimeVoiceRuntimeFactory {
         DirectAppRealtimeVoiceTransportAdapter()
     }
 
-    static func eventSource() -> any RealtimeVoiceEventSourcing {
-        DirectRealtimeVoiceEventSourceAdapter(
+    static func eventSource(
+        credentialProvider: (any RealtimeVoiceCredentialProviding)? = nil
+    ) -> any RealtimeVoiceEventSourcing {
+        let connection: any OpenAIRealtimeConnectioning
+        if let credentialProvider {
+            connection = OpenAIRealtimeWebSocketConnection(
+                configuration: .default,
+                credentialProvider: credentialProvider
+            )
+        } else {
+            connection = StubOpenAIRealtimeConnection()
+        }
+
+        return DirectRealtimeVoiceEventSourceAdapter(
             client: OpenAIRealtimeClientShell(
-                connection: OpenAIRealtimeWebSocketConnection(
-                    configuration: .default
-                )
+                connection: connection,
+                configuration: .default
             )
         )
     }
@@ -1811,29 +1822,142 @@ final class OpenAIRealtimeWebSocketConnection: OpenAIRealtimeConnectioning {
     var onDisconnected: (() -> Void)?
     var onFailure: ((String) -> Void)?
 
-    private(set) var sentJSONMessages: [String] = []
-    private(set) var connectCount = 0
-    private(set) var disconnectCount = 0
+    private let credentialProvider: (any RealtimeVoiceCredentialProviding)?
+    private let urlSession: URLSession
+    private var task: URLSessionWebSocketTask?
+    private var hasFinished = false
 
-    init(configuration: OpenAIRealtimeSessionConfiguration = .default) {
+    init(
+        configuration: OpenAIRealtimeSessionConfiguration = .default,
+        credentialProvider: (any RealtimeVoiceCredentialProviding)? = nil,
+        urlSession: URLSession = .shared
+    ) {
         self.configuration = configuration
+        self.credentialProvider = credentialProvider
+        self.urlSession = urlSession
     }
 
     func connect() {
-        connectCount += 1
+        guard task == nil else { return }
+        hasFinished = false
+
+        guard let credentialProvider else {
+            emitFailure("Realtime credential provider not configured")
+            return
+        }
+
+        let credential: RealtimeVoiceCredential
+        do {
+            credential = try credentialProvider.currentCredential()
+        } catch {
+            emitFailure("Missing realtime credential: \(error.localizedDescription)")
+            return
+        }
+
+        guard let request = Self.makeRequest(
+            configuration: configuration,
+            credential: credential
+        ) else {
+            emitFailure("Invalid realtime websocket URL: \(configuration.webSocketURL)")
+            return
+        }
+
+        let newTask = urlSession.webSocketTask(with: request)
+        task = newTask
+        newTask.resume()
+        receiveNext()
     }
 
     func disconnect() {
-        disconnectCount += 1
-        onDisconnected?()
+        guard let activeTask = task else { return }
+        task = nil
+        if !hasFinished {
+            hasFinished = true
+            activeTask.cancel(with: .normalClosure, reason: nil)
+            emitDisconnected()
+        }
     }
 
     func sendJSON(_ json: String) {
-        sentJSONMessages.append(json)
+        guard let task else {
+            emitFailure("Cannot send realtime message before connect")
+            return
+        }
+        task.send(.string(json)) { [weak self] error in
+            guard let self, let error else { return }
+            if !self.hasFinished {
+                self.emitFailure("Realtime send failed: \(error.localizedDescription)")
+            }
+        }
     }
 
-    func receiveJSON(_ json: String) {
-        onJSONMessage?(json)
+    static func makeRequest(
+        configuration: OpenAIRealtimeSessionConfiguration,
+        credential: RealtimeVoiceCredential?
+    ) -> URLRequest? {
+        guard var components = URLComponents(string: configuration.webSocketURL) else {
+            return nil
+        }
+        var queryItems = components.queryItems ?? []
+        if !queryItems.contains(where: { $0.name == "model" }) {
+            queryItems.append(URLQueryItem(name: "model", value: configuration.model))
+        }
+        components.queryItems = queryItems
+        guard let url = components.url else { return nil }
+
+        var request = URLRequest(url: url)
+        request.setValue("realtime=v1", forHTTPHeaderField: "OpenAI-Beta")
+        if let credential {
+            request.setValue("Bearer \(credential.apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    private func receiveNext() {
+        guard let task else { return }
+        task.receive { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case let .success(message):
+                switch message {
+                case let .string(json):
+                    self.emitJSON(json)
+                case let .data(data):
+                    if let json = String(data: data, encoding: .utf8) {
+                        self.emitJSON(json)
+                    }
+                @unknown default:
+                    break
+                }
+                self.receiveNext()
+
+            case let .failure(error):
+                self.task = nil
+                if !self.hasFinished {
+                    self.hasFinished = true
+                    self.emitFailure("Realtime receive failed: \(error.localizedDescription)")
+                    self.emitDisconnected()
+                }
+            }
+        }
+    }
+
+    private func emitJSON(_ json: String) {
+        DispatchQueue.main.async { [weak self] in
+            self?.onJSONMessage?(json)
+        }
+    }
+
+    private func emitFailure(_ message: String) {
+        DispatchQueue.main.async { [weak self] in
+            self?.onFailure?(message)
+        }
+    }
+
+    private func emitDisconnected() {
+        DispatchQueue.main.async { [weak self] in
+            self?.onDisconnected?()
+        }
     }
 }
 
