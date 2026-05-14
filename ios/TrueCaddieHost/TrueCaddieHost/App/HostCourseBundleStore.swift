@@ -1090,6 +1090,151 @@ final class AVFoundationRealtimeVoiceAudioSessionCoordinator: RealtimeVoiceAudio
 }
 #endif
 
+struct MicrophonePCMChunk: Equatable {
+    let samples: [Float]
+    let format: RealtimeMicrophonePCMFormat
+}
+
+protocol MicrophonePCMSourcing: AnyObject {
+    var onChunk: ((MicrophonePCMChunk) -> Void)? { get set }
+
+    func start() throws
+    func stop()
+}
+
+enum MicrophonePCMSourceError: Error, Equatable {
+    case unableToStartEngine(String)
+}
+
+enum MicrophonePCMInterleaver {
+    static func interleave(_ channels: [[Float]]) -> [Float] {
+        guard !channels.isEmpty else { return [] }
+        if channels.count == 1 { return channels[0] }
+        let frameCount = channels[0].count
+        var output = [Float]()
+        output.reserveCapacity(frameCount * channels.count)
+        for frame in 0..<frameCount {
+            for channelIndex in channels.indices {
+                output.append(channels[channelIndex][frame])
+            }
+        }
+        return output
+    }
+}
+
+final class StubMicrophonePCMSource: MicrophonePCMSourcing {
+    var onChunk: ((MicrophonePCMChunk) -> Void)?
+    var nextStartError: Error?
+    private(set) var startCount = 0
+    private(set) var stopCount = 0
+    private(set) var isRunning = false
+
+    func start() throws {
+        startCount += 1
+        if let error = nextStartError {
+            nextStartError = nil
+            throw error
+        }
+        isRunning = true
+    }
+
+    func stop() {
+        stopCount += 1
+        isRunning = false
+    }
+
+    func emit(_ chunk: MicrophonePCMChunk) {
+        onChunk?(chunk)
+    }
+}
+
+#if canImport(AVFoundation)
+final class AVAudioEngineMicrophonePCMSource: MicrophonePCMSourcing {
+    var onChunk: ((MicrophonePCMChunk) -> Void)?
+
+    private let engine: AVAudioEngine
+    private let bufferSize: AVAudioFrameCount
+    private(set) var isRunning = false
+
+    init(engine: AVAudioEngine = AVAudioEngine(), bufferSize: AVAudioFrameCount = 1024) {
+        self.engine = engine
+        self.bufferSize = bufferSize
+    }
+
+    func start() throws {
+        guard !isRunning else { return }
+        let inputNode = engine.inputNode
+        let inputFormat = inputNode.outputFormat(forBus: 0)
+
+        inputNode.removeTap(onBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: inputFormat) { [weak self] buffer, _ in
+            self?.handle(buffer)
+        }
+
+        do {
+            try engine.start()
+            isRunning = true
+        } catch {
+            inputNode.removeTap(onBus: 0)
+            throw MicrophonePCMSourceError.unableToStartEngine(String(describing: error))
+        }
+    }
+
+    func stop() {
+        guard isRunning else { return }
+        engine.inputNode.removeTap(onBus: 0)
+        engine.stop()
+        isRunning = false
+    }
+
+    func handle(_ buffer: AVAudioPCMBuffer) {
+        guard let samples = Self.flatten(buffer), !samples.isEmpty else { return }
+        let chunkFormat = RealtimeMicrophonePCMFormat(
+            sampleRateHz: buffer.format.sampleRate,
+            channelCount: Int(buffer.format.channelCount)
+        )
+        onChunk?(MicrophonePCMChunk(samples: samples, format: chunkFormat))
+    }
+
+    static func flatten(_ buffer: AVAudioPCMBuffer) -> [Float]? {
+        guard let floatChannelData = buffer.floatChannelData else { return nil }
+        let frameCount = Int(buffer.frameLength)
+        let channelCount = Int(buffer.format.channelCount)
+
+        guard frameCount > 0, channelCount > 0 else { return [] }
+
+        if buffer.format.isInterleaved {
+            let pointer = floatChannelData[0]
+            return Array(UnsafeBufferPointer(start: pointer, count: frameCount * channelCount))
+        }
+
+        if channelCount == 1 {
+            let pointer = floatChannelData[0]
+            return Array(UnsafeBufferPointer(start: pointer, count: frameCount))
+        }
+
+        var channels = [[Float]]()
+        channels.reserveCapacity(channelCount)
+        for channel in 0..<channelCount {
+            let pointer = floatChannelData[channel]
+            channels.append(Array(UnsafeBufferPointer(start: pointer, count: frameCount)))
+        }
+        return MicrophonePCMInterleaver.interleave(channels)
+    }
+}
+#endif
+
+enum MicrophonePCMBridge {
+    static func connect(
+        _ source: any MicrophonePCMSourcing,
+        to client: any DirectRealtimeClienting
+    ) {
+        source.onChunk = { [weak client] chunk in
+            client?.sendMicrophonePCMChunk(chunk.samples, format: chunk.format)
+        }
+    }
+}
+
 enum RealtimeVoicePermissionState: Equatable {
     case undetermined
     case granted
@@ -1220,6 +1365,14 @@ enum NativeRealtimeVoiceRuntimeFactory {
                 )
             )
         )
+    }
+
+    static func microphoneSource() -> any MicrophonePCMSourcing {
+#if canImport(AVFoundation)
+        return AVAudioEngineMicrophonePCMSource()
+#else
+        return StubMicrophonePCMSource()
+#endif
     }
 }
 
@@ -1390,6 +1543,7 @@ protocol DirectRealtimeClienting: AnyObject {
     func sendPartialUtterance(_ utterance: String)
     func sendFinalUtterance(_ utterance: String)
     func sendToolInvocation(_ invocation: VoiceToolInvocation)
+    func sendMicrophonePCMChunk(_ samples: [Float], format: RealtimeMicrophonePCMFormat)
     func emitAssistantReply(_ reply: String)
     func interrupt()
     func disconnect()
@@ -1983,6 +2137,10 @@ final class StubDirectRealtimeClient: DirectRealtimeClienting {
                 )
             )
         )
+    }
+
+    func sendMicrophonePCMChunk(_ samples: [Float], format: RealtimeMicrophonePCMFormat) {
+        outboundActions.append("mic:\(samples.count)@\(Int(format.sampleRateHz))x\(format.channelCount)")
     }
 
     func emitAssistantReply(_ reply: String) {

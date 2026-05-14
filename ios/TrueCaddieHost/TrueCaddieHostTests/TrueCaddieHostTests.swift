@@ -9,6 +9,9 @@ import Foundation
 import Testing
 import TrueCaddieDomain
 @testable import TrueCaddieHost
+#if canImport(AVFoundation)
+import AVFoundation
+#endif
 
 struct TrueCaddieHostTests {
 
@@ -1682,6 +1685,188 @@ struct TrueCaddieHostTests {
 
         #expect(connection.sentJSONMessages.isEmpty)
     }
+
+    @Test func microphonePCMInterleaverPassesThroughSingleChannel() {
+        let result = MicrophonePCMInterleaver.interleave([[1.0, 2.0, 3.0]])
+        #expect(result == [1.0, 2.0, 3.0])
+    }
+
+    @Test func microphonePCMInterleaverInterleavesStereoChannelsByFrame() {
+        let result = MicrophonePCMInterleaver.interleave([
+            [1.0, 3.0, 5.0],
+            [2.0, 4.0, 6.0]
+        ])
+        #expect(result == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    }
+
+    @Test func microphonePCMInterleaverReturnsEmptyForNoChannels() {
+        #expect(MicrophonePCMInterleaver.interleave([]).isEmpty)
+    }
+
+    @Test func stubMicrophonePCMSourceForwardsEmittedChunks() throws {
+        let source = StubMicrophonePCMSource()
+        var received: [MicrophonePCMChunk] = []
+        source.onChunk = { received.append($0) }
+
+        try source.start()
+        let chunk = MicrophonePCMChunk(
+            samples: [0.5, -0.5],
+            format: RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 1)
+        )
+        source.emit(chunk)
+        source.stop()
+
+        #expect(received == [chunk])
+        #expect(source.startCount == 1)
+        #expect(source.stopCount == 1)
+        #expect(!source.isRunning)
+    }
+
+    @Test func stubMicrophonePCMSourcePropagatesStartError() {
+        struct InjectedError: Error {}
+        let source = StubMicrophonePCMSource()
+        source.nextStartError = InjectedError()
+
+        var thrown: Error?
+        do {
+            try source.start()
+        } catch {
+            thrown = error
+        }
+
+        #expect(thrown is InjectedError)
+        #expect(!source.isRunning)
+        #expect(source.nextStartError == nil)
+    }
+
+    @MainActor @Test func microphonePCMBridgeRoutesChunksThroughClientShell() throws {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+        let source = StubMicrophonePCMSource()
+
+        MicrophonePCMBridge.connect(source, to: client)
+        source.emit(
+            MicrophonePCMChunk(
+                samples: [1.0, 1.0, -1.0, -1.0],
+                format: RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 1)
+            )
+        )
+
+        let appendEnvelopes: [OpenAIRealtimeClientEventEnvelope] = connection.sentJSONMessages.compactMap { json in
+            guard let data = json.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: data)
+        }
+        .filter { $0.type == "input_audio_buffer.append" }
+
+        #expect(appendEnvelopes.count == 1)
+        let audioData = try #require(appendEnvelopes.first?.audio.flatMap { Data(base64Encoded: $0) })
+        #expect(audioData.count == 4)
+        #expect(decodeLittleEndianInt16(audioData) == [32_767, -32_767])
+    }
+
+    @Test func microphonePCMBridgeRoutesChunksThroughStubClient() {
+        let client = StubDirectRealtimeClient()
+        let source = StubMicrophonePCMSource()
+
+        MicrophonePCMBridge.connect(source, to: client)
+        source.emit(
+            MicrophonePCMChunk(
+                samples: [0.1, 0.2, 0.3, 0.4],
+                format: RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 1)
+            )
+        )
+
+        #expect(client.outboundActions == ["mic:4@48000x1"])
+    }
+
+    @Test func nativeRealtimeRuntimeFactoryProducesAMicrophoneSource() {
+        let source = NativeRealtimeVoiceRuntimeFactory.microphoneSource()
+#if canImport(AVFoundation)
+        #expect(source is AVAudioEngineMicrophonePCMSource)
+#else
+        #expect(source is StubMicrophonePCMSource)
+#endif
+    }
+
+#if canImport(AVFoundation)
+    @Test func avAudioEngineMicrophoneSourceFlattensNonInterleavedStereoBuffer() throws {
+        let format = try #require(AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 48_000,
+            channels: 2,
+            interleaved: false
+        ))
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 3))
+        buffer.frameLength = 3
+        let channels = try #require(buffer.floatChannelData)
+        channels[0][0] = 1.0; channels[0][1] = 3.0; channels[0][2] = 5.0
+        channels[1][0] = 2.0; channels[1][1] = 4.0; channels[1][2] = 6.0
+
+        let flat = AVAudioEngineMicrophonePCMSource.flatten(buffer)
+        #expect(flat == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    }
+
+    @Test func avAudioEngineMicrophoneSourceFlattensInterleavedStereoBuffer() throws {
+        let format = try #require(AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 48_000,
+            channels: 2,
+            interleaved: true
+        ))
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 3))
+        buffer.frameLength = 3
+        let channels = try #require(buffer.floatChannelData)
+        channels[0][0] = 1.0; channels[0][1] = 2.0
+        channels[0][2] = 3.0; channels[0][3] = 4.0
+        channels[0][4] = 5.0; channels[0][5] = 6.0
+
+        let flat = AVAudioEngineMicrophonePCMSource.flatten(buffer)
+        #expect(flat == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    }
+
+    @Test func avAudioEngineMicrophoneSourceFlattensMonoBuffer() throws {
+        let format = try #require(AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 24_000,
+            channels: 1,
+            interleaved: false
+        ))
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4))
+        buffer.frameLength = 4
+        let channels = try #require(buffer.floatChannelData)
+        channels[0][0] = 0.1; channels[0][1] = 0.2
+        channels[0][2] = 0.3; channels[0][3] = 0.4
+
+        let flat = AVAudioEngineMicrophonePCMSource.flatten(buffer)
+        #expect(flat == [0.1, 0.2, 0.3, 0.4])
+    }
+
+    @MainActor @Test func avAudioEngineMicrophoneSourceForwardsHandledBufferThroughOnChunk() throws {
+        let format = try #require(AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 48_000,
+            channels: 1,
+            interleaved: false
+        ))
+        let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 2))
+        buffer.frameLength = 2
+        let channels = try #require(buffer.floatChannelData)
+        channels[0][0] = 0.25
+        channels[0][1] = -0.25
+
+        let source = AVAudioEngineMicrophonePCMSource()
+        var received: [MicrophonePCMChunk] = []
+        source.onChunk = { received.append($0) }
+
+        source.handle(buffer)
+
+        let expected = MicrophonePCMChunk(
+            samples: [0.25, -0.25],
+            format: RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 1)
+        )
+        #expect(received == [expected])
+    }
+#endif
 
     @Test func openAIRealtimeWebSocketConnectionTracksLifecycleAndOutgoingJSON() {
         let connection = OpenAIRealtimeWebSocketConnection(configuration: .default)
