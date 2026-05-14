@@ -3183,8 +3183,12 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             return nil
 
         case .outputAudioChunk:
-            // Routed to the playback engine by the controller layer; the
-            // session manager has no state to mutate for raw audio bytes.
+            // The controller layer routes the bytes to the playback engine;
+            // here we only nudge the visible state into "speaking" on first
+            // chunk so the UI reflects that the assistant is talking.
+            if state.playbackState == .idle {
+                state.playbackState = .speaking
+            }
             return nil
 
         case .interrupted:
@@ -3330,6 +3334,7 @@ final class HostVoiceSessionController: ObservableObject {
     private let permissionProvider: any RealtimeVoicePermissionProviding
     private let eventSource: any RealtimeVoiceEventSourcing
     private let microphoneSource: any MicrophonePCMSourcing
+    private let playbackEngine: any RealtimePlaybackEngine
     private var currentContext: HostCaddieSession.TurnContext?
     private var lastEventResponse: VoiceTurnResponse?
 
@@ -3339,12 +3344,14 @@ final class HostVoiceSessionController: ObservableObject {
         ),
         permissionProvider: any RealtimeVoicePermissionProviding = NativeRealtimeVoiceRuntimeFactory.permissionProvider(),
         eventSource: any RealtimeVoiceEventSourcing = NativeRealtimeVoiceRuntimeFactory.eventSource(),
-        microphoneSource: any MicrophonePCMSourcing = NativeRealtimeVoiceRuntimeFactory.microphoneSource()
+        microphoneSource: any MicrophonePCMSourcing = NativeRealtimeVoiceRuntimeFactory.microphoneSource(),
+        playbackEngine: any RealtimePlaybackEngine = NativeRealtimeVoiceRuntimeFactory.playbackEngine()
     ) {
         self.sessionManager = sessionManager
         self.permissionProvider = permissionProvider
         self.eventSource = eventSource
         self.microphoneSource = microphoneSource
+        self.playbackEngine = playbackEngine
         self.state = sessionManager.state
         self.permissionState = permissionProvider.currentPermissionState()
         self.permissionProvider.onStateChange = { [weak self] state in
@@ -3444,11 +3451,17 @@ final class HostVoiceSessionController: ObservableObject {
 
         try? sessionManager.connect()
         eventSource.connect()
+        do {
+            try playbackEngine.start()
+        } catch {
+            print("[HostVoiceSession] Playback engine unavailable: \(error)")
+        }
         refreshState()
     }
 
     func disconnect() {
         microphoneSource.stop()
+        playbackEngine.stop()
         sessionManager.disconnect()
         refreshState()
     }
@@ -3495,6 +3508,11 @@ final class HostVoiceSessionController: ObservableObject {
             return
         }
 
+        // Drain any queued playback so the user doesn't hear stale audio
+        // after they cut the assistant off; restart so the engine stays
+        // ready for the next turn.
+        playbackEngine.stop()
+        try? playbackEngine.start()
         eventSource.interrupt()
     }
 
@@ -3570,6 +3588,10 @@ final class HostVoiceSessionController: ObservableObject {
     }
 
     private func receiveRealtimeEvent(_ event: RealtimeVoiceTransportEvent) {
+        if case let .outputAudioChunk(data) = event {
+            playbackEngine.enqueue(data)
+        }
+
         guard let currentContext else {
             return
         }
@@ -3596,9 +3618,12 @@ extension HostVoiceSessionController {
             return HostVoiceSessionController()
         }
 
+        let (microphoneSource, playbackEngine) = NativeRealtimeVoiceRuntimeFactory.microphoneSourceAndPlaybackEngine()
         return HostVoiceSessionController(
             sessionManager: RealtimeVoiceSessionManager(credentialProvider: credentialProvider),
-            eventSource: NativeRealtimeVoiceRuntimeFactory.eventSource(credentialProvider: credentialProvider)
+            eventSource: NativeRealtimeVoiceRuntimeFactory.eventSource(credentialProvider: credentialProvider),
+            microphoneSource: microphoneSource,
+            playbackEngine: playbackEngine
         )
     }
 }

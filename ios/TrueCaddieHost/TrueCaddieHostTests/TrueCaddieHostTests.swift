@@ -2395,7 +2395,8 @@ struct TrueCaddieHostTests {
                 credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
                 transport: transport
             ),
-            microphoneSource: StubMicrophonePCMSource()
+            microphoneSource: StubMicrophonePCMSource(),
+            playbackEngine: StubRealtimePlaybackEngine()
         )
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
 
@@ -2509,7 +2510,8 @@ struct TrueCaddieHostTests {
                 credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
             ),
             eventSource: eventSource,
-            microphoneSource: StubMicrophonePCMSource()
+            microphoneSource: StubMicrophonePCMSource(),
+            playbackEngine: StubRealtimePlaybackEngine()
         )
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
 
@@ -2624,7 +2626,8 @@ struct TrueCaddieHostTests {
             ),
             permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
             eventSource: StubRealtimeVoiceEventSource(),
-            microphoneSource: microphoneSource
+            microphoneSource: microphoneSource,
+            playbackEngine: StubRealtimePlaybackEngine()
         )
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         controller.updateContext(makeConversationContext(bundle: bundle))
@@ -2650,7 +2653,8 @@ struct TrueCaddieHostTests {
             ),
             permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
             eventSource: eventSource,
-            microphoneSource: microphoneSource
+            microphoneSource: microphoneSource,
+            playbackEngine: StubRealtimePlaybackEngine()
         )
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         controller.updateContext(makeConversationContext(bundle: bundle))
@@ -2674,7 +2678,8 @@ struct TrueCaddieHostTests {
             ),
             permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
             eventSource: StubRealtimeVoiceEventSource(),
-            microphoneSource: microphoneSource
+            microphoneSource: microphoneSource,
+            playbackEngine: StubRealtimePlaybackEngine()
         )
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         controller.updateContext(makeConversationContext(bundle: bundle))
@@ -2696,7 +2701,8 @@ struct TrueCaddieHostTests {
             ),
             permissionProvider: StubRealtimeVoicePermissionProvider(state: .denied),
             eventSource: StubRealtimeVoiceEventSource(),
-            microphoneSource: microphoneSource
+            microphoneSource: microphoneSource,
+            playbackEngine: StubRealtimePlaybackEngine()
         )
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         controller.updateContext(makeConversationContext(bundle: bundle))
@@ -2705,6 +2711,118 @@ struct TrueCaddieHostTests {
 
         #expect(microphoneSource.startCount == 0)
         #expect(!microphoneSource.isRunning)
+    }
+
+    @Test func hostVoiceSessionControllerEnqueuesOutputAudioChunksOnPlaybackEngine() throws {
+        let client = StubDirectRealtimeClient()
+        let eventSource = DirectRealtimeVoiceEventSourceAdapter(client: client)
+        let playbackEngine = StubRealtimePlaybackEngine()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: StubRealtimeVoiceTransport()
+            ),
+            permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
+            eventSource: eventSource,
+            microphoneSource: StubMicrophonePCMSource(),
+            playbackEngine: playbackEngine
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(makeConversationContext(bundle: bundle))
+
+        let payload = Data([0x10, 0x00, 0x20, 0x00])
+        client.emit(.outputAudioChunk(payload))
+
+        #expect(playbackEngine.enqueuedChunks == [payload])
+        #expect(controller.state.playbackState == .speaking)
+    }
+
+    @Test func hostVoiceSessionControllerStartsPlaybackEngineOnConnect() throws {
+        let playbackEngine = StubRealtimePlaybackEngine()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: StubRealtimeVoiceTransport()
+            ),
+            permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
+            eventSource: StubRealtimeVoiceEventSource(),
+            microphoneSource: StubMicrophonePCMSource(),
+            playbackEngine: playbackEngine
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(makeConversationContext(bundle: bundle))
+
+        controller.connectIfNeeded()
+
+        #expect(playbackEngine.startCount == 1)
+        #expect(playbackEngine.isRunning)
+    }
+
+    @Test func hostVoiceSessionControllerStopsPlaybackEngineOnDisconnect() throws {
+        let playbackEngine = StubRealtimePlaybackEngine()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: StubRealtimeVoiceTransport()
+            ),
+            permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
+            eventSource: StubRealtimeVoiceEventSource(),
+            microphoneSource: StubMicrophonePCMSource(),
+            playbackEngine: playbackEngine
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.connectIfNeeded()
+
+        controller.disconnect()
+
+        #expect(playbackEngine.stopCount == 1)
+        #expect(!playbackEngine.isRunning)
+    }
+
+    @Test func hostVoiceSessionControllerDrainsPlaybackEngineOnInterrupt() throws {
+        let playbackEngine = StubRealtimePlaybackEngine()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: StubRealtimeVoiceTransport()
+            ),
+            permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
+            eventSource: StubRealtimeVoiceEventSource(),
+            microphoneSource: StubMicrophonePCMSource(),
+            playbackEngine: playbackEngine
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.connectIfNeeded()
+
+        controller.interrupt()
+
+        // start (on connect) + start (after interrupt drains the queue).
+        #expect(playbackEngine.startCount == 2)
+        #expect(playbackEngine.stopCount == 1)
+        #expect(playbackEngine.isRunning)
+    }
+
+    @Test func hostVoiceSessionControllerTypedHarnessProducesNoOutputAudioChunks() throws {
+        let playbackEngine = StubRealtimePlaybackEngine()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: StubRealtimeVoiceTransport()
+            ),
+            permissionProvider: StubRealtimeVoicePermissionProvider(state: .granted),
+            eventSource: StubRealtimeVoiceEventSource(),
+            microphoneSource: StubMicrophonePCMSource(),
+            playbackEngine: playbackEngine
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(makeConversationContext(bundle: bundle))
+
+        let response = try #require(controller.submitVoiceUtterance("what do you like here"))
+
+        #expect(response.actionName == .guidance)
+        #expect(playbackEngine.enqueuedChunks.isEmpty)
     }
 
     @Test func hostVoiceSessionControllerCanUseDirectRealtimeClientAdapterStub() throws {
