@@ -1958,6 +1958,35 @@ struct TrueCaddieHostTests {
         #expect(message.contains("credential provider not configured"))
     }
 
+    @Test func embeddedPilotCredentialProviderProducesEmbeddedAuthCredential() throws {
+        let provider = EmbeddedPilotCredentialProvider(apiKey: "sk-test")
+        let credential = try provider.currentCredential()
+
+        #expect(credential.apiKey == "sk-test")
+        #expect(credential.authMode == .pilotDirectEmbedded)
+    }
+
+    @Test func embeddedPilotCredentialProviderFromBundledSecretsMatchesPilotSecretsState() {
+        // The committed repo keeps PilotSecrets.realtimeAPIKey nil so
+        // unauthenticated builds keep working. If a developer has pasted a
+        // real key locally, the provider trims whitespace and surfaces it.
+        let trimmed = PilotSecrets.realtimeAPIKey?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if trimmed.isEmpty {
+            #expect(EmbeddedPilotCredentialProvider.fromBundledSecrets() == nil)
+        } else {
+            let provider = EmbeddedPilotCredentialProvider.fromBundledSecrets()
+            #expect(provider?.apiKey == trimmed)
+        }
+    }
+
+    @Test func hostVoiceSessionControllerMakeWithPilotCredentialsReturnsDisconnectedController() {
+        // Whether or not a key is pasted into PilotSecrets, the factory
+        // hands back a controller that is initially disconnected.
+        let controller = HostVoiceSessionController.makeWithPilotCredentials()
+        #expect(controller.state.connectionState == .disconnected)
+    }
+
     @Test func openAIRealtimeWebSocketConnectionFailsConnectWhenCredentialProviderThrows() async {
         struct ThrowingProvider: RealtimeVoiceCredentialProviding {
             struct InjectedError: Error {}

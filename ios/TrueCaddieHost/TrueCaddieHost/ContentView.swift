@@ -87,7 +87,7 @@ private struct RoundPreviewView: View {
         )
         _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
         _roundState = State(initialValue: savedProgress?.roundState ?? RoundState(courseId: bundle.courseId, holeStates: []))
-        _voiceController = StateObject(wrappedValue: HostVoiceSessionController())
+        _voiceController = StateObject(wrappedValue: HostVoiceSessionController.makeWithPilotCredentials())
     }
 
     private var selectedHole: CourseHole? {

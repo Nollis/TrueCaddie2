@@ -4,3 +4,16 @@ node_modules/
 .swiftpm/
 .build/
 xcuserdata/
+
+# Secrets — catch-all for ad-hoc local key files. PilotSecrets.swift itself
+# is tracked but must always stay at `nil` in commits; use
+# `git update-index --skip-worktree` for local key edits.
+*.local.swift
+*.private.swift
+*.secret.swift
+.env
+.env.*
+*.pem
+*.key
+Secrets/
+secrets/

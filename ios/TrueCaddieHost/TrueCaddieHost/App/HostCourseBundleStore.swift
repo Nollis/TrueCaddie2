@@ -1001,6 +1001,15 @@ struct EmbeddedPilotCredentialProvider: RealtimeVoiceCredentialProviding {
     func currentCredential() throws -> RealtimeVoiceCredential {
         RealtimeVoiceCredential(apiKey: apiKey, authMode: .pilotDirectEmbedded)
     }
+
+    static func fromBundledSecrets() -> EmbeddedPilotCredentialProvider? {
+        guard let trimmed = PilotSecrets.realtimeAPIKey?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return EmbeddedPilotCredentialProvider(apiKey: trimmed)
+    }
 }
 
 enum RealtimeVoiceTransport: String, Equatable, Codable {
@@ -3291,5 +3300,22 @@ final class HostVoiceSessionController: ObservableObject {
 
     private func refreshState() {
         state = sessionManager.state
+    }
+}
+
+extension HostVoiceSessionController {
+    /// Build a controller wired to the bundled pilot credential, if any.
+    /// Falls back to the default (stub-backed) controller when
+    /// `PilotSecrets.realtimeAPIKey` is `nil` so unauthenticated builds
+    /// still run.
+    static func makeWithPilotCredentials() -> HostVoiceSessionController {
+        guard let credentialProvider = EmbeddedPilotCredentialProvider.fromBundledSecrets() else {
+            return HostVoiceSessionController()
+        }
+
+        return HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(credentialProvider: credentialProvider),
+            eventSource: NativeRealtimeVoiceRuntimeFactory.eventSource(credentialProvider: credentialProvider)
+        )
     }
 }
