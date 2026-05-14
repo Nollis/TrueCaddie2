@@ -1253,6 +1253,131 @@ enum MicrophonePCMBridge {
     }
 }
 
+protocol RealtimePlaybackEngine: AnyObject {
+    func start() throws
+    func stop()
+    func enqueue(_ pcm16Bytes: Data)
+}
+
+enum RealtimePlaybackError: Error, Equatable {
+    case unableToStartEngine(String)
+}
+
+final class StubRealtimePlaybackEngine: RealtimePlaybackEngine {
+    var nextStartError: Error?
+    private(set) var enqueuedChunks: [Data] = []
+    private(set) var startCount = 0
+    private(set) var stopCount = 0
+    private(set) var isRunning = false
+
+    func start() throws {
+        startCount += 1
+        if let error = nextStartError {
+            nextStartError = nil
+            throw error
+        }
+        isRunning = true
+    }
+
+    func stop() {
+        stopCount += 1
+        isRunning = false
+    }
+
+    func enqueue(_ pcm16Bytes: Data) {
+        guard !pcm16Bytes.isEmpty else { return }
+        enqueuedChunks.append(pcm16Bytes)
+    }
+}
+
+#if canImport(AVFoundation)
+final class AVAudioPlayerNodeRealtimePlaybackEngine: RealtimePlaybackEngine {
+    private let engine: AVAudioEngine
+    private let playerNode = AVAudioPlayerNode()
+    private let outputFormat: AVAudioFormat
+    private(set) var isRunning = false
+    private var isAttached = false
+
+    init(
+        engine: AVAudioEngine = AVAudioEngine(),
+        sampleRate: Double = 24_000,
+        channelCount: AVAudioChannelCount = 1
+    ) {
+        self.engine = engine
+        // Realtime API sends pcm16 LE at the session's output_audio_format.
+        // AVAudioEngine will negotiate to the mixer's float format internally
+        // when nodes are connected.
+        self.outputFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: sampleRate,
+            channels: channelCount,
+            interleaved: true
+        ) ?? AVAudioFormat(
+            standardFormatWithSampleRate: sampleRate,
+            channels: channelCount
+        )!
+    }
+
+    func start() throws {
+        guard !isRunning else { return }
+
+        if !isAttached {
+            engine.attach(playerNode)
+            engine.connect(playerNode, to: engine.mainMixerNode, format: outputFormat)
+            isAttached = true
+        }
+
+        if !engine.isRunning {
+            do {
+                try engine.start()
+            } catch {
+                throw RealtimePlaybackError.unableToStartEngine(String(describing: error))
+            }
+        }
+
+        playerNode.play()
+        isRunning = true
+    }
+
+    func stop() {
+        guard isRunning else { return }
+        playerNode.stop()
+        isRunning = false
+    }
+
+    func enqueue(_ pcm16Bytes: Data) {
+        guard let buffer = Self.makeBuffer(from: pcm16Bytes, format: outputFormat) else {
+            return
+        }
+        playerNode.scheduleBuffer(buffer, completionHandler: nil)
+    }
+
+    static func makeBuffer(from pcm16Bytes: Data, format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard !pcm16Bytes.isEmpty else { return nil }
+        guard pcm16Bytes.count % 2 == 0 else { return nil }
+
+        let frameCount = AVAudioFrameCount(pcm16Bytes.count / 2)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            return nil
+        }
+        buffer.frameLength = frameCount
+
+        guard let int16Channel = buffer.int16ChannelData?[0] else {
+            return nil
+        }
+
+        pcm16Bytes.withUnsafeBytes { rawBuffer in
+            guard let baseAddress = rawBuffer.baseAddress else { return }
+            int16Channel.update(
+                from: baseAddress.assumingMemoryBound(to: Int16.self),
+                count: Int(frameCount)
+            )
+        }
+        return buffer
+    }
+}
+#endif
+
 enum RealtimeVoicePermissionState: Equatable {
     case undetermined
     case granted

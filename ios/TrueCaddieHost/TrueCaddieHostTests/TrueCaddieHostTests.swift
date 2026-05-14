@@ -1863,6 +1863,85 @@ struct TrueCaddieHostTests {
         #expect(decodeLittleEndianInt16(audioData) == [32_767, -32_767])
     }
 
+    @Test func stubRealtimePlaybackEngineRecordsChunksAndLifecycle() throws {
+        let engine = StubRealtimePlaybackEngine()
+
+        try engine.start()
+        engine.enqueue(Data([0x01, 0x02, 0x03, 0x04]))
+        engine.enqueue(Data([0x05, 0x06]))
+        engine.enqueue(Data())
+        engine.stop()
+
+        #expect(engine.startCount == 1)
+        #expect(engine.stopCount == 1)
+        #expect(!engine.isRunning)
+        #expect(engine.enqueuedChunks == [
+            Data([0x01, 0x02, 0x03, 0x04]),
+            Data([0x05, 0x06])
+        ])
+    }
+
+    @Test func stubRealtimePlaybackEnginePropagatesStartError() {
+        struct InjectedError: Error {}
+        let engine = StubRealtimePlaybackEngine()
+        engine.nextStartError = InjectedError()
+
+        var thrown: Error?
+        do {
+            try engine.start()
+        } catch {
+            thrown = error
+        }
+
+        #expect(thrown is InjectedError)
+        #expect(!engine.isRunning)
+        #expect(engine.nextStartError == nil)
+    }
+
+#if canImport(AVFoundation)
+    @Test func avAudioPlayerNodeRealtimePlaybackEngineMakeBufferCopiesInt16BytesIntoChannel() throws {
+        let format = try #require(AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 24_000,
+            channels: 1,
+            interleaved: true
+        ))
+        // Two Int16 samples: 0x0100 (= 256), 0xFFFF (= -1), in little-endian wire order.
+        let bytes = Data([0x00, 0x01, 0xFF, 0xFF])
+
+        let buffer = try #require(
+            AVAudioPlayerNodeRealtimePlaybackEngine.makeBuffer(from: bytes, format: format)
+        )
+        #expect(buffer.frameLength == 2)
+        let channel = try #require(buffer.int16ChannelData?[0])
+        #expect(channel[0] == 256)
+        #expect(channel[1] == -1)
+    }
+
+    @Test func avAudioPlayerNodeRealtimePlaybackEngineMakeBufferRejectsEmptyData() throws {
+        let format = try #require(AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 24_000,
+            channels: 1,
+            interleaved: true
+        ))
+
+        #expect(AVAudioPlayerNodeRealtimePlaybackEngine.makeBuffer(from: Data(), format: format) == nil)
+    }
+
+    @Test func avAudioPlayerNodeRealtimePlaybackEngineMakeBufferRejectsOddByteCount() throws {
+        let format = try #require(AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 24_000,
+            channels: 1,
+            interleaved: true
+        ))
+
+        let oddBytes = Data([0x01, 0x02, 0x03])
+        #expect(AVAudioPlayerNodeRealtimePlaybackEngine.makeBuffer(from: oddBytes, format: format) == nil)
+    }
+#endif
+
     @Test func microphonePCMBridgeRoutesChunksThroughStubClient() {
         let client = StubDirectRealtimeClient()
         let source = StubMicrophonePCMSource()
