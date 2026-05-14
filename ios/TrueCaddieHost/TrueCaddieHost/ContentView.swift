@@ -312,6 +312,13 @@ private struct RoundPreviewView: View {
                             .foregroundStyle(.secondary)
                     }
 
+                    if let partialAssistantTranscript = voiceController.state.partialAssistantTranscript,
+                       !partialAssistantTranscript.isEmpty {
+                        Text("Caddie speaking: \(partialAssistantTranscript)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     HStack(spacing: 8) {
                         if voiceController.needsMicrophonePermission {
                             Button("Enable Mic") {

@@ -1825,12 +1825,18 @@ struct TrueCaddieHostTests {
         controller.submitPartialVoiceUtterance("what do you")
         let response = try #require(controller.submitVoiceUtterance("what do you like here"))
 
-        #expect(client.outboundActions.starts(with: ["connect", "partial:what do you", "final:what do you like here"]))
+        #expect(
+            client.outboundActions.starts(with: [
+                "connect",
+                "partial:what do you",
+                "final:what do you like here",
+                "assistant:\(response.spokenReply)"
+            ])
+        )
         #expect(controller.state.partialUserTranscript == nil)
         #expect(response.actionName == .guidance)
-
-        client.emit(.outputTranscriptPartial("PW to"))
-        #expect(controller.state.partialAssistantTranscript == "PW to")
+        #expect(controller.state.playbackState == .speaking)
+        #expect(controller.state.partialAssistantTranscript != nil)
 
         client.emit(.playbackStateChanged(.finished))
         #expect(controller.state.playbackState == .idle)
@@ -1876,6 +1882,24 @@ struct TrueCaddieHostTests {
         ))
         #expect(controller.state.transcriptEntries.first == .user("rough 128"))
         #expect(controller.state.transcriptEntries.last == .assistant(response.spokenReply))
+    }
+
+    @Test func stubRealtimeVoiceEventSourceCanPlayAssistantReply() {
+        let eventSource = StubRealtimeVoiceEventSource()
+
+        eventSource.playAssistantReply("PW to Lay up for wedge number")
+
+        #expect(eventSource.emittedEvents.first == .playbackStateChanged(.speaking))
+        #expect(
+            eventSource.emittedEvents.last ==
+            .transcript(
+                .init(
+                    speaker: .assistant,
+                    kind: .final,
+                    text: "PW to Lay up for wedge number"
+                )
+            )
+        )
     }
 
     @Test func hostVoiceSessionControllerReflectsTransportFailureFromEventSource() throws {

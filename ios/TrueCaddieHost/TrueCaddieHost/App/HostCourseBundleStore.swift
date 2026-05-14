@@ -1339,6 +1339,7 @@ protocol RealtimeVoiceEventSourcing: AnyObject {
     func submitPartialUtterance(_ utterance: String)
     func submitFinalUtterance(_ utterance: String)
     func submitToolInvocation(_ invocation: VoiceToolInvocation)
+    func playAssistantReply(_ reply: String)
     func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent)
     func setPlaybackState(_ state: RealtimeVoicePlaybackState)
     func finishAssistantPlayback()
@@ -1383,6 +1384,7 @@ protocol DirectRealtimeClienting: AnyObject {
     func sendPartialUtterance(_ utterance: String)
     func sendFinalUtterance(_ utterance: String)
     func sendToolInvocation(_ invocation: VoiceToolInvocation)
+    func emitAssistantReply(_ reply: String)
     func interrupt()
     func disconnect()
 }
@@ -1423,6 +1425,18 @@ final class StubDirectRealtimeClient: DirectRealtimeClienting {
                 )
             )
         )
+    }
+
+    func emitAssistantReply(_ reply: String) {
+        outboundActions.append("assistant:\(reply)")
+        onEvent?(.playbackStateChanged(.speaking))
+
+        let partial = String(reply.prefix(min(24, reply.count)))
+        if !partial.isEmpty, partial != reply {
+            onEvent?(.outputTranscriptPartial(partial))
+        }
+
+        onEvent?(.outputTranscriptFinal(reply))
     }
 
     func interrupt() {
@@ -1479,6 +1493,10 @@ final class DirectRealtimeVoiceEventSourceAdapter: RealtimeVoiceEventSourcing {
 
     func submitToolInvocation(_ invocation: VoiceToolInvocation) {
         client.sendToolInvocation(invocation)
+    }
+
+    func playAssistantReply(_ reply: String) {
+        client.emitAssistantReply(reply)
     }
 
     func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent) {
@@ -1551,6 +1569,7 @@ final class NoopRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
     func submitPartialUtterance(_ utterance: String) {}
     func submitFinalUtterance(_ utterance: String) {}
     func submitToolInvocation(_ invocation: VoiceToolInvocation) {}
+    func playAssistantReply(_ reply: String) {}
     func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent) {}
     func setPlaybackState(_ state: RealtimeVoicePlaybackState) {}
     func finishAssistantPlayback() {}
@@ -1601,6 +1620,15 @@ final class StubRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
 
     func submitToolInvocation(_ invocation: VoiceToolInvocation) {
         emit(.toolInvocation(invocation))
+    }
+
+    func playAssistantReply(_ reply: String) {
+        emit(.playbackStateChanged(.speaking))
+        let partial = String(reply.prefix(min(24, reply.count)))
+        if !partial.isEmpty, partial != reply {
+            emit(.transcript(.init(speaker: .assistant, kind: .partial, text: partial)))
+        }
+        emit(.transcript(.init(speaker: .assistant, kind: .final, text: reply)))
     }
 
     func emitToolCallback(_ callback: RealtimeVoiceToolCallbackEvent) {
@@ -2338,6 +2366,9 @@ final class HostVoiceSessionController: ObservableObject {
 
         lastEventResponse = nil
         eventSource.submitFinalUtterance(utterance)
+        if let response = lastEventResponse {
+            eventSource.playAssistantReply(response.spokenReply)
+        }
         return lastEventResponse
     }
 
@@ -2356,6 +2387,9 @@ final class HostVoiceSessionController: ObservableObject {
 
         lastEventResponse = nil
         eventSource.submitToolInvocation(invocation)
+        if let response = lastEventResponse {
+            eventSource.playAssistantReply(response.spokenReply)
+        }
         return lastEventResponse
     }
 
