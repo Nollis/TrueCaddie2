@@ -1,6 +1,9 @@
 import Combine
 import Foundation
 import TrueCaddieDomain
+#if canImport(AVFoundation)
+import AVFoundation
+#endif
 
 enum HostCourseBundleStore {
     static func loadKungsbackaNya(bundle: Bundle = .main) throws -> CourseBundle {
@@ -1051,28 +1054,58 @@ struct NoopRealtimeVoiceAudioSessionCoordinator: RealtimeVoiceAudioSessionCoordi
     func endVoiceSession() {}
 }
 
+#if canImport(AVFoundation)
+final class AVFoundationRealtimeVoiceAudioSessionCoordinator: RealtimeVoiceAudioSessionCoordinating {
+    private let audioSession = AVAudioSession.sharedInstance()
+
+    func prepareForVoiceSession() throws {
+        try audioSession.setCategory(
+            .playAndRecord,
+            mode: .voiceChat,
+            options: [.defaultToSpeaker, .allowBluetooth]
+        )
+        try audioSession.setActive(true)
+    }
+
+    func beginListening() throws {
+        try audioSession.setActive(true)
+    }
+
+    func stopListening() {}
+
+    func endVoiceSession() {
+        try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+    }
+}
+#endif
+
 enum RealtimeVoicePermissionState: Equatable {
     case undetermined
     case granted
     case denied
 }
 
-protocol RealtimeVoicePermissionProviding {
+protocol RealtimeVoicePermissionProviding: AnyObject {
+    var onStateChange: ((RealtimeVoicePermissionState) -> Void)? { get set }
+
     func currentPermissionState() -> RealtimeVoicePermissionState
-    func requestPermission() -> RealtimeVoicePermissionState
+    func requestPermission()
 }
 
-struct GrantedPilotVoicePermissionProvider: RealtimeVoicePermissionProviding {
+final class GrantedPilotVoicePermissionProvider: RealtimeVoicePermissionProviding {
+    var onStateChange: ((RealtimeVoicePermissionState) -> Void)?
+
     func currentPermissionState() -> RealtimeVoicePermissionState {
         .granted
     }
 
-    func requestPermission() -> RealtimeVoicePermissionState {
-        .granted
+    func requestPermission() {
+        onStateChange?(.granted)
     }
 }
 
 final class StubRealtimeVoicePermissionProvider: RealtimeVoicePermissionProviding {
+    var onStateChange: ((RealtimeVoicePermissionState) -> Void)?
     var state: RealtimeVoicePermissionState
     var requestedCount = 0
 
@@ -1084,9 +1117,62 @@ final class StubRealtimeVoicePermissionProvider: RealtimeVoicePermissionProvidin
         state
     }
 
-    func requestPermission() -> RealtimeVoicePermissionState {
+    func requestPermission() {
         requestedCount += 1
-        return state
+        onStateChange?(state)
+    }
+
+    func setState(_ state: RealtimeVoicePermissionState, notify: Bool = true) {
+        self.state = state
+        if notify {
+            onStateChange?(state)
+        }
+    }
+}
+
+#if canImport(AVFoundation)
+final class AVFoundationRealtimeVoicePermissionProvider: RealtimeVoicePermissionProviding {
+    var onStateChange: ((RealtimeVoicePermissionState) -> Void)?
+
+    func currentPermissionState() -> RealtimeVoicePermissionState {
+        switch AVAudioSession.sharedInstance().recordPermission {
+        case .undetermined:
+            return .undetermined
+        case .denied:
+            return .denied
+        case .granted:
+            return .granted
+        @unknown default:
+            return .denied
+        }
+    }
+
+    func requestPermission() {
+        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+            let state: RealtimeVoicePermissionState = granted ? .granted : .denied
+            DispatchQueue.main.async {
+                self?.onStateChange?(state)
+            }
+        }
+    }
+}
+#endif
+
+enum NativeRealtimeVoiceRuntimeFactory {
+    static func permissionProvider() -> any RealtimeVoicePermissionProviding {
+#if canImport(AVFoundation)
+        return AVFoundationRealtimeVoicePermissionProvider()
+#else
+        return GrantedPilotVoicePermissionProvider()
+#endif
+    }
+
+    static func audioCoordinator() -> any RealtimeVoiceAudioSessionCoordinating {
+#if canImport(AVFoundation)
+        return AVFoundationRealtimeVoiceAudioSessionCoordinator()
+#else
+        return NoopRealtimeVoiceAudioSessionCoordinator()
+#endif
     }
 }
 
@@ -1418,7 +1504,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
     init(
         credentialProvider: any RealtimeVoiceCredentialProviding,
         bootstrapper: any RealtimeVoiceSessionBootstrapping = DirectAppRealtimeSessionBootstrapper(),
-        audioCoordinator: any RealtimeVoiceAudioSessionCoordinating = NoopRealtimeVoiceAudioSessionCoordinator(),
+        audioCoordinator: any RealtimeVoiceAudioSessionCoordinating = NativeRealtimeVoiceRuntimeFactory.audioCoordinator(),
         transport: any RealtimeVoiceTransporting = NoopRealtimeVoiceTransport()
     ) {
         self.credentialProvider = credentialProvider
@@ -1650,7 +1736,7 @@ final class HostVoiceSessionController: ObservableObject {
         sessionManager: RealtimeVoiceSessionManager = RealtimeVoiceSessionManager(
             credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-placeholder")
         ),
-        permissionProvider: any RealtimeVoicePermissionProviding = GrantedPilotVoicePermissionProvider(),
+        permissionProvider: any RealtimeVoicePermissionProviding = NativeRealtimeVoiceRuntimeFactory.permissionProvider(),
         eventSource: any RealtimeVoiceEventSourcing = NoopRealtimeVoiceEventSource()
     ) {
         self.sessionManager = sessionManager
@@ -1658,6 +1744,10 @@ final class HostVoiceSessionController: ObservableObject {
         self.eventSource = eventSource
         self.state = sessionManager.state
         self.permissionState = permissionProvider.currentPermissionState()
+        self.permissionProvider.onStateChange = { [weak self] state in
+            self?.permissionState = state
+            self?.refreshState()
+        }
         self.eventSource.onEvent = { [weak self] event in
             self?.receiveRealtimeEvent(event)
         }
@@ -1675,7 +1765,7 @@ final class HostVoiceSessionController: ObservableObject {
 
         switch state.connectionState {
         case .disconnected:
-            return "Typed harness only. Voice session not connected."
+            return "Microphone ready. Voice session not connected."
         case .connecting:
             return "Connecting voice session..."
         case let .connected(descriptor):
@@ -1735,7 +1825,8 @@ final class HostVoiceSessionController: ObservableObject {
     }
 
     func requestMicrophoneAccess() {
-        permissionState = permissionProvider.requestPermission()
+        permissionProvider.requestPermission()
+        permissionState = permissionProvider.currentPermissionState()
         refreshState()
     }
 

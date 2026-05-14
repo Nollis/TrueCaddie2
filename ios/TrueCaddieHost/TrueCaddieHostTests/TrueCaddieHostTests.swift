@@ -1563,6 +1563,25 @@ struct TrueCaddieHostTests {
         #expect(!controller.needsMicrophonePermission)
     }
 
+    @Test func hostVoiceSessionControllerRefreshesFromPermissionProviderStateChanges() throws {
+        let permissionProvider = StubRealtimeVoicePermissionProvider(state: .undetermined)
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            permissionProvider: permissionProvider
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        #expect(controller.needsMicrophonePermission)
+
+        permissionProvider.setState(.granted)
+
+        #expect(!controller.needsMicrophonePermission)
+        #expect(controller.statusLabel.contains("Microphone ready"))
+    }
+
     @Test func hostVoiceSessionControllerSubmitsTypedUtterancesThroughSessionManager() throws {
         let controller = HostVoiceSessionController(
             sessionManager: RealtimeVoiceSessionManager(
