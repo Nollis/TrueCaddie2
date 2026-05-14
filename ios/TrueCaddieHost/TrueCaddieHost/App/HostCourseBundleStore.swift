@@ -1128,6 +1128,75 @@ final class StubRealtimeVoiceTransport: RealtimeVoiceTransporting {
     }
 }
 
+protocol RealtimeVoiceEventSourcing: AnyObject {
+    var onEvent: ((RealtimeVoiceTransportEvent) -> Void)? { get set }
+
+    func connect()
+    func beginListening()
+    func stopListening()
+    func submitFinalUtterance(_ utterance: String)
+    func submitToolInvocation(_ invocation: VoiceToolInvocation)
+    func finishAssistantPlayback()
+    func interrupt()
+    func failTransport(_ message: String)
+}
+
+final class NoopRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
+    var onEvent: ((RealtimeVoiceTransportEvent) -> Void)?
+
+    func connect() {}
+    func beginListening() {}
+    func stopListening() {}
+    func submitFinalUtterance(_ utterance: String) {}
+    func submitToolInvocation(_ invocation: VoiceToolInvocation) {}
+    func finishAssistantPlayback() {}
+    func interrupt() {}
+    func failTransport(_ message: String) {}
+}
+
+final class StubRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
+    var onEvent: ((RealtimeVoiceTransportEvent) -> Void)?
+    private(set) var emittedEvents: [RealtimeVoiceTransportEvent] = []
+    private(set) var connectCount = 0
+
+    func connect() {
+        connectCount += 1
+    }
+
+    func beginListening() {
+        emit(.listeningStarted)
+    }
+
+    func stopListening() {
+        emit(.listeningStopped)
+    }
+
+    func submitFinalUtterance(_ utterance: String) {
+        emit(.finalUserUtterance(utterance))
+    }
+
+    func submitToolInvocation(_ invocation: VoiceToolInvocation) {
+        emit(.toolInvocation(invocation))
+    }
+
+    func finishAssistantPlayback() {
+        emit(.assistantPlaybackFinished)
+    }
+
+    func interrupt() {
+        emit(.interrupted)
+    }
+
+    func failTransport(_ message: String) {
+        emit(.transportFailed(message))
+    }
+
+    private func emit(_ event: RealtimeVoiceTransportEvent) {
+        emittedEvents.append(event)
+        onEvent?(event)
+    }
+}
+
 enum VoiceToolParameterType: String, Equatable {
     case shotLie
     case decimal
@@ -1573,18 +1642,25 @@ final class HostVoiceSessionController: ObservableObject {
 
     private let sessionManager: RealtimeVoiceSessionManager
     private let permissionProvider: any RealtimeVoicePermissionProviding
+    private let eventSource: any RealtimeVoiceEventSourcing
     private var currentContext: HostCaddieSession.TurnContext?
+    private var lastEventResponse: VoiceTurnResponse?
 
     init(
         sessionManager: RealtimeVoiceSessionManager = RealtimeVoiceSessionManager(
             credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-placeholder")
         ),
-        permissionProvider: any RealtimeVoicePermissionProviding = GrantedPilotVoicePermissionProvider()
+        permissionProvider: any RealtimeVoicePermissionProviding = GrantedPilotVoicePermissionProvider(),
+        eventSource: any RealtimeVoiceEventSourcing = NoopRealtimeVoiceEventSource()
     ) {
         self.sessionManager = sessionManager
         self.permissionProvider = permissionProvider
+        self.eventSource = eventSource
         self.state = sessionManager.state
         self.permissionState = permissionProvider.currentPermissionState()
+        self.eventSource.onEvent = { [weak self] event in
+            self?.receiveRealtimeEvent(event)
+        }
     }
 
     var statusLabel: String {
@@ -1627,6 +1703,14 @@ final class HostVoiceSessionController: ObservableObject {
         state.turnState == .listening
     }
 
+    var isSpeaking: Bool {
+        if case .speaking = state.turnState {
+            return true
+        }
+
+        return false
+    }
+
     var canConnect: Bool {
         permissionState == .granted && !isConnected
     }
@@ -1637,6 +1721,10 @@ final class HostVoiceSessionController: ObservableObject {
 
     var canStopListening: Bool {
         isListening
+    }
+
+    var canInterrupt: Bool {
+        isListening || isSpeaking
     }
 
     func updateContext(_ context: HostCaddieSession.TurnContext) {
@@ -1657,6 +1745,7 @@ final class HostVoiceSessionController: ObservableObject {
         }
 
         try? sessionManager.connect()
+        eventSource.connect()
         refreshState()
     }
 
@@ -1666,7 +1755,7 @@ final class HostVoiceSessionController: ObservableObject {
     }
 
     func beginListening() {
-        guard let context = currentContext else {
+        guard currentContext != nil else {
             return
         }
 
@@ -1676,27 +1765,32 @@ final class HostVoiceSessionController: ObservableObject {
 
         connectIfNeeded()
         try? sessionManager.beginListening()
-        _ = sessionManager.handleTransportEvent(.listeningStarted, context: context)
-        refreshState()
+        eventSource.beginListening()
     }
 
     func stopListening() {
-        guard let context = currentContext else {
+        guard currentContext != nil else {
             return
         }
 
         sessionManager.stopListening()
-        _ = sessionManager.handleTransportEvent(.listeningStopped, context: context)
-        refreshState()
+        eventSource.stopListening()
     }
 
     func finishPlayback() {
-        guard let context = currentContext else {
+        guard currentContext != nil else {
             return
         }
 
-        _ = sessionManager.handleTransportEvent(.assistantPlaybackFinished, context: context)
-        refreshState()
+        eventSource.finishAssistantPlayback()
+    }
+
+    func interrupt() {
+        guard currentContext != nil else {
+            return
+        }
+
+        eventSource.interrupt()
     }
 
     func submitTypedUtterance(_ utterance: String) -> VoiceTurnResponse? {
@@ -1713,16 +1807,43 @@ final class HostVoiceSessionController: ObservableObject {
     }
 
     func submitVoiceUtterance(_ utterance: String) -> VoiceTurnResponse? {
-        guard let currentContext else {
+        guard currentContext != nil else {
             return nil
         }
 
-        let response = sessionManager.handleTransportEvent(
-            .finalUserUtterance(utterance),
+        lastEventResponse = nil
+        eventSource.submitFinalUtterance(utterance)
+        return lastEventResponse
+    }
+
+    func submitVoiceToolInvocation(_ invocation: VoiceToolInvocation) -> VoiceTurnResponse? {
+        guard currentContext != nil else {
+            return nil
+        }
+
+        lastEventResponse = nil
+        eventSource.submitToolInvocation(invocation)
+        return lastEventResponse
+    }
+
+    func simulateTransportFailure(_ message: String) {
+        guard currentContext != nil else {
+            return
+        }
+
+        eventSource.failTransport(message)
+    }
+
+    private func receiveRealtimeEvent(_ event: RealtimeVoiceTransportEvent) {
+        guard let currentContext else {
+            return
+        }
+
+        lastEventResponse = sessionManager.handleTransportEvent(
+            event,
             context: currentContext
         )
         refreshState()
-        return response
     }
 
     private func refreshState() {

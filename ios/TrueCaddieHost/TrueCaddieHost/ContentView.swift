@@ -334,9 +334,15 @@ private struct RoundPreviewView: View {
                                 : !voiceController.canStartListening
                         )
 
-                        if case .speaking = voiceController.state.turnState {
+                        if voiceController.isSpeaking {
                             Button("Finish Playback") {
                                 voiceController.finishPlayback()
+                            }
+                        }
+
+                        if voiceController.canInterrupt {
+                            Button("Interrupt") {
+                                voiceController.interrupt()
                             }
                         }
                     }
@@ -365,6 +371,17 @@ private struct RoundPreviewView: View {
                             quickPromptButton("Sim Voice") {
                                 submitVoiceDebugUtterance("what do you like here")
                             }
+                            quickPromptButton("Sim Result") {
+                                submitVoiceDebugToolInvocation(
+                                    VoiceToolInvocation(
+                                        actionName: .reportResult,
+                                        arguments: .init(
+                                            lie: .rough,
+                                            remainingDistanceM: 128
+                                        )
+                                    )
+                                )
+                            }
                             quickPromptButton("Safe play") {
                                 submitConversationInput("safe play")
                             }
@@ -373,6 +390,9 @@ private struct RoundPreviewView: View {
                             }
                             quickPromptButton("Repeat") {
                                 submitConversationInput("repeat")
+                            }
+                            quickPromptButton("Sim Fail") {
+                                voiceController.simulateTransportFailure("Debug transport drop")
                             }
                         }
                     }
@@ -802,6 +822,14 @@ private struct RoundPreviewView: View {
 
     private func submitVoiceDebugUtterance(_ utterance: String) {
         guard let response = voiceController.submitVoiceUtterance(utterance) else {
+            return
+        }
+
+        applyVoiceResponse(response)
+    }
+
+    private func submitVoiceDebugToolInvocation(_ invocation: VoiceToolInvocation) {
+        guard let response = voiceController.submitVoiceToolInvocation(invocation) else {
             return
         }
 

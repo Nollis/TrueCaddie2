@@ -1605,6 +1605,98 @@ struct TrueCaddieHostTests {
         #expect(controller.state.turnState == .idle)
     }
 
+    @Test func hostVoiceSessionControllerUsesStubEventSourceForRealtimeLifecycle() throws {
+        let eventSource = StubRealtimeVoiceEventSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            eventSource: eventSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.connectIfNeeded()
+        controller.beginListening()
+
+        #expect(eventSource.connectCount == 1)
+        #expect(eventSource.emittedEvents == [.listeningStarted])
+        #expect(controller.isListening)
+
+        let response = try #require(controller.submitVoiceUtterance("what do you like here"))
+
+        #expect(response.actionName == .guidance)
+        #expect(eventSource.emittedEvents.last == .finalUserUtterance("what do you like here"))
+        #expect(controller.isSpeaking)
+
+        controller.interrupt()
+
+        #expect(eventSource.emittedEvents.last == .interrupted)
+        #expect(controller.state.turnState == .idle)
+        #expect(controller.state.lastInterruptedTurnID == response.turnID)
+    }
+
+    @Test func hostVoiceSessionControllerSubmitsStructuredToolEventsThroughEventSource() throws {
+        let eventSource = StubRealtimeVoiceEventSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            eventSource: eventSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(
+            makeConversationContext(
+                bundle: bundle,
+                roundState: makeInProgressRoundState(courseId: bundle.courseId)
+            )
+        )
+        let response = try #require(
+            controller.submitVoiceToolInvocation(
+                VoiceToolInvocation(
+                    actionName: .reportResult,
+                    arguments: .init(
+                        lie: .rough,
+                        remainingDistanceM: 128
+                    )
+                )
+            )
+        )
+
+        #expect(response.actionName == .reportResult)
+        #expect(eventSource.emittedEvents.last == .toolInvocation(
+            VoiceToolInvocation(
+                actionName: .reportResult,
+                arguments: .init(
+                    lie: .rough,
+                    remainingDistanceM: 128
+                )
+            )
+        ))
+        #expect(controller.state.transcriptEntries.first == .user("rough 128"))
+        #expect(controller.state.transcriptEntries.last == .assistant(response.spokenReply))
+    }
+
+    @Test func hostVoiceSessionControllerReflectsTransportFailureFromEventSource() throws {
+        let eventSource = StubRealtimeVoiceEventSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            eventSource: eventSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.connectIfNeeded()
+        controller.simulateTransportFailure("network dropped")
+
+        #expect(eventSource.emittedEvents.last == .transportFailed("network dropped"))
+        #expect(controller.state.connectionState == .failed("network dropped"))
+        #expect(controller.statusLabel.contains("network dropped"))
+    }
+
     @Test func conversationCanResolveToolCallThroughRealtimeAgentStub() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let context = HostCaddieSession.TurnContext(
