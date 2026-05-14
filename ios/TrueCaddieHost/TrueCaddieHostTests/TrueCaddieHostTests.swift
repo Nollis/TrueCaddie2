@@ -1595,6 +1595,94 @@ struct TrueCaddieHostTests {
         #expect(configuration.audio.voiceProcessingEnabled)
     }
 
+    @Test func microphonePCMEncoderConvertsMonoFloatTo24kHzLittleEndianInt16() {
+        let encoder = RealtimeMicrophonePCMEncoder()
+        let format = RealtimeMicrophonePCMFormat(sampleRateHz: 24_000, channelCount: 1)
+
+        let data = encoder.encode([0.0, 1.0, -1.0, 0.5], format: format)
+
+        #expect(decodeLittleEndianInt16(data) == [0, 32_767, -32_767, 16_384])
+    }
+
+    @Test func microphonePCMEncoderDownsamples48kHzMonoToHalfFrameCount() {
+        let encoder = RealtimeMicrophonePCMEncoder()
+        let format = RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 1)
+        let samples = (0..<100).map { Float($0) / 200.0 }
+
+        let data = encoder.encode(samples, format: format)
+        let int16Samples = decodeLittleEndianInt16(data)
+
+        #expect(int16Samples.count == 50)
+        let expectedFirst = Int16(((samples[0]).clamped(to: -1...1) * 32_767.0).rounded())
+        let expectedSecond = Int16(((samples[2]).clamped(to: -1...1) * 32_767.0).rounded())
+        #expect(int16Samples.first == expectedFirst)
+        #expect(int16Samples[1] == expectedSecond)
+    }
+
+    @Test func microphonePCMEncoderDownmixesInterleavedStereoBeforeResampling() {
+        let encoder = RealtimeMicrophonePCMEncoder()
+        let format = RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 2)
+        // Four interleaved stereo frames: L = +1, R = -1 → mono = 0
+        let samples: [Float] = [1, -1, 1, -1, 1, -1, 1, -1]
+
+        let int16Samples = decodeLittleEndianInt16(encoder.encode(samples, format: format))
+
+        #expect(int16Samples.count == 2)
+        #expect(int16Samples.allSatisfy { $0 == 0 })
+    }
+
+    @Test func microphonePCMEncoderClipsOutOfRangeFloats() {
+        let encoder = RealtimeMicrophonePCMEncoder()
+        let format = RealtimeMicrophonePCMFormat(sampleRateHz: 24_000, channelCount: 1)
+
+        let int16Samples = decodeLittleEndianInt16(
+            encoder.encode([1.5, -1.5, 1.0, -1.0], format: format)
+        )
+
+        #expect(int16Samples == [32_767, -32_767, 32_767, -32_767])
+    }
+
+    @Test func microphonePCMEncoderReturnsEmptyDataForEmptyInput() {
+        let encoder = RealtimeMicrophonePCMEncoder()
+        let data = encoder.encode([], format: .typicalIOSMicrophone)
+        #expect(data.isEmpty)
+    }
+
+    @Test func microphonePCMEncoderEmitsLittleEndianByteOrder() {
+        let encoder = RealtimeMicrophonePCMEncoder()
+        let format = RealtimeMicrophonePCMFormat(sampleRateHz: 24_000, channelCount: 1)
+
+        let data = encoder.encode([1.0 / 32_767.0], format: format)
+
+        #expect(data == Data([0x01, 0x00]))
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellEncodesMicrophonePCMBeforeSendingAudioBuffer() throws {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+        let format = RealtimeMicrophonePCMFormat(sampleRateHz: 48_000, channelCount: 1)
+
+        // 4 input frames at 48 kHz → 2 output frames at 24 kHz → 4 bytes
+        client.sendMicrophonePCMChunk([1.0, 1.0, -1.0, -1.0], format: format)
+
+        let payload = try #require(connection.sentJSONMessages.last?.data(using: .utf8))
+        let envelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: payload)
+        #expect(envelope.type == "input_audio_buffer.append")
+
+        let audioBytes = try #require(envelope.audio.flatMap { Data(base64Encoded: $0) })
+        #expect(audioBytes.count == 4)
+        #expect(decodeLittleEndianInt16(audioBytes) == [32_767, -32_767])
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellSkipsEmptyMicrophonePCMChunks() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+
+        client.sendMicrophonePCMChunk([], format: .typicalIOSMicrophone)
+
+        #expect(connection.sentJSONMessages.isEmpty)
+    }
+
     @Test func openAIRealtimeWebSocketConnectionTracksLifecycleAndOutgoingJSON() {
         let connection = OpenAIRealtimeWebSocketConnection(configuration: .default)
 
@@ -2263,5 +2351,24 @@ struct TrueCaddieHostTests {
                 )
             ]
         )
+    }
+}
+
+private func decodeLittleEndianInt16(_ data: Data) -> [Int16] {
+    var samples: [Int16] = []
+    samples.reserveCapacity(data.count / 2)
+    var index = data.startIndex
+    while index + 1 < data.endIndex {
+        let lo = UInt16(data[index])
+        let hi = UInt16(data[index + 1])
+        samples.append(Int16(bitPattern: (hi << 8) | lo))
+        index += 2
+    }
+    return samples
+}
+
+private extension Float {
+    func clamped(to range: ClosedRange<Float>) -> Float {
+        min(max(self, range.lowerBound), range.upperBound)
     }
 }

@@ -1443,6 +1443,110 @@ struct OpenAIRealtimeAudioConfiguration: Equatable, Codable {
     )
 }
 
+struct RealtimeMicrophonePCMFormat: Equatable {
+    let sampleRateHz: Double
+    let channelCount: Int
+
+    init(sampleRateHz: Double, channelCount: Int) {
+        self.sampleRateHz = sampleRateHz
+        self.channelCount = max(1, channelCount)
+    }
+
+    static let typicalIOSMicrophone = RealtimeMicrophonePCMFormat(
+        sampleRateHz: 48_000,
+        channelCount: 1
+    )
+}
+
+struct RealtimeMicrophonePCMEncoder: Equatable {
+    let targetSampleRateHz: Double
+    let targetChannelCount: Int
+
+    init(audio: OpenAIRealtimeAudioConfiguration = .default) {
+        self.targetSampleRateHz = Double(audio.apiSampleRateHz)
+        self.targetChannelCount = max(1, audio.apiChannelCount)
+    }
+
+    init(targetSampleRateHz: Double, targetChannelCount: Int) {
+        self.targetSampleRateHz = targetSampleRateHz
+        self.targetChannelCount = max(1, targetChannelCount)
+    }
+
+    func encode(_ samples: [Float], format: RealtimeMicrophonePCMFormat) -> Data {
+        guard !samples.isEmpty else { return Data() }
+
+        let mono = Self.downmixToMono(samples, channelCount: format.channelCount)
+        let resampled = Self.linearResample(
+            mono,
+            sourceSampleRateHz: format.sampleRateHz,
+            targetSampleRateHz: targetSampleRateHz
+        )
+        return Self.encodeLittleEndianInt16(resampled)
+    }
+
+    static func downmixToMono(_ samples: [Float], channelCount: Int) -> [Float] {
+        guard channelCount > 1 else { return samples }
+        let frameCount = samples.count / channelCount
+        var mono = [Float]()
+        mono.reserveCapacity(frameCount)
+        let divisor = Float(channelCount)
+        for frame in 0..<frameCount {
+            var sum: Float = 0
+            for channel in 0..<channelCount {
+                sum += samples[frame * channelCount + channel]
+            }
+            mono.append(sum / divisor)
+        }
+        return mono
+    }
+
+    static func linearResample(
+        _ samples: [Float],
+        sourceSampleRateHz: Double,
+        targetSampleRateHz: Double
+    ) -> [Float] {
+        guard sourceSampleRateHz > 0, targetSampleRateHz > 0, !samples.isEmpty else {
+            return []
+        }
+        if sourceSampleRateHz == targetSampleRateHz {
+            return samples
+        }
+
+        let ratio = targetSampleRateHz / sourceSampleRateHz
+        let outputCount = Int((Double(samples.count) * ratio).rounded(.down))
+        guard outputCount > 0 else { return [] }
+
+        let stepSourcePerOutput = sourceSampleRateHz / targetSampleRateHz
+        let lastIndex = samples.count - 1
+
+        var output = [Float]()
+        output.reserveCapacity(outputCount)
+        for outIndex in 0..<outputCount {
+            let sourcePos = Double(outIndex) * stepSourcePerOutput
+            let i0 = min(Int(sourcePos), lastIndex)
+            let i1 = min(i0 + 1, lastIndex)
+            let t = Float(sourcePos - Double(i0))
+            let s0 = samples[i0]
+            let s1 = samples[i1]
+            output.append(s0 + (s1 - s0) * t)
+        }
+        return output
+    }
+
+    static func encodeLittleEndianInt16(_ samples: [Float]) -> Data {
+        var data = Data(capacity: samples.count * 2)
+        for sample in samples {
+            let clamped = max(Float(-1.0), min(Float(1.0), sample))
+            let scaled = (clamped * 32_767.0).rounded()
+            let int16 = Int16(scaled)
+            withUnsafeBytes(of: int16.littleEndian) { buffer in
+                data.append(contentsOf: buffer)
+            }
+        }
+        return data
+    }
+}
+
 struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
     let model: String
     let webSocketURL: String
@@ -1614,6 +1718,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     private(set) var outboundActions: [String] = []
     private let connection: any OpenAIRealtimeConnectioning
     private let configuration: OpenAIRealtimeSessionConfiguration
+    private let microphoneEncoder: RealtimeMicrophonePCMEncoder
 
     init(
         connection: any OpenAIRealtimeConnectioning = StubOpenAIRealtimeConnection(),
@@ -1621,6 +1726,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     ) {
         self.connection = connection
         self.configuration = configuration
+        self.microphoneEncoder = RealtimeMicrophonePCMEncoder(audio: configuration.audio)
         self.connection.onJSONMessage = { [weak self] json in
             self?.receiveServerEventJSON(json)
         }
@@ -1736,6 +1842,13 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
                 audio: audioData.base64EncodedString()
             )
         )
+    }
+
+    func sendMicrophonePCMChunk(_ samples: [Float], format: RealtimeMicrophonePCMFormat) {
+        let encoded = microphoneEncoder.encode(samples, format: format)
+        outboundActions.append("input_audio_buffer.append:mic:\(encoded.count)")
+        guard !encoded.isEmpty else { return }
+        sendAudioBufferAppend(encoded)
     }
 
     func receiveServerEventJSON(_ json: String) {
