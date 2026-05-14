@@ -1420,6 +1420,8 @@ struct OpenAIRealtimeServerEventEnvelope: Codable, Equatable {
 }
 
 enum OpenAIRealtimeClientEventType: String, Codable, Equatable {
+    case sessionUpdate = "session.update"
+    case responseCreate = "response.create"
     case inputAudioBufferAppend = "input_audio_buffer.append"
     case inputAudioBufferCommit = "input_audio_buffer.commit"
     case responseCancel = "response.cancel"
@@ -1445,12 +1447,81 @@ struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
     let model: String
     let webSocketURL: String
     let audio: OpenAIRealtimeAudioConfiguration
+    let instructions: String
+    let voice: String
+    let inputTranscriptionModel: String
+    let turnDetection: String?
 
     static let `default` = OpenAIRealtimeSessionConfiguration(
         model: "gpt-realtime-2",
         webSocketURL: "wss://api.openai.com/v1/realtime",
-        audio: .default
+        audio: .default,
+        instructions: "You are a concise, grounded golf caddie. Use the live round state and tool outputs. Keep spoken replies short.",
+        voice: "alloy",
+        inputTranscriptionModel: "gpt-4o-mini-transcribe",
+        turnDetection: "server_vad"
     )
+}
+
+struct OpenAIRealtimeSessionAudioFormat: Codable, Equatable {
+    let type: String
+}
+
+struct OpenAIRealtimeInputAudioTranscriptionConfiguration: Codable, Equatable {
+    let model: String
+}
+
+struct OpenAIRealtimeTurnDetectionConfiguration: Codable, Equatable {
+    let type: String
+}
+
+struct OpenAIRealtimeSessionUpdatePayload: Codable, Equatable {
+    let model: String
+    let instructions: String
+    let voice: String
+    let inputAudioFormat: OpenAIRealtimeSessionAudioFormat
+    let outputAudioFormat: OpenAIRealtimeSessionAudioFormat
+    let inputAudioTranscription: OpenAIRealtimeInputAudioTranscriptionConfiguration
+    let turnDetection: OpenAIRealtimeTurnDetectionConfiguration?
+
+    enum CodingKeys: String, CodingKey {
+        case model
+        case instructions
+        case voice
+        case inputAudioFormat = "input_audio_format"
+        case outputAudioFormat = "output_audio_format"
+        case inputAudioTranscription = "input_audio_transcription"
+        case turnDetection = "turn_detection"
+    }
+}
+
+struct OpenAIRealtimeSessionUpdateEventEnvelope: Codable, Equatable {
+    let type: String
+    let eventID: String
+    let session: OpenAIRealtimeSessionUpdatePayload
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case eventID = "event_id"
+        case session
+    }
+}
+
+struct OpenAIRealtimeResponseConfiguration: Codable, Equatable {
+    let conversation: String
+    let modalities: [String]
+}
+
+struct OpenAIRealtimeResponseCreateEventEnvelope: Codable, Equatable {
+    let type: String
+    let eventID: String
+    let response: OpenAIRealtimeResponseConfiguration
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case eventID = "event_id"
+        case response
+    }
 }
 
 struct OpenAIRealtimeClientEventEnvelope: Codable, Equatable {
@@ -1542,9 +1613,14 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     var onEvent: ((DirectRealtimeClientEvent) -> Void)?
     private(set) var outboundActions: [String] = []
     private let connection: any OpenAIRealtimeConnectioning
+    private let configuration: OpenAIRealtimeSessionConfiguration
 
-    init(connection: any OpenAIRealtimeConnectioning = StubOpenAIRealtimeConnection()) {
+    init(
+        connection: any OpenAIRealtimeConnectioning = StubOpenAIRealtimeConnection(),
+        configuration: OpenAIRealtimeSessionConfiguration = .default
+    ) {
         self.connection = connection
+        self.configuration = configuration
         self.connection.onJSONMessage = { [weak self] json in
             self?.receiveServerEventJSON(json)
         }
@@ -1559,6 +1635,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     func connect() {
         outboundActions.append("connect")
         connection.connect()
+        sendSessionUpdate()
     }
 
     func beginListening() {
@@ -1573,13 +1650,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func sendPartialUtterance(_ utterance: String) {
         outboundActions.append("input_audio_buffer.append:\(utterance)")
-        sendClientEvent(
-            .init(
-                type: OpenAIRealtimeClientEventType.inputAudioBufferAppend.rawValue,
-                eventID: UUID().uuidString.lowercased(),
-                audio: utterance
-            )
-        )
+        sendAudioBufferAppend(Data(utterance.utf8))
     }
 
     func sendFinalUtterance(_ utterance: String) {
@@ -1617,6 +1688,54 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     func disconnect() {
         outboundActions.append("disconnect")
         connection.disconnect()
+    }
+
+    func sendSessionUpdate() {
+        sendSessionUpdate(configuration)
+    }
+
+    func sendSessionUpdate(_ configuration: OpenAIRealtimeSessionConfiguration) {
+        let audioFormat = OpenAIRealtimeSessionAudioFormat(type: "pcm16")
+        let payload = OpenAIRealtimeSessionUpdatePayload(
+            model: configuration.model,
+            instructions: configuration.instructions,
+            voice: configuration.voice,
+            inputAudioFormat: audioFormat,
+            outputAudioFormat: audioFormat,
+            inputAudioTranscription: .init(model: configuration.inputTranscriptionModel),
+            turnDetection: configuration.turnDetection.map { .init(type: $0) }
+        )
+
+        let envelope = OpenAIRealtimeSessionUpdateEventEnvelope(
+            type: OpenAIRealtimeClientEventType.sessionUpdate.rawValue,
+            eventID: UUID().uuidString.lowercased(),
+            session: payload
+        )
+
+        sendEnvelope(envelope)
+    }
+
+    func sendResponseCreate() {
+        let envelope = OpenAIRealtimeResponseCreateEventEnvelope(
+            type: OpenAIRealtimeClientEventType.responseCreate.rawValue,
+            eventID: UUID().uuidString.lowercased(),
+            response: .init(
+                conversation: "auto",
+                modalities: ["audio", "text"]
+            )
+        )
+
+        sendEnvelope(envelope)
+    }
+
+    func sendAudioBufferAppend(_ audioData: Data) {
+        sendClientEvent(
+            .init(
+                type: OpenAIRealtimeClientEventType.inputAudioBufferAppend.rawValue,
+                eventID: UUID().uuidString.lowercased(),
+                audio: audioData.base64EncodedString()
+            )
+        )
     }
 
     func receiveServerEventJSON(_ json: String) {
@@ -1681,6 +1800,10 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     }
 
     private func sendClientEvent(_ envelope: OpenAIRealtimeClientEventEnvelope) {
+        sendEnvelope(envelope)
+    }
+
+    private func sendEnvelope<T: Encodable>(_ envelope: T) {
         guard let data = try? JSONEncoder().encode(envelope),
               let json = String(data: data, encoding: .utf8) else {
             return

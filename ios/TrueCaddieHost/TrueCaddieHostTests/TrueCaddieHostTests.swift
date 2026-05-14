@@ -1546,14 +1546,21 @@ struct TrueCaddieHostTests {
         client.interrupt()
 
         #expect(connection.connectCount == 1)
-        #expect(connection.sentJSONMessages.count == 3)
+        #expect(connection.sentJSONMessages.count == 4)
 
-        let sentData = try #require(connection.sentJSONMessages.first?.data(using: .utf8))
+        let sessionData = try #require(connection.sentJSONMessages.first?.data(using: .utf8))
+        let sessionEnvelope = try JSONDecoder().decode(OpenAIRealtimeSessionUpdateEventEnvelope.self, from: sessionData)
+        #expect(sessionEnvelope.type == "session.update")
+        #expect(sessionEnvelope.session.model == "gpt-realtime-2")
+        #expect(sessionEnvelope.session.inputAudioFormat.type == "pcm16")
+        #expect(sessionEnvelope.session.inputAudioTranscription.model == "gpt-4o-mini-transcribe")
+
+        let sentData = try #require(connection.sentJSONMessages.dropFirst().first?.data(using: .utf8))
         let firstEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: sentData)
         #expect(firstEnvelope.type == "input_audio_buffer.append")
-        #expect(firstEnvelope.audio == "abc123")
+        #expect(firstEnvelope.audio == Data("abc123".utf8).base64EncodedString())
 
-        let secondData = try #require(connection.sentJSONMessages.dropFirst().first?.data(using: .utf8))
+        let secondData = try #require(connection.sentJSONMessages.dropFirst(2).first?.data(using: .utf8))
         let secondEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: secondData)
         #expect(secondEnvelope.type == "input_audio_buffer.commit")
         #expect(secondEnvelope.audio == nil)
@@ -1561,6 +1568,19 @@ struct TrueCaddieHostTests {
         let thirdData = try #require(connection.sentJSONMessages.last?.data(using: .utf8))
         let thirdEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: thirdData)
         #expect(thirdEnvelope.type == "response.cancel")
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellCanSendResponseCreate() throws {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+
+        client.sendResponseCreate()
+
+        let payloadData = try #require(connection.sentJSONMessages.first?.data(using: .utf8))
+        let envelope = try JSONDecoder().decode(OpenAIRealtimeResponseCreateEventEnvelope.self, from: payloadData)
+        #expect(envelope.type == "response.create")
+        #expect(envelope.response.conversation == "auto")
+        #expect(envelope.response.modalities == ["audio", "text"])
     }
 
     @Test func openAIRealtimeSessionConfigurationDefaultsMatchVoiceRequirements() {
