@@ -1539,6 +1539,68 @@ struct TrueCaddieHostTests {
         #expect(receivedEvents == [.inputTranscriptFinal("what do you like here")])
     }
 
+    @MainActor @Test func openAIRealtimeClientShellDecodesOutputAudioDeltaIntoChunkEvent() {
+        let client = OpenAIRealtimeClientShell()
+        var receivedEvents: [DirectRealtimeClientEvent] = []
+        client.onEvent = { receivedEvents.append($0) }
+
+        let payload = Data([0x10, 0x00, 0x20, 0x00, 0xF0, 0xFF])
+        let base64 = payload.base64EncodedString()
+        client.receiveServerEventJSON(
+            #"{"type":"response.output_audio.delta","delta":"\#(base64)"}"#
+        )
+
+        #expect(receivedEvents == [.outputAudioChunk(payload)])
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellEmitsFinishedPlaybackStateOnOutputAudioDone() {
+        let client = OpenAIRealtimeClientShell()
+        var receivedEvents: [DirectRealtimeClientEvent] = []
+        client.onEvent = { receivedEvents.append($0) }
+
+        client.receiveServerEventJSON(
+            #"{"type":"response.output_audio.done"}"#
+        )
+
+        #expect(receivedEvents == [.playbackStateChanged(.finished)])
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellDropsOutputAudioDeltaWithoutDeltaField() {
+        let client = OpenAIRealtimeClientShell()
+        var receivedEvents: [DirectRealtimeClientEvent] = []
+        client.onEvent = { receivedEvents.append($0) }
+
+        client.receiveServerEventJSON(
+            #"{"type":"response.output_audio.delta"}"#
+        )
+
+        #expect(receivedEvents.isEmpty)
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellDropsOutputAudioDeltaWithUnDecodableBase64() {
+        let client = OpenAIRealtimeClientShell()
+        var receivedEvents: [DirectRealtimeClientEvent] = []
+        client.onEvent = { receivedEvents.append($0) }
+
+        client.receiveServerEventJSON(
+            #"{"type":"response.output_audio.delta","delta":"not-valid-base64!@#"}"#
+        )
+
+        #expect(receivedEvents.isEmpty)
+    }
+
+    @Test func directRealtimeVoiceEventSourceAdapterForwardsOutputAudioChunkAsTransportEvent() {
+        let client = StubDirectRealtimeClient()
+        let adapter = DirectRealtimeVoiceEventSourceAdapter(client: client)
+        var transportEvents: [RealtimeVoiceTransportEvent] = []
+        adapter.onEvent = { transportEvents.append($0) }
+
+        let payload = Data([0x01, 0x02, 0x03, 0x04])
+        client.emit(.outputAudioChunk(payload))
+
+        #expect(transportEvents == [.outputAudioChunk(payload)])
+    }
+
     @MainActor @Test func openAIRealtimeClientShellSendsSessionUpdateOnConnectAndResponseCancelOnInterrupt() throws {
         let connection = StubOpenAIRealtimeConnection()
         let client = OpenAIRealtimeClientShell(connection: connection)

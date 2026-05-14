@@ -1558,6 +1558,7 @@ enum DirectRealtimeClientEvent: Equatable {
     case inputTranscriptFinal(String)
     case outputTranscriptPartial(String)
     case outputTranscriptFinal(String)
+    case outputAudioChunk(Data)
     case toolEvent(DirectRealtimeClientToolEvent)
     case playbackStateChanged(DirectRealtimeClientPlaybackState)
     case interrupted
@@ -2298,7 +2299,11 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
             return .outputTranscriptFinal(transcript)
 
         case .outputAudioDelta:
-            return .playbackStateChanged(.speaking)
+            guard let base64 = envelope.delta,
+                  let bytes = Data(base64Encoded: base64) else {
+                return nil
+            }
+            return .outputAudioChunk(bytes)
 
         case .outputAudioDone:
             return .playbackStateChanged(.finished)
@@ -2524,6 +2529,8 @@ final class DirectRealtimeVoiceEventSourceAdapter: RealtimeVoiceEventSourcing {
             case .finished:
                 return .playbackStateChanged(.finished)
             }
+        case let .outputAudioChunk(data):
+            return .outputAudioChunk(data)
         case .interrupted:
             return .interrupted
         case let .failed(message):
@@ -2760,6 +2767,7 @@ enum RealtimeVoiceTransportEvent: Equatable {
     case transcript(RealtimeVoiceTranscriptEvent)
     case toolInvocation(VoiceToolInvocation)
     case toolCallback(RealtimeVoiceToolCallbackEvent)
+    case outputAudioChunk(Data)
     case playbackStateChanged(RealtimeVoicePlaybackState)
     case interrupted
     case transportFailed(String)
@@ -3024,6 +3032,11 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             if playbackState == .finished {
                 finishSpeaking()
             }
+            return nil
+
+        case .outputAudioChunk:
+            // Routed to the playback engine by the controller layer; the
+            // session manager has no state to mutate for raw audio bytes.
             return nil
 
         case .interrupted:
