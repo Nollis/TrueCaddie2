@@ -1161,7 +1161,7 @@ final class StubMicrophonePCMSource: MicrophonePCMSourcing {
 final class AVAudioEngineMicrophonePCMSource: MicrophonePCMSourcing {
     var onChunk: ((MicrophonePCMChunk) -> Void)?
 
-    private let engine: AVAudioEngine
+    let engine: AVAudioEngine
     private let bufferSize: AVAudioFrameCount
     private(set) var isRunning = false
 
@@ -1292,7 +1292,7 @@ final class StubRealtimePlaybackEngine: RealtimePlaybackEngine {
 
 #if canImport(AVFoundation)
 final class AVAudioPlayerNodeRealtimePlaybackEngine: RealtimePlaybackEngine {
-    private let engine: AVAudioEngine
+    let engine: AVAudioEngine
     private let playerNode = AVAudioPlayerNode()
     private let outputFormat: AVAudioFormat
     private(set) var isRunning = false
@@ -1526,6 +1526,29 @@ enum NativeRealtimeVoiceRuntimeFactory {
         return AVAudioEngineMicrophonePCMSource()
 #else
         return StubMicrophonePCMSource()
+#endif
+    }
+
+    static func playbackEngine() -> any RealtimePlaybackEngine {
+#if canImport(AVFoundation)
+        return AVAudioPlayerNodeRealtimePlaybackEngine()
+#else
+        return StubRealtimePlaybackEngine()
+#endif
+    }
+
+    /// Builds a microphone source and a playback engine that share the same
+    /// underlying `AVAudioEngine` instance. Both consumers attach to one
+    /// engine so a single `AVAudioSession.playAndRecord` category powers
+    /// capture and playback without contention.
+    static func microphoneSourceAndPlaybackEngine() -> (any MicrophonePCMSourcing, any RealtimePlaybackEngine) {
+#if canImport(AVFoundation)
+        let sharedEngine = AVAudioEngine()
+        let source = AVAudioEngineMicrophonePCMSource(engine: sharedEngine)
+        let player = AVAudioPlayerNodeRealtimePlaybackEngine(engine: sharedEngine)
+        return (source, player)
+#else
+        return (StubMicrophonePCMSource(), StubRealtimePlaybackEngine())
 #endif
     }
 }

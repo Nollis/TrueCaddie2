@@ -1966,6 +1966,31 @@ struct TrueCaddieHostTests {
 #endif
     }
 
+    @Test func nativeRealtimeRuntimeFactoryProducesAPlaybackEngine() {
+        let engine = NativeRealtimeVoiceRuntimeFactory.playbackEngine()
+#if canImport(AVFoundation)
+        #expect(engine is AVAudioPlayerNodeRealtimePlaybackEngine)
+#else
+        #expect(engine is StubRealtimePlaybackEngine)
+#endif
+    }
+
+#if canImport(AVFoundation)
+    @Test func nativeRealtimeRuntimeFactoryPairsMicrophoneAndPlaybackOnSharedAudioEngine() throws {
+        let (source, player) = NativeRealtimeVoiceRuntimeFactory.microphoneSourceAndPlaybackEngine()
+        let micSource = try #require(source as? AVAudioEngineMicrophonePCMSource)
+        let playbackEngine = try #require(player as? AVAudioPlayerNodeRealtimePlaybackEngine)
+
+        #expect(micSource.engine === playbackEngine.engine)
+    }
+#else
+    @Test func nativeRealtimeRuntimeFactoryPairsMicrophoneAndPlaybackOnStubsWhenAVFoundationUnavailable() {
+        let (source, player) = NativeRealtimeVoiceRuntimeFactory.microphoneSourceAndPlaybackEngine()
+        #expect(source is StubMicrophonePCMSource)
+        #expect(player is StubRealtimePlaybackEngine)
+    }
+#endif
+
 #if canImport(AVFoundation)
     @Test func avAudioEngineMicrophoneSourceFlattensNonInterleavedStereoBuffer() throws {
         let format = try #require(AVAudioFormat(
