@@ -1376,6 +1376,8 @@ struct TrueCaddieHostTests {
                 )
             )
         )
+        #expect(manager.state.activeSession?.id == "stub-session")
+        #expect(manager.state.activeSession?.descriptor == transport.connectedDescriptor)
         #expect(manager.toolCatalog().tools.contains(where: { $0.actionName == .reportResult }))
         #expect(
             transport.connectedDescriptor ==
@@ -1385,6 +1387,36 @@ struct TrueCaddieHostTests {
                 authMode: .pilotDirectEmbedded
             )
         )
+    }
+
+    @Test func directAppRealtimeVoiceTransportAdapterBootstrapsConcreteSession() throws {
+        let starter = StubRealtimeVoiceClientSessionStarter()
+        starter.nextSessionID = "direct-stub-session"
+        starter.bootstrapSource = .directAppStub
+        let transport = DirectAppRealtimeVoiceTransportAdapter(sessionStarter: starter)
+        let descriptor = RealtimeVoiceSessionDescriptor(
+            model: "gpt-realtime-2",
+            transport: .rawRealtimeWebRTC,
+            authMode: .pilotDirectEmbedded
+        )
+
+        try transport.connect(to: descriptor)
+
+        #expect(starter.startedDescriptors == [descriptor])
+        #expect(
+            transport.currentSession ==
+            RealtimeVoiceClientSession(
+                id: "direct-stub-session",
+                descriptor: descriptor,
+                bootstrapSource: .directAppStub
+            )
+        )
+
+        try transport.beginListening()
+        transport.stopListening()
+        transport.disconnect()
+
+        #expect(transport.currentSession == nil)
     }
 
     @Test func realtimeVoiceSessionManagerRoutesGroundedTurnResponses() throws {

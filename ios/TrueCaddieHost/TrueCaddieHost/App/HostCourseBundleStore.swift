@@ -1008,10 +1008,21 @@ enum RealtimeVoiceTransport: String, Equatable, Codable {
     case rawRealtimeWebSocket
 }
 
+enum RealtimeVoiceSessionBootstrapSource: String, Equatable, Codable {
+    case directAppStub
+    case testStub
+}
+
 struct RealtimeVoiceSessionDescriptor: Equatable, Codable {
     let model: String
     let transport: RealtimeVoiceTransport
     let authMode: RealtimeVoiceAuthMode
+}
+
+struct RealtimeVoiceClientSession: Equatable, Codable, Identifiable {
+    let id: String
+    let descriptor: RealtimeVoiceSessionDescriptor
+    let bootstrapSource: RealtimeVoiceSessionBootstrapSource
 }
 
 protocol RealtimeVoiceSessionBootstrapping {
@@ -1062,7 +1073,7 @@ final class AVFoundationRealtimeVoiceAudioSessionCoordinator: RealtimeVoiceAudio
         try audioSession.setCategory(
             .playAndRecord,
             mode: .voiceChat,
-            options: [.defaultToSpeaker, .allowBluetooth]
+            options: [.defaultToSpeaker, .allowBluetoothHFP]
         )
         try audioSession.setActive(true)
     }
@@ -1135,23 +1146,45 @@ final class AVFoundationRealtimeVoicePermissionProvider: RealtimeVoicePermission
     var onStateChange: ((RealtimeVoicePermissionState) -> Void)?
 
     func currentPermissionState() -> RealtimeVoicePermissionState {
-        switch AVAudioSession.sharedInstance().recordPermission {
-        case .undetermined:
-            return .undetermined
-        case .denied:
-            return .denied
-        case .granted:
-            return .granted
-        @unknown default:
-            return .denied
+        if #available(iOS 17, *) {
+            switch AVAudioApplication.shared.recordPermission {
+            case .undetermined:
+                return .undetermined
+            case .denied:
+                return .denied
+            case .granted:
+                return .granted
+            @unknown default:
+                return .denied
+            }
+        } else {
+            switch AVAudioSession.sharedInstance().recordPermission {
+            case .undetermined:
+                return .undetermined
+            case .denied:
+                return .denied
+            case .granted:
+                return .granted
+            @unknown default:
+                return .denied
+            }
         }
     }
 
     func requestPermission() {
-        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
-            let state: RealtimeVoicePermissionState = granted ? .granted : .denied
-            DispatchQueue.main.async {
-                self?.onStateChange?(state)
+        if #available(iOS 17, *) {
+            AVAudioApplication.requestRecordPermission { [weak self] granted in
+                let state: RealtimeVoicePermissionState = granted ? .granted : .denied
+                DispatchQueue.main.async {
+                    self?.onStateChange?(state)
+                }
+            }
+        } else {
+            AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+                let state: RealtimeVoicePermissionState = granted ? .granted : .denied
+                DispatchQueue.main.async {
+                    self?.onStateChange?(state)
+                }
             }
         }
     }
@@ -1174,9 +1207,48 @@ enum NativeRealtimeVoiceRuntimeFactory {
         return NoopRealtimeVoiceAudioSessionCoordinator()
 #endif
     }
+
+    static func transport() -> any RealtimeVoiceTransporting {
+        DirectAppRealtimeVoiceTransportAdapter()
+    }
+}
+
+protocol RealtimeVoiceClientSessionStarting {
+    func startSession(for descriptor: RealtimeVoiceSessionDescriptor) throws -> RealtimeVoiceClientSession
+}
+
+final class UUIDRealtimeVoiceClientSessionStarter: RealtimeVoiceClientSessionStarting {
+    func startSession(for descriptor: RealtimeVoiceSessionDescriptor) throws -> RealtimeVoiceClientSession {
+        RealtimeVoiceClientSession(
+            id: UUID().uuidString.lowercased(),
+            descriptor: descriptor,
+            bootstrapSource: .directAppStub
+        )
+    }
+}
+
+final class StubRealtimeVoiceClientSessionStarter: RealtimeVoiceClientSessionStarting {
+    private(set) var startedDescriptors: [RealtimeVoiceSessionDescriptor] = []
+    var nextSessionID = "stub-session"
+    var bootstrapSource: RealtimeVoiceSessionBootstrapSource = .testStub
+
+    func startSession(for descriptor: RealtimeVoiceSessionDescriptor) throws -> RealtimeVoiceClientSession {
+        startedDescriptors.append(descriptor)
+        return RealtimeVoiceClientSession(
+            id: nextSessionID,
+            descriptor: descriptor,
+            bootstrapSource: bootstrapSource
+        )
+    }
+}
+
+enum RealtimeVoiceTransportError: Error, Equatable {
+    case noActiveSession
 }
 
 protocol RealtimeVoiceTransporting: AnyObject {
+    var currentSession: RealtimeVoiceClientSession? { get }
+
     func connect(to descriptor: RealtimeVoiceSessionDescriptor) throws
     func beginListening() throws
     func stopListening()
@@ -1184,19 +1256,58 @@ protocol RealtimeVoiceTransporting: AnyObject {
 }
 
 final class NoopRealtimeVoiceTransport: RealtimeVoiceTransporting {
+    var currentSession: RealtimeVoiceClientSession?
+
     func connect(to descriptor: RealtimeVoiceSessionDescriptor) throws {}
     func beginListening() throws {}
     func stopListening() {}
     func disconnect() {}
 }
 
+final class DirectAppRealtimeVoiceTransportAdapter: RealtimeVoiceTransporting {
+    private let sessionStarter: any RealtimeVoiceClientSessionStarting
+    private(set) var currentSession: RealtimeVoiceClientSession?
+    private(set) var isListening = false
+
+    init(sessionStarter: any RealtimeVoiceClientSessionStarting = UUIDRealtimeVoiceClientSessionStarter()) {
+        self.sessionStarter = sessionStarter
+    }
+
+    func connect(to descriptor: RealtimeVoiceSessionDescriptor) throws {
+        currentSession = try sessionStarter.startSession(for: descriptor)
+    }
+
+    func beginListening() throws {
+        guard currentSession != nil else {
+            throw RealtimeVoiceTransportError.noActiveSession
+        }
+
+        isListening = true
+    }
+
+    func stopListening() {
+        isListening = false
+    }
+
+    func disconnect() {
+        currentSession = nil
+        isListening = false
+    }
+}
+
 final class StubRealtimeVoiceTransport: RealtimeVoiceTransporting {
     private(set) var connectedDescriptor: RealtimeVoiceSessionDescriptor?
+    private(set) var currentSession: RealtimeVoiceClientSession?
     private(set) var isListening = false
     private(set) var disconnectCount = 0
 
     func connect(to descriptor: RealtimeVoiceSessionDescriptor) throws {
         connectedDescriptor = descriptor
+        currentSession = RealtimeVoiceClientSession(
+            id: "stub-session",
+            descriptor: descriptor,
+            bootstrapSource: .testStub
+        )
     }
 
     func beginListening() throws {
@@ -1210,6 +1321,7 @@ final class StubRealtimeVoiceTransport: RealtimeVoiceTransporting {
     func disconnect() {
         disconnectCount += 1
         connectedDescriptor = nil
+        currentSession = nil
         isListening = false
     }
 }
@@ -1397,6 +1509,7 @@ enum VoiceSessionTurnState: Equatable {
 struct VoiceSessionState: Equatable {
     var connectionState: VoiceSessionConnectionState = .disconnected
     var turnState: VoiceSessionTurnState = .idle
+    var activeSession: RealtimeVoiceClientSession?
     var latestSnapshot: HostCaddieSession.SessionStateSnapshot?
     var lastResponse: VoiceTurnResponse?
     var lastInterruptedTurnID: UUID?
@@ -1505,7 +1618,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         credentialProvider: any RealtimeVoiceCredentialProviding,
         bootstrapper: any RealtimeVoiceSessionBootstrapping = DirectAppRealtimeSessionBootstrapper(),
         audioCoordinator: any RealtimeVoiceAudioSessionCoordinating = NativeRealtimeVoiceRuntimeFactory.audioCoordinator(),
-        transport: any RealtimeVoiceTransporting = NoopRealtimeVoiceTransport()
+        transport: any RealtimeVoiceTransporting = NativeRealtimeVoiceRuntimeFactory.transport()
     ) {
         self.credentialProvider = credentialProvider
         self.bootstrapper = bootstrapper
@@ -1529,8 +1642,10 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             try audioCoordinator.prepareForVoiceSession()
             let descriptor = try bootstrapper.bootstrapSession(using: credential)
             try transport.connect(to: descriptor)
+            state.activeSession = transport.currentSession
             state.connectionState = .connected(descriptor)
         } catch {
+            state.activeSession = nil
             state.connectionState = .failed(String(describing: error))
             throw error
         }
@@ -1541,6 +1656,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         transport.stopListening()
         transport.disconnect()
         audioCoordinator.endVoiceSession()
+        state.activeSession = nil
         state.connectionState = .disconnected
         state.turnState = .idle
     }
@@ -1630,6 +1746,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             return nil
 
         case let .transportFailed(message):
+            state.activeSession = nil
             state.connectionState = .failed(message)
             state.turnState = .idle
             return nil
@@ -1769,9 +1886,10 @@ final class HostVoiceSessionController: ObservableObject {
         case .connecting:
             return "Connecting voice session..."
         case let .connected(descriptor):
+            let sessionSuffix = state.activeSession.map { " • session \($0.id.prefix(8))" } ?? ""
             return state.turnState == .listening
-                ? "Listening live with \(descriptor.model)"
-                : "Voice session ready: \(descriptor.model)"
+                ? "Listening live with \(descriptor.model)\(sessionSuffix)"
+                : "Voice session ready: \(descriptor.model)\(sessionSuffix)"
         case let .failed(message):
             return "Voice session unavailable: \(message)"
         }
