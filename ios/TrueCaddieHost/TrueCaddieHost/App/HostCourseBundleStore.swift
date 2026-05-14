@@ -1877,12 +1877,23 @@ final class OpenAIRealtimeWebSocketConnection: NSObject, OpenAIRealtimeConnectio
             return
         }
 
+        // Authorization sits on Apple's reserved-header list, so URLRequest
+        // headers can be dropped silently. Put them on the session config too,
+        // which is not filtered.
+        let config = (sessionConfiguration.copy() as? URLSessionConfiguration) ?? .default
+        var extraHeaders = config.httpAdditionalHeaders ?? [:]
+        extraHeaders["Authorization"] = "Bearer \(credential.apiKey)"
+        extraHeaders["OpenAI-Beta"] = "realtime=v1"
+        config.httpAdditionalHeaders = extraHeaders
+
         let session = URLSession(
-            configuration: sessionConfiguration,
+            configuration: config,
             delegate: self,
             delegateQueue: nil
         )
         urlSession = session
+
+        print("[OpenAIRealtimeWebSocket] Opening \(request.url?.absoluteString ?? "?")")
 
         let newTask = session.webSocketTask(with: request)
         task = newTask
@@ -1944,6 +1955,7 @@ final class OpenAIRealtimeWebSocketConnection: NSObject, OpenAIRealtimeConnectio
         webSocketTask: URLSessionWebSocketTask,
         didOpenWithProtocol protocolName: String?
     ) {
+        print("[OpenAIRealtimeWebSocket] Connected (subprotocol: \(protocolName ?? "<none>"))")
         DispatchQueue.main.async { [weak self] in
             self?.handleSocketOpened()
         }
@@ -1956,14 +1968,25 @@ final class OpenAIRealtimeWebSocketConnection: NSObject, OpenAIRealtimeConnectio
         reason: Data?
     ) {
         let reasonText = reason.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        let suffix = reasonText.isEmpty ? "" : ": \(reasonText)"
+        print("[OpenAIRealtimeWebSocket] Closed (code \(closeCode.rawValue))\(suffix)")
         DispatchQueue.main.async { [weak self] in
             self?.handleSocketClosed(code: closeCode, reason: reasonText)
         }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let error else { return }
         let statusCode = (task.response as? HTTPURLResponse)?.statusCode
+        let statusPrefix = statusCode.map { "HTTP \($0)" }
+        if let error {
+            let detail = statusPrefix.map { "\($0): \(error.localizedDescription)" } ?? error.localizedDescription
+            print("[OpenAIRealtimeWebSocket] Task ended with error: \(detail)")
+        } else if let statusCode, statusCode >= 400 {
+            print("[OpenAIRealtimeWebSocket] Task ended with HTTP \(statusCode)")
+        } else if let statusCode {
+            print("[OpenAIRealtimeWebSocket] Task ended (HTTP \(statusCode))")
+        }
+        guard let error else { return }
         DispatchQueue.main.async { [weak self] in
             self?.handleTaskFailed(error: error, statusCode: statusCode)
         }
