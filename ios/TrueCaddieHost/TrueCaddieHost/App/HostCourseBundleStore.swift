@@ -1413,12 +1413,86 @@ struct OpenAIRealtimeServerEventEnvelope: Codable, Equatable {
     let error: OpenAIRealtimeErrorPayload?
 }
 
+enum OpenAIRealtimeClientEventType: String, Codable, Equatable {
+    case inputAudioBufferAppend = "input_audio_buffer.append"
+    case inputAudioBufferCommit = "input_audio_buffer.commit"
+    case responseCancel = "response.cancel"
+}
+
+struct OpenAIRealtimeClientEventEnvelope: Codable, Equatable {
+    let type: String
+    let eventID: String?
+    let audio: String?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case eventID = "event_id"
+        case audio
+    }
+}
+
+protocol OpenAIRealtimeConnectioning: AnyObject {
+    var onJSONMessage: ((String) -> Void)? { get set }
+    var onDisconnected: (() -> Void)? { get set }
+    var onFailure: ((String) -> Void)? { get set }
+
+    func connect()
+    func disconnect()
+    func sendJSON(_ json: String)
+}
+
+final class StubOpenAIRealtimeConnection: OpenAIRealtimeConnectioning {
+    var onJSONMessage: ((String) -> Void)?
+    var onDisconnected: (() -> Void)?
+    var onFailure: ((String) -> Void)?
+
+    private(set) var sentJSONMessages: [String] = []
+    private(set) var connectCount = 0
+    private(set) var disconnectCount = 0
+
+    func connect() {
+        connectCount += 1
+    }
+
+    func disconnect() {
+        disconnectCount += 1
+        onDisconnected?()
+    }
+
+    func sendJSON(_ json: String) {
+        sentJSONMessages.append(json)
+    }
+
+    func receiveJSON(_ json: String) {
+        onJSONMessage?(json)
+    }
+
+    func fail(_ message: String) {
+        onFailure?(message)
+    }
+}
+
 final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     var onEvent: ((DirectRealtimeClientEvent) -> Void)?
     private(set) var outboundActions: [String] = []
+    private let connection: any OpenAIRealtimeConnectioning
+
+    init(connection: any OpenAIRealtimeConnectioning = StubOpenAIRealtimeConnection()) {
+        self.connection = connection
+        self.connection.onJSONMessage = { [weak self] json in
+            self?.receiveServerEventJSON(json)
+        }
+        self.connection.onDisconnected = { [weak self] in
+            self?.onEvent?(.interrupted)
+        }
+        self.connection.onFailure = { [weak self] message in
+            self?.onEvent?(.failed(message))
+        }
+    }
 
     func connect() {
         outboundActions.append("connect")
+        connection.connect()
     }
 
     func beginListening() {
@@ -1433,10 +1507,25 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func sendPartialUtterance(_ utterance: String) {
         outboundActions.append("input_audio_buffer.append:\(utterance)")
+        sendClientEvent(
+            .init(
+                type: OpenAIRealtimeClientEventType.inputAudioBufferAppend.rawValue,
+                eventID: UUID().uuidString.lowercased(),
+                audio: utterance
+            )
+        )
     }
 
     func sendFinalUtterance(_ utterance: String) {
         outboundActions.append("input_audio_buffer.commit:\(utterance)")
+        _ = utterance
+        sendClientEvent(
+            .init(
+                type: OpenAIRealtimeClientEventType.inputAudioBufferCommit.rawValue,
+                eventID: UUID().uuidString.lowercased(),
+                audio: nil
+            )
+        )
     }
 
     func sendToolInvocation(_ invocation: VoiceToolInvocation) {
@@ -1449,11 +1538,19 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func interrupt() {
         outboundActions.append("interrupt")
+        sendClientEvent(
+            .init(
+                type: OpenAIRealtimeClientEventType.responseCancel.rawValue,
+                eventID: UUID().uuidString.lowercased(),
+                audio: nil
+            )
+        )
         onEvent?(.interrupted)
     }
 
     func disconnect() {
         outboundActions.append("disconnect")
+        connection.disconnect()
     }
 
     func receiveServerEventJSON(_ json: String) {
@@ -1515,6 +1612,15 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
             guard let message = envelope.error?.message else { return nil }
             return .failed(message)
         }
+    }
+
+    private func sendClientEvent(_ envelope: OpenAIRealtimeClientEventEnvelope) {
+        guard let data = try? JSONEncoder().encode(envelope),
+              let json = String(data: data, encoding: .utf8) else {
+            return
+        }
+
+        connection.sendJSON(json)
     }
 
     nonisolated private static func toolInvocation(

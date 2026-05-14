@@ -1536,6 +1536,46 @@ struct TrueCaddieHostTests {
         #expect(receivedEvents == [.inputTranscriptFinal("what do you like here")])
     }
 
+    @Test func openAIRealtimeClientShellSendsOfficialClientEventJSONThroughConnection() throws {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+
+        client.connect()
+        client.sendPartialUtterance("abc123")
+        client.sendFinalUtterance("ignored-for-commit")
+        client.interrupt()
+
+        #expect(connection.connectCount == 1)
+        #expect(connection.sentJSONMessages.count == 3)
+
+        let sentData = try #require(connection.sentJSONMessages.first?.data(using: .utf8))
+        let firstEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: sentData)
+        #expect(firstEnvelope.type == "input_audio_buffer.append")
+        #expect(firstEnvelope.audio == "abc123")
+
+        let secondData = try #require(connection.sentJSONMessages.dropFirst().first?.data(using: .utf8))
+        let secondEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: secondData)
+        #expect(secondEnvelope.type == "input_audio_buffer.commit")
+        #expect(secondEnvelope.audio == nil)
+
+        let thirdData = try #require(connection.sentJSONMessages.last?.data(using: .utf8))
+        let thirdEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: thirdData)
+        #expect(thirdEnvelope.type == "response.cancel")
+    }
+
+    @Test func openAIRealtimeClientShellReceivesServerJSONThroughConnection() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+        var receivedEvents: [DirectRealtimeClientEvent] = []
+        client.onEvent = { receivedEvents.append($0) }
+
+        connection.receiveJSON(
+            #"{"type":"response.output_audio_transcript.done","transcript":"PW to Lay up for wedge number"}"#
+        )
+
+        #expect(receivedEvents == [.outputTranscriptFinal("PW to Lay up for wedge number")])
+    }
+
     @Test func nativeRealtimeRuntimeFactoryDefaultsToDirectRealtimeEventSource() {
         let eventSource = NativeRealtimeVoiceRuntimeFactory.eventSource()
 
