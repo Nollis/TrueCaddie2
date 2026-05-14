@@ -1539,17 +1539,15 @@ struct TrueCaddieHostTests {
         #expect(receivedEvents == [.inputTranscriptFinal("what do you like here")])
     }
 
-    @MainActor @Test func openAIRealtimeClientShellSendsOfficialClientEventJSONThroughConnection() throws {
+    @MainActor @Test func openAIRealtimeClientShellSendsSessionUpdateOnConnectAndResponseCancelOnInterrupt() throws {
         let connection = StubOpenAIRealtimeConnection()
         let client = OpenAIRealtimeClientShell(connection: connection)
 
         client.connect()
-        client.sendPartialUtterance("abc123")
-        client.sendFinalUtterance("ignored-for-commit")
         client.interrupt()
 
         #expect(connection.connectCount == 1)
-        #expect(connection.sentJSONMessages.count == 4)
+        #expect(connection.sentJSONMessages.count == 2)
 
         let sessionData = try #require(connection.sentJSONMessages.first?.data(using: .utf8))
         let sessionEnvelope = try JSONDecoder().decode(OpenAIRealtimeSessionUpdateEventEnvelope.self, from: sessionData)
@@ -1558,19 +1556,27 @@ struct TrueCaddieHostTests {
         #expect(sessionEnvelope.session.inputAudioFormat == "pcm16")
         #expect(sessionEnvelope.session.inputAudioTranscription.model == "gpt-4o-mini-transcribe")
 
-        let sentData = try #require(connection.sentJSONMessages.dropFirst().first?.data(using: .utf8))
-        let firstEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: sentData)
-        #expect(firstEnvelope.type == "input_audio_buffer.append")
-        #expect(firstEnvelope.audio == Data("abc123".utf8).base64EncodedString())
+        let cancelData = try #require(connection.sentJSONMessages.last?.data(using: .utf8))
+        let cancelEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: cancelData)
+        #expect(cancelEnvelope.type == "response.cancel")
+    }
 
-        let secondData = try #require(connection.sentJSONMessages.dropFirst(2).first?.data(using: .utf8))
-        let secondEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: secondData)
-        #expect(secondEnvelope.type == "input_audio_buffer.commit")
-        #expect(secondEnvelope.audio == nil)
+    @MainActor @Test func openAIRealtimeClientShellSynthesizesTranscriptEventsForTypedInputWithoutWireTraffic() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+        var received: [DirectRealtimeClientEvent] = []
+        client.onEvent = { received.append($0) }
 
-        let thirdData = try #require(connection.sentJSONMessages.last?.data(using: .utf8))
-        let thirdEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: thirdData)
-        #expect(thirdEnvelope.type == "response.cancel")
+        client.sendPartialUtterance("what do you")
+        client.sendFinalUtterance("what do you like here")
+
+        #expect(received == [
+            .inputTranscriptPartial("what do you"),
+            .inputTranscriptFinal("what do you like here")
+        ])
+        let audioBufferMessages = connection.sentJSONMessages
+            .filter { $0.contains("input_audio_buffer") }
+        #expect(audioBufferMessages.isEmpty)
     }
 
     @MainActor @Test func openAIRealtimeClientShellSkipsInputBufferCommitWhenNoAudioIsBuffered() {

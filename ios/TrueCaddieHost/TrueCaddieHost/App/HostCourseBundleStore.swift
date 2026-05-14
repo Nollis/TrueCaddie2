@@ -2118,7 +2118,6 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     private let connection: any OpenAIRealtimeConnectioning
     private let configuration: OpenAIRealtimeSessionConfiguration
     private let microphoneEncoder: RealtimeMicrophonePCMEncoder
-    private var hasPendingInputAudio = false
 
     init(
         connection: any OpenAIRealtimeConnectioning = StubOpenAIRealtimeConnection(),
@@ -2155,24 +2154,18 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     }
 
     func sendPartialUtterance(_ utterance: String) {
-        outboundActions.append("input_audio_buffer.append:\(utterance)")
-        sendAudioBufferAppend(Data(utterance.utf8))
+        // Typed dev harness only — synthesize the partial transcript locally.
+        // Real audio goes through sendMicrophonePCMChunk; pushing raw text
+        // bytes as PCM is what the realtime API correctly rejects.
+        outboundActions.append("synthetic-partial:\(utterance)")
+        onEvent?(.inputTranscriptPartial(utterance))
     }
 
     func sendFinalUtterance(_ utterance: String) {
-        outboundActions.append("input_audio_buffer.commit:\(utterance)")
-        guard hasPendingInputAudio else {
-            outboundActions.append("input_audio_buffer.commit:skipped-no-audio")
-            return
-        }
-        hasPendingInputAudio = false
-        sendClientEvent(
-            .init(
-                type: OpenAIRealtimeClientEventType.inputAudioBufferCommit.rawValue,
-                eventID: UUID().uuidString.lowercased(),
-                audio: nil
-            )
-        )
+        // Typed dev harness only — synthesize the final transcript locally.
+        // The real input_audio_buffer.commit lives on the mic path.
+        outboundActions.append("synthetic-final:\(utterance)")
+        onEvent?(.inputTranscriptFinal(utterance))
     }
 
     func sendToolInvocation(_ invocation: VoiceToolInvocation) {
@@ -2239,7 +2232,6 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func sendAudioBufferAppend(_ audioData: Data) {
         guard !audioData.isEmpty else { return }
-        hasPendingInputAudio = true
         sendClientEvent(
             .init(
                 type: OpenAIRealtimeClientEventType.inputAudioBufferAppend.rawValue,
