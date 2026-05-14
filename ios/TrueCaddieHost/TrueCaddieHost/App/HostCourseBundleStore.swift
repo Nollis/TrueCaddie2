@@ -1389,6 +1389,156 @@ protocol DirectRealtimeClienting: AnyObject {
     func disconnect()
 }
 
+enum OpenAIRealtimeServerEventType: String, Codable, Equatable {
+    case inputAudioTranscriptionDelta = "conversation.item.input_audio_transcription.delta"
+    case inputAudioTranscriptionCompleted = "conversation.item.input_audio_transcription.completed"
+    case outputAudioTranscriptDelta = "response.output_audio_transcript.delta"
+    case outputAudioTranscriptDone = "response.output_audio_transcript.done"
+    case outputAudioDelta = "response.output_audio.delta"
+    case outputAudioDone = "response.output_audio.done"
+    case functionCallArgumentsDone = "response.function_call_arguments.done"
+    case error
+}
+
+struct OpenAIRealtimeErrorPayload: Codable, Equatable {
+    let message: String
+}
+
+struct OpenAIRealtimeServerEventEnvelope: Codable, Equatable {
+    let type: String
+    let delta: String?
+    let transcript: String?
+    let name: String?
+    let arguments: String?
+    let error: OpenAIRealtimeErrorPayload?
+}
+
+final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
+    var onEvent: ((DirectRealtimeClientEvent) -> Void)?
+    private(set) var outboundActions: [String] = []
+
+    func connect() {
+        outboundActions.append("connect")
+    }
+
+    func beginListening() {
+        outboundActions.append("beginListening")
+        onEvent?(.inputAudioStarted)
+    }
+
+    func stopListening() {
+        outboundActions.append("stopListening")
+        onEvent?(.inputAudioStopped)
+    }
+
+    func sendPartialUtterance(_ utterance: String) {
+        outboundActions.append("input_audio_buffer.append:\(utterance)")
+    }
+
+    func sendFinalUtterance(_ utterance: String) {
+        outboundActions.append("input_audio_buffer.commit:\(utterance)")
+    }
+
+    func sendToolInvocation(_ invocation: VoiceToolInvocation) {
+        outboundActions.append("tool:\(invocation.actionName.rawValue)")
+    }
+
+    func emitAssistantReply(_ reply: String) {
+        outboundActions.append("assistant:\(reply)")
+    }
+
+    func interrupt() {
+        outboundActions.append("interrupt")
+        onEvent?(.interrupted)
+    }
+
+    func disconnect() {
+        outboundActions.append("disconnect")
+    }
+
+    func receiveServerEventJSON(_ json: String) {
+        guard let data = json.data(using: .utf8) else {
+            return
+        }
+
+        receiveServerEventData(data)
+    }
+
+    func receiveServerEventData(_ data: Data) {
+        let decoder = JSONDecoder()
+        guard let envelope = try? decoder.decode(OpenAIRealtimeServerEventEnvelope.self, from: data),
+              let event = map(envelope) else {
+            return
+        }
+
+        onEvent?(event)
+    }
+
+    nonisolated static func map(_ envelope: OpenAIRealtimeServerEventEnvelope) -> DirectRealtimeClientEvent? {
+        guard let type = OpenAIRealtimeServerEventType(rawValue: envelope.type) else {
+            return nil
+        }
+
+        switch type {
+        case .inputAudioTranscriptionDelta:
+            guard let delta = envelope.delta else { return nil }
+            return .inputTranscriptPartial(delta)
+
+        case .inputAudioTranscriptionCompleted:
+            guard let transcript = envelope.transcript else { return nil }
+            return .inputTranscriptFinal(transcript)
+
+        case .outputAudioTranscriptDelta:
+            guard let delta = envelope.delta else { return nil }
+            return .outputTranscriptPartial(delta)
+
+        case .outputAudioTranscriptDone:
+            guard let transcript = envelope.transcript else { return nil }
+            return .outputTranscriptFinal(transcript)
+
+        case .outputAudioDelta:
+            return .playbackStateChanged(.speaking)
+
+        case .outputAudioDone:
+            return .playbackStateChanged(.finished)
+
+        case .functionCallArgumentsDone:
+            guard let name = envelope.name,
+                  let arguments = envelope.arguments,
+                  let invocation = toolInvocation(name: name, argumentsJSON: arguments) else {
+                return nil
+            }
+
+            return .toolEvent(.init(invocation: invocation, phase: .completed))
+
+        case .error:
+            guard let message = envelope.error?.message else { return nil }
+            return .failed(message)
+        }
+    }
+
+    nonisolated private static func toolInvocation(
+        name: String,
+        argumentsJSON: String
+    ) -> VoiceToolInvocation? {
+        guard let actionName = HostCaddieSession.ActionName(rawValue: name),
+              let data = argumentsJSON.data(using: .utf8),
+              let arguments = try? JSONDecoder().decode(HostCaddieSession.WireToolArguments.self, from: data) else {
+            return nil
+        }
+
+        return VoiceToolInvocation(
+            actionName: actionName,
+            arguments: .init(
+                lie: arguments.lie,
+                remainingDistanceM: arguments.remainingDistanceM,
+                strokesTaken: arguments.strokesTaken,
+                holeNumber: arguments.holeNumber
+            )
+        )
+    }
+}
+
 final class StubDirectRealtimeClient: DirectRealtimeClienting {
     var onEvent: ((DirectRealtimeClientEvent) -> Void)?
     private(set) var outboundActions: [String] = []

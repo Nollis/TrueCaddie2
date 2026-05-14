@@ -1447,6 +1447,95 @@ struct TrueCaddieHostTests {
         )
     }
 
+    @Test func openAIRealtimeClientShellMapsOfficialServerEvents() {
+        #expect(
+            OpenAIRealtimeClientShell.map(
+                .init(
+                    type: "conversation.item.input_audio_transcription.delta",
+                    delta: "what do you",
+                    transcript: nil,
+                    name: nil,
+                    arguments: nil,
+                    error: nil
+                )
+            ) == .inputTranscriptPartial("what do you")
+        )
+        #expect(
+            OpenAIRealtimeClientShell.map(
+                .init(
+                    type: "response.output_audio_transcript.done",
+                    delta: nil,
+                    transcript: "PW to Lay up for wedge number",
+                    name: nil,
+                    arguments: nil,
+                    error: nil
+                )
+            ) == .outputTranscriptFinal("PW to Lay up for wedge number")
+        )
+        #expect(
+            OpenAIRealtimeClientShell.map(
+                .init(
+                    type: "response.output_audio.done",
+                    delta: nil,
+                    transcript: nil,
+                    name: nil,
+                    arguments: nil,
+                    error: nil
+                )
+            ) == .playbackStateChanged(.finished)
+        )
+        #expect(
+            OpenAIRealtimeClientShell.map(
+                .init(
+                    type: "error",
+                    delta: nil,
+                    transcript: nil,
+                    name: nil,
+                    arguments: nil,
+                    error: .init(message: "bad session")
+                )
+            ) == .failed("bad session")
+        )
+    }
+
+    @Test func openAIRealtimeClientShellParsesFunctionCallArgumentsDone() {
+        let event = OpenAIRealtimeClientShell.map(
+            .init(
+                type: "response.function_call_arguments.done",
+                delta: nil,
+                transcript: nil,
+                name: "report_result",
+                arguments: #"{"lie":"rough","remainingDistanceM":128}"#,
+                error: nil
+            )
+        )
+
+        #expect(
+            event ==
+            .toolEvent(
+                .init(
+                    invocation: .init(
+                        actionName: .reportResult,
+                        arguments: .init(lie: .rough, remainingDistanceM: 128)
+                    ),
+                    phase: .completed
+                )
+            )
+        )
+    }
+
+    @Test func openAIRealtimeClientShellCanDecodeServerEventJSON() {
+        let client = OpenAIRealtimeClientShell()
+        var receivedEvents: [DirectRealtimeClientEvent] = []
+        client.onEvent = { receivedEvents.append($0) }
+
+        client.receiveServerEventJSON(
+            #"{"type":"conversation.item.input_audio_transcription.completed","transcript":"what do you like here"}"#
+        )
+
+        #expect(receivedEvents == [.inputTranscriptFinal("what do you like here")])
+    }
+
     @Test func nativeRealtimeRuntimeFactoryDefaultsToDirectRealtimeEventSource() {
         let eventSource = NativeRealtimeVoiceRuntimeFactory.eventSource()
 
