@@ -9,42 +9,99 @@ import SwiftUI
 import TrueCaddieDomain
 
 struct ContentView: View {
+    enum CaddieHostTab: Hashable { case caddie, inspector }
+
     private let bundleResult = Result {
         try HostCourseBundleStore.loadKungsbackaNya()
     }
     private let playerContext = PlayerContext.pilotSample
     private let roundContext = RoundContext.pilotSample
 
+    @State private var selectedTab: CaddieHostTab = .caddie
+
     var body: some View {
         switch bundleResult {
         case .success(let bundle):
-            TabView {
-                NavigationStack {
-                    RoundPreviewView(
-                        bundle: bundle,
-                        playerContext: playerContext,
-                        roundContext: roundContext
-                    )
-                }
-                .tabItem {
-                    Label("Caddie", systemImage: "figure.golf")
-                }
-
-                BundleInspectorView(
-                    bundle: bundle,
-                    playerContext: playerContext,
-                    roundContext: roundContext
-                )
-                .tabItem {
-                    Label("Inspector", systemImage: "list.bullet.rectangle")
-                }
-            }
+            CaddieHostTabContainer(
+                bundle: bundle,
+                playerContext: playerContext,
+                roundContext: roundContext,
+                selectedTab: $selectedTab
+            )
         case .failure(let error):
             ContentUnavailableView(
                 "Course Bundle Missing",
                 systemImage: "exclamationmark.triangle",
                 description: Text(error.localizedDescription)
             )
+        }
+    }
+}
+
+/// Owns the shared tab state and forwards bindings to the Caddie and Inspector
+/// tab shells. Scaffolded in Task 1 with placeholder children; Tasks 2–7 fill
+/// in the real content.
+private struct CaddieHostTabContainer: View {
+    let bundle: CourseBundle
+    let playerContext: PlayerContext
+    let baseRoundContext: RoundContext
+    @Binding var selectedTab: ContentView.CaddieHostTab
+
+    @State private var selectedHoleNumber: Int
+    @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
+    @State private var roundState: RoundState
+    @State private var editingScoreHoleNumber: Int?
+    @State private var editingScoreStrokes: Int = 0
+    @StateObject private var voiceController: HostVoiceSessionController
+
+    init(
+        bundle: CourseBundle,
+        playerContext: PlayerContext,
+        roundContext: RoundContext,
+        selectedTab: Binding<ContentView.CaddieHostTab>
+    ) {
+        self.bundle = bundle
+        self.playerContext = playerContext
+        self.baseRoundContext = roundContext
+        _selectedTab = selectedTab
+        _selectedHoleNumber = State(initialValue: bundle.holes.first?.holeNumber ?? 0)
+        _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
+        _roundState = State(initialValue: RoundState(courseId: bundle.courseId, holeStates: []))
+        _voiceController = StateObject(wrappedValue: HostVoiceSessionController.makeWithPilotCredentials())
+    }
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            CaddieTabView(
+                bundle: bundle,
+                playerContext: playerContext,
+                baseRoundContext: baseRoundContext,
+                selectedHoleNumber: $selectedHoleNumber,
+                roundOverrides: $roundOverrides,
+                roundState: $roundState,
+                voiceController: voiceController,
+                onRequestInspector: { selectedTab = .inspector }
+            )
+            .tabItem {
+                Label("Caddie", systemImage: "figure.golf")
+            }
+            .tag(ContentView.CaddieHostTab.caddie)
+
+            InspectorTabView(
+                bundle: bundle,
+                playerContext: playerContext,
+                baseRoundContext: baseRoundContext,
+                selectedHoleNumber: $selectedHoleNumber,
+                roundOverrides: $roundOverrides,
+                roundState: $roundState,
+                editingScoreHoleNumber: $editingScoreHoleNumber,
+                editingScoreStrokes: $editingScoreStrokes,
+                voiceController: voiceController
+            )
+            .tabItem {
+                Label("Inspector", systemImage: "list.bullet.rectangle")
+            }
+            .tag(ContentView.CaddieHostTab.inspector)
         }
     }
 }
