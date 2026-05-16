@@ -1614,7 +1614,6 @@ struct TrueCaddieHostTests {
         let sessionData = try #require(connection.sentJSONMessages.first?.data(using: .utf8))
         let sessionEnvelope = try JSONDecoder().decode(OpenAIRealtimeSessionUpdateEventEnvelope.self, from: sessionData)
         #expect(sessionEnvelope.type == "session.update")
-        #expect(sessionEnvelope.session.model == "gpt-realtime")
         #expect(sessionEnvelope.session.inputAudioFormat == "pcm16")
         #expect(sessionEnvelope.session.inputAudioTranscription.model == "gpt-4o-mini-transcribe")
 
@@ -1688,7 +1687,7 @@ struct TrueCaddieHostTests {
     @Test func openAIRealtimeSessionConfigurationDefaultsMatchVoiceRequirements() {
         let configuration = OpenAIRealtimeSessionConfiguration.default
 
-        #expect(configuration.model == "gpt-realtime")
+        #expect(configuration.model == "gpt-4o-realtime-preview")
         #expect(configuration.webSocketURL == "wss://api.openai.com/v1/realtime")
         #expect(configuration.audio.apiSampleRateHz == 24_000)
         #expect(configuration.audio.apiChannelCount == 1)
@@ -2086,7 +2085,7 @@ struct TrueCaddieHostTests {
         #expect(components.scheme == "wss")
         #expect(components.host == "api.openai.com")
         #expect(components.path == "/v1/realtime")
-        #expect(modelValue == "gpt-realtime")
+        #expect(modelValue == "gpt-4o-realtime-preview")
         #expect(request.value(forHTTPHeaderField: "OpenAI-Beta") == "realtime=v1")
         #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
     }

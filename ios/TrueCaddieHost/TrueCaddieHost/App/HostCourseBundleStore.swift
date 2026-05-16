@@ -1043,7 +1043,7 @@ struct DirectAppRealtimeSessionBootstrapper: RealtimeVoiceSessionBootstrapping {
     let transport: RealtimeVoiceTransport
 
     init(
-        model: String = "gpt-realtime-2",
+        model: String = "gpt-4o-realtime-preview",
         transport: RealtimeVoiceTransport = .rawRealtimeWebRTC
     ) {
         self.model = model
@@ -1890,7 +1890,7 @@ struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
     let turnDetection: String?
 
     static let `default` = OpenAIRealtimeSessionConfiguration(
-        model: "gpt-realtime-2",
+        model: "gpt-4o-realtime-preview",
         webSocketURL: "wss://api.openai.com/v1/realtime",
         audio: .default,
         instructions: "You are a concise, grounded golf caddie. Use the live round state and tool outputs. Keep spoken replies short.",
@@ -1909,7 +1909,6 @@ struct OpenAIRealtimeTurnDetectionConfiguration: Codable, Equatable {
 }
 
 struct OpenAIRealtimeSessionUpdatePayload: Codable, Equatable {
-    let model: String
     let instructions: String
     let voice: String
     let inputAudioFormat: String
@@ -1918,7 +1917,6 @@ struct OpenAIRealtimeSessionUpdatePayload: Codable, Equatable {
     let turnDetection: OpenAIRealtimeTurnDetectionConfiguration?
 
     enum CodingKeys: String, CodingKey {
-        case model
         case instructions
         case voice
         case inputAudioFormat = "input_audio_format"
@@ -2357,7 +2355,6 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func sendSessionUpdate(_ configuration: OpenAIRealtimeSessionConfiguration) {
         let payload = OpenAIRealtimeSessionUpdatePayload(
-            model: configuration.model,
             instructions: configuration.instructions,
             voice: configuration.voice,
             inputAudioFormat: "pcm16",
