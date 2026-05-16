@@ -16,8 +16,8 @@ struct CaddieRecommendationHero: View {
                     confidenceChip(for: packet.confidenceBand)
                 }
 
-                if let note = packet.executionNote, !note.isEmpty {
-                    Text(note)
+                if !packet.executionNote.isEmpty {
+                    Text(packet.executionNote)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
