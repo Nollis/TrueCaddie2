@@ -1043,7 +1043,7 @@ struct DirectAppRealtimeSessionBootstrapper: RealtimeVoiceSessionBootstrapping {
     let transport: RealtimeVoiceTransport
 
     init(
-        model: String = "gpt-realtime",
+        model: String = "gpt-realtime-2",
         transport: RealtimeVoiceTransport = .rawRealtimeWebRTC
     ) {
         self.model = model
@@ -1890,7 +1890,7 @@ struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
     let turnDetection: String?
 
     static let `default` = OpenAIRealtimeSessionConfiguration(
-        model: "gpt-realtime",
+        model: "gpt-realtime-2",
         webSocketURL: "wss://api.openai.com/v1/realtime",
         audio: .default,
         instructions: "You are a concise, grounded golf caddie. Use the live round state and tool outputs. Keep spoken replies short.",
