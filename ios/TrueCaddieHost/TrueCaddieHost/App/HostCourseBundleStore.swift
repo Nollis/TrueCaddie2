@@ -2048,7 +2048,7 @@ final class OpenAIRealtimeWebSocketConnection: NSObject, OpenAIRealtimeConnectio
         let config = (sessionConfiguration.copy() as? URLSessionConfiguration) ?? .default
         var extraHeaders = config.httpAdditionalHeaders ?? [:]
         extraHeaders["Authorization"] = "Bearer \(credential.apiKey)"
-        extraHeaders["OpenAI-Beta"] = "realtime=v1"
+        extraHeaders["OpenAI-Beta"] = "realtime=v2"
         config.httpAdditionalHeaders = extraHeaders
 
         let session = URLSession(
@@ -2106,7 +2106,7 @@ final class OpenAIRealtimeWebSocketConnection: NSObject, OpenAIRealtimeConnectio
         guard let url = components.url else { return nil }
 
         var request = URLRequest(url: url)
-        request.setValue("realtime=v1", forHTTPHeaderField: "OpenAI-Beta")
+        request.setValue("realtime=v2", forHTTPHeaderField: "OpenAI-Beta")
         if let credential {
             request.setValue("Bearer \(credential.apiKey)", forHTTPHeaderField: "Authorization")
         }

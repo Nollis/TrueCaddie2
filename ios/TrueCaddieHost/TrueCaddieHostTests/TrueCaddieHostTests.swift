@@ -2086,7 +2086,7 @@ struct TrueCaddieHostTests {
         #expect(components.host == "api.openai.com")
         #expect(components.path == "/v1/realtime")
         #expect(modelValue == "gpt-realtime-2")
-        #expect(request.value(forHTTPHeaderField: "OpenAI-Beta") == "realtime=v1")
+        #expect(request.value(forHTTPHeaderField: "OpenAI-Beta") == "realtime=v2")
         #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
     }
 
