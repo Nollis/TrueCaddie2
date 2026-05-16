@@ -1,4 +1,5 @@
 import SwiftUI
+import TrueCaddieDomain
 
 struct InspectorDeveloperSection: View {
     @ObservedObject var voiceController: HostVoiceSessionController
