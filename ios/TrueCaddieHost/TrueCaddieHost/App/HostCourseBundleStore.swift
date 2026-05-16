@@ -1886,43 +1886,56 @@ struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
     let audio: OpenAIRealtimeAudioConfiguration
     let instructions: String
     let voice: String
-    let inputTranscriptionModel: String
-    let turnDetection: String?
 
     static let `default` = OpenAIRealtimeSessionConfiguration(
-        model: "gpt-4o-realtime-preview",
+        model: "gpt-realtime-2",
         webSocketURL: "wss://api.openai.com/v1/realtime",
         audio: .default,
         instructions: "You are a concise, grounded golf caddie. Use the live round state and tool outputs. Keep spoken replies short.",
-        voice: "alloy",
-        inputTranscriptionModel: "gpt-4o-mini-transcribe",
-        turnDetection: "server_vad"
+        voice: "alloy"
     )
 }
 
-struct OpenAIRealtimeInputAudioTranscriptionConfiguration: Codable, Equatable {
-    let model: String
+struct OpenAIRealtimeSessionUpdateTurnDetection: Codable, Equatable {
+    let type: String
+    let createResponse: Bool
+    let interruptResponse: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case createResponse = "create_response"
+        case interruptResponse = "interrupt_response"
+    }
 }
 
-struct OpenAIRealtimeTurnDetectionConfiguration: Codable, Equatable {
-    let type: String
+struct OpenAIRealtimeSessionUpdateAudioInput: Codable, Equatable {
+    let turnDetection: OpenAIRealtimeSessionUpdateTurnDetection
+
+    enum CodingKeys: String, CodingKey {
+        case turnDetection = "turn_detection"
+    }
+}
+
+struct OpenAIRealtimeSessionUpdateAudioOutput: Codable, Equatable {
+    let voice: String
+}
+
+struct OpenAIRealtimeSessionUpdateAudio: Codable, Equatable {
+    let input: OpenAIRealtimeSessionUpdateAudioInput
+    let output: OpenAIRealtimeSessionUpdateAudioOutput
 }
 
 struct OpenAIRealtimeSessionUpdatePayload: Codable, Equatable {
+    let type: String
     let instructions: String
-    let voice: String
-    let inputAudioFormat: String
-    let outputAudioFormat: String
-    let inputAudioTranscription: OpenAIRealtimeInputAudioTranscriptionConfiguration
-    let turnDetection: OpenAIRealtimeTurnDetectionConfiguration?
+    let toolChoice: String
+    let audio: OpenAIRealtimeSessionUpdateAudio
 
     enum CodingKeys: String, CodingKey {
+        case type
         case instructions
-        case voice
-        case inputAudioFormat = "input_audio_format"
-        case outputAudioFormat = "output_audio_format"
-        case inputAudioTranscription = "input_audio_transcription"
-        case turnDetection = "turn_detection"
+        case toolChoice = "tool_choice"
+        case audio
     }
 }
 
@@ -2355,12 +2368,17 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func sendSessionUpdate(_ configuration: OpenAIRealtimeSessionConfiguration) {
         let payload = OpenAIRealtimeSessionUpdatePayload(
+            type: "realtime",
             instructions: configuration.instructions,
-            voice: configuration.voice,
-            inputAudioFormat: "pcm16",
-            outputAudioFormat: "pcm16",
-            inputAudioTranscription: .init(model: configuration.inputTranscriptionModel),
-            turnDetection: configuration.turnDetection.map { .init(type: $0) }
+            toolChoice: "auto",
+            audio: .init(
+                input: .init(turnDetection: .init(
+                    type: "server_vad",
+                    createResponse: true,
+                    interruptResponse: true
+                )),
+                output: .init(voice: configuration.voice)
+            )
         )
 
         let envelope = OpenAIRealtimeSessionUpdateEventEnvelope(
