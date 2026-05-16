@@ -1504,10 +1504,10 @@ enum NativeRealtimeVoiceRuntimeFactory {
         credentialProvider: (any RealtimeVoiceCredentialProviding)? = nil
     ) -> any RealtimeVoiceEventSourcing {
         let connection: any OpenAIRealtimeConnectioning
-        if let credentialProvider {
-            connection = OpenAIRealtimeWebSocketConnection(
+        if let credentialProvider, let credential = try? credentialProvider.currentCredential() {
+            connection = OpenAIRealtimeWebRTCConnection(
                 configuration: .default,
-                credentialProvider: credentialProvider
+                credential: credential
             )
         } else {
             connection = StubOpenAIRealtimeConnection()
