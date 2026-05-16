@@ -1,0 +1,118 @@
+import SwiftUI
+
+struct CaddieVoiceCluster: View {
+    @ObservedObject var voiceController: HostVoiceSessionController
+
+    var body: some View {
+        VStack(spacing: 12) {
+            primaryButton
+
+            HStack(spacing: 12) {
+                if voiceController.canInterrupt {
+                    Button("Interrupt") { voiceController.interrupt() }
+                        .buttonStyle(.bordered)
+                }
+                if voiceController.isSpeaking {
+                    Button("Finish") { voiceController.finishPlayback() }
+                        .buttonStyle(.bordered)
+                }
+                Spacer(minLength: 0)
+                statusChip
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var primaryButton: some View {
+        if voiceController.needsMicrophonePermission {
+            Button {
+                voiceController.requestMicrophoneAccess()
+            } label: {
+                Label("Enable Mic", systemImage: "mic.slash.fill")
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityLabel("Enable microphone access")
+        } else if !voiceController.isConnected {
+            Button {
+                voiceController.connectIfNeeded()
+            } label: {
+                Label("Connect", systemImage: "bolt.fill")
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!voiceController.canConnect)
+            .accessibilityLabel("Connect to caddie")
+        } else if voiceController.isListening {
+            Button {
+                voiceController.stopListening()
+            } label: {
+                Label("Stop Listening", systemImage: "mic.fill")
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.red)
+            .disabled(!voiceController.canStopListening)
+            .accessibilityLabel("Stop listening, double-tap to stop")
+        } else {
+            Button {
+                voiceController.beginListening()
+            } label: {
+                Label("Start Listening", systemImage: "mic.fill")
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!voiceController.canStartListening)
+            .accessibilityLabel("Start listening, double-tap to start")
+        }
+    }
+
+    private var statusChip: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(dotColor)
+                .frame(width: 8, height: 8)
+            Text(stateLabel)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule().fill(Color(uiColor: .secondarySystemBackground))
+        )
+        .accessibilityLabel("Voice session: \(stateLabel)")
+    }
+
+    private var dotColor: Color {
+        switch voiceController.state.connectionState {
+        case .disconnected: return .gray
+        case .connecting: return .gray
+        case .connected:
+            if voiceController.isListening { return .red }
+            if voiceController.state.playbackState == .speaking { return .blue }
+            return .gray
+        case .failed: return .orange
+        }
+    }
+
+    private var stateLabel: String {
+        switch voiceController.state.connectionState {
+        case .disconnected: return "Disconnected"
+        case .connecting: return "Connecting…"
+        case .connected:
+            if voiceController.isListening { return "Listening" }
+            if voiceController.state.playbackState == .speaking { return "Speaking" }
+            return "Connected"
+        case .failed: return "Failed"
+        }
+    }
+}

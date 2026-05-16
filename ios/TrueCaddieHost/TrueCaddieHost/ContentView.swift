@@ -38,9 +38,6 @@ struct ContentView: View {
     }
 }
 
-/// Owns the shared tab state and forwards bindings to the Caddie and Inspector
-/// tab shells. Scaffolded in Task 1 with placeholder children; Tasks 2–7 fill
-/// in the real content.
 private struct CaddieHostTabContainer: View {
     let bundle: CourseBundle
     let playerContext: PlayerContext
@@ -52,6 +49,10 @@ private struct CaddieHostTabContainer: View {
     @State private var roundState: RoundState
     @State private var editingScoreHoleNumber: Int?
     @State private var editingScoreStrokes: Int = 0
+    @State private var selectedPlanMode: HostRoundPreviewModel.RoundPlanMode = .stockNextShot
+    @State private var selectedScenarioId: String = ""
+    @State private var shotResultDraft: HostRoundProgressModel.ShotResultDraft?
+    @State private var pendingHoleOutStrokes: Int?
     @StateObject private var voiceController: HostVoiceSessionController
 
     init(
@@ -60,99 +61,24 @@ private struct CaddieHostTabContainer: View {
         roundContext: RoundContext,
         selectedTab: Binding<ContentView.CaddieHostTab>
     ) {
+        let savedProgress = HostRoundProgressStore.load(courseId: bundle.courseId)
+        let initialRoundState = savedProgress?.roundState ?? RoundState(courseId: bundle.courseId, holeStates: [])
         self.bundle = bundle
         self.playerContext = playerContext
         self.baseRoundContext = roundContext
         _selectedTab = selectedTab
-        _selectedHoleNumber = State(initialValue: bundle.holes.first?.holeNumber ?? 0)
+        _selectedHoleNumber = State(initialValue: HostRoundProgressModel.currentHoleNumber(
+            bundle: bundle,
+            roundState: initialRoundState,
+            preferredHoleNumber: savedProgress?.selectedHoleNumber
+        ) ?? bundle.holes.first?.holeNumber ?? 0)
         _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
-        _roundState = State(initialValue: RoundState(courseId: bundle.courseId, holeStates: []))
-        _voiceController = StateObject(wrappedValue: HostVoiceSessionController.makeWithPilotCredentials())
-    }
-
-    var body: some View {
-        TabView(selection: $selectedTab) {
-            CaddieTabView(
-                bundle: bundle,
-                playerContext: playerContext,
-                baseRoundContext: baseRoundContext,
-                selectedHoleNumber: $selectedHoleNumber,
-                roundOverrides: $roundOverrides,
-                roundState: $roundState,
-                voiceController: voiceController,
-                onRequestInspector: { selectedTab = .inspector }
-            )
-            .tabItem {
-                Label("Caddie", systemImage: "figure.golf")
-            }
-            .tag(ContentView.CaddieHostTab.caddie)
-
-            InspectorTabView(
-                bundle: bundle,
-                playerContext: playerContext,
-                baseRoundContext: baseRoundContext,
-                selectedHoleNumber: $selectedHoleNumber,
-                roundOverrides: $roundOverrides,
-                roundState: $roundState,
-                editingScoreHoleNumber: $editingScoreHoleNumber,
-                editingScoreStrokes: $editingScoreStrokes,
-                voiceController: voiceController
-            )
-            .tabItem {
-                Label("Inspector", systemImage: "list.bullet.rectangle")
-            }
-            .tag(ContentView.CaddieHostTab.inspector)
-        }
-    }
-}
-
-#Preview {
-    ContentView()
-}
-
-private struct RoundPreviewView: View {
-    let bundle: CourseBundle
-    let playerContext: PlayerContext
-    let baseRoundContext: RoundContext
-    @State private var selectedHoleNumber = 0
-    @State private var selectedPlanMode: HostRoundPreviewModel.RoundPlanMode = .stockNextShot
-    @State private var selectedScenarioId = ""
-    @State private var conversationInput = ""
-    @State private var shotResultDraft: HostRoundProgressModel.ShotResultDraft?
-    @State private var pendingHoleOutStrokes: Int?
-    @State private var editingScoreHoleNumber: Int?
-    @State private var editingScoreStrokes = 0
-    @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
-    @State private var roundState: RoundState
-    @StateObject private var voiceController: HostVoiceSessionController
-
-    init(
-        bundle: CourseBundle,
-        playerContext: PlayerContext,
-        roundContext: RoundContext
-    ) {
-        let savedProgress = HostRoundProgressStore.load(courseId: bundle.courseId)
-        self.bundle = bundle
-        self.playerContext = playerContext
-        self.baseRoundContext = roundContext
-        _selectedHoleNumber = State(
-            initialValue: HostRoundProgressModel.currentHoleNumber(
-                bundle: bundle,
-                roundState: savedProgress?.roundState ?? RoundState(courseId: bundle.courseId, holeStates: []),
-                preferredHoleNumber: savedProgress?.selectedHoleNumber
-            ) ?? 0
-        )
-        _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
-        _roundState = State(initialValue: savedProgress?.roundState ?? RoundState(courseId: bundle.courseId, holeStates: []))
+        _roundState = State(initialValue: initialRoundState)
         _voiceController = StateObject(wrappedValue: HostVoiceSessionController.makeWithPilotCredentials())
     }
 
     private var selectedHole: CourseHole? {
         bundle.holes.first(where: { $0.holeNumber == selectedHoleNumber })
-    }
-
-    private var holeOptions: [CourseHole] {
-        bundle.holes
     }
 
     private var teeOptions: [Tee] {
@@ -184,27 +110,8 @@ private struct RoundPreviewView: View {
         return 0...max(150, maxTeeLength)
     }
 
-    private var roundSummary: HostRoundProgressModel.RoundSummary {
-        HostRoundProgressModel.summary(
-            bundle: bundle,
-            roundState: roundState,
-            currentHoleNumber: selectedHoleNumber
-        )
-    }
-
-    private var scorecardEntries: [HostRoundProgressModel.ScorecardEntry] {
-        HostRoundProgressModel.scorecardEntries(
-            bundle: bundle,
-            roundState: roundState,
-            currentHoleNumber: selectedHoleNumber
-        )
-    }
-
     private var scenarioOptions: [HoleInspectorModel.ShotStateScenario] {
-        guard !usesLiveState else {
-            return []
-        }
-
+        guard !usesLiveState else { return [] }
         return HostRoundPreviewModel.scenarios(
             bundle: bundle,
             playerContext: playerContext,
@@ -240,489 +147,58 @@ private struct RoundPreviewView: View {
     private var isShotResultSheetPresented: Binding<Bool> {
         Binding(
             get: { shotResultDraft != nil },
-            set: { isPresented in
-                if !isPresented {
-                    shotResultDraft = nil
-                }
-            }
+            set: { if !$0 { shotResultDraft = nil } }
         )
     }
 
-    private var voiceSessionStatusLabel: String? {
-        voiceController.statusLabel
-    }
-
     var body: some View {
-        List {
-            if let preview {
-                Section("Round Summary") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(roundSummary.totalsHeader)
-                            .font(.title3.weight(.semibold))
-
-                        Text(roundSummary.currentHoleHeader)
-                            .foregroundStyle(.secondary)
-
-                        Text(roundSummary.progressLabel)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Section("Round History") {
-                    if scorecardEntries.isEmpty {
-                        Text("No holes started yet.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(scorecardEntries) { entry in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Button {
-                                        selectedHoleNumber = entry.holeNumber
-                                    } label: {
-                                        HStack {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                HStack(spacing: 6) {
-                                                    Text("Hole \(entry.holeNumber)")
-                                                        .fontWeight(.semibold)
-                                                    Text("Par \(entry.par)")
-                                                        .foregroundStyle(.secondary)
-                                                }
-
-                                                Text(entry.statusLabel)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                            }
-
-                                            Spacer()
-
-                                            VStack(alignment: .trailing, spacing: 2) {
-                                                Text(entry.strokesLabel)
-                                                    .fontWeight(.semibold)
-                                                Text(entry.relativeToParLabel)
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
-                                                if entry.isCurrentHole {
-                                                    Text("Current")
-                                                        .font(.caption2.weight(.semibold))
-                                                        .foregroundStyle(.blue)
-                                                }
-                                            }
-                                        }
-                                        .contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-
-                                    if entry.isFinished {
-                                        Button(editingScoreHoleNumber == entry.holeNumber ? "Cancel" : "Edit") {
-                                            toggleScoreEdit(for: entry)
-                                        }
-                                        .font(.caption)
-                                    }
-                                }
-
-                                if editingScoreHoleNumber == entry.holeNumber {
-                                    Stepper(
-                                        "Set score to \(editingScoreStrokes)",
-                                        value: $editingScoreStrokes,
-                                        in: 1...15
-                                    )
-
-                                    HStack {
-                                        Button("Save score") {
-                                            saveEditedScore(for: entry.holeNumber)
-                                        }
-                                        .tint(.green)
-
-                                        Spacer()
-
-                                        Button("View hole") {
-                                            selectedHoleNumber = entry.holeNumber
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    Button("Reset round") {
-                        resetRound()
-                    }
-                    .tint(.red)
-                }
-
-                // Temporary typed harness until the realtime voice session replaces this UI.
-                Section("Caddie Conversation") {
-                    // Temporary typed harness while the realtime voice session moves
-                    // into the native Swift voice subsystem outside the view layer.
-                    if let statusLabel = voiceSessionStatusLabel {
-                        Text(statusLabel)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let partialUserTranscript = voiceController.state.partialUserTranscript,
-                       !partialUserTranscript.isEmpty {
-                        Text("Heard so far: \(partialUserTranscript)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let partialAssistantTranscript = voiceController.state.partialAssistantTranscript,
-                       !partialAssistantTranscript.isEmpty {
-                        Text("Caddie speaking: \(partialAssistantTranscript)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    HStack(spacing: 8) {
-                        if voiceController.needsMicrophonePermission {
-                            Button("Enable Mic") {
-                                voiceController.requestMicrophoneAccess()
-                            }
-                        }
-
-                        Button(voiceController.isConnected ? "Disconnect" : "Connect") {
-                            if voiceController.isConnected {
-                                voiceController.disconnect()
-                            } else {
-                                voiceController.connectIfNeeded()
-                            }
-                        }
-                        .disabled(!voiceController.isConnected && !voiceController.canConnect)
-
-                        Button(voiceController.isListening ? "Stop Listening" : "Start Listening") {
-                            if voiceController.isListening {
-                                voiceController.stopListening()
-                            } else {
-                                voiceController.beginListening()
-                            }
-                        }
-                        .disabled(
-                            voiceController.isListening
-                                ? !voiceController.canStopListening
-                                : !voiceController.canStartListening
-                        )
-
-                        if voiceController.isSpeaking {
-                            Button("Finish Playback") {
-                                voiceController.finishPlayback()
-                            }
-                        }
-
-                        if voiceController.canInterrupt {
-                            Button("Interrupt") {
-                                voiceController.interrupt()
-                            }
-                        }
-                    }
-                    .font(.caption)
-
-                    if voiceController.state.transcriptEntries.isEmpty {
-                        Text("Ask for guidance or report a shot result.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(voiceController.state.transcriptEntries.suffix(6)) { entry in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(entry.speakerLabel)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.secondary)
-                                Text(entry.text)
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    }
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            quickPromptButton("What do you like?") {
-                                submitConversationInput("what do you like here")
-                            }
-                            quickPromptButton("Sim Voice") {
-                                submitVoiceDebugUtterance("what do you like here")
-                            }
-                            quickPromptButton("Partial") {
-                                voiceController.submitPartialVoiceUtterance("what do you")
-                            }
-                            quickPromptButton("Sim Result") {
-                                submitVoiceDebugToolInvocation(
-                                    VoiceToolInvocation(
-                                        actionName: .reportResult,
-                                        arguments: .init(
-                                            lie: .rough,
-                                            remainingDistanceM: 128
-                                        )
-                                    )
-                                )
-                            }
-                            quickPromptButton("Safe play") {
-                                submitConversationInput("safe play")
-                            }
-                            quickPromptButton("Aggressive") {
-                                submitConversationInput("aggressive")
-                            }
-                            quickPromptButton("Repeat") {
-                                submitConversationInput("repeat")
-                            }
-                            quickPromptButton("Sim Fail") {
-                                voiceController.simulateTransportFailure("Debug transport drop")
-                            }
-                        }
-                    }
-
-                    HStack {
-                        TextField("Type to the caddie", text: $conversationInput)
-                            .textInputAutocapitalization(.sentences)
-                            .disableAutocorrection(true)
-
-                        Button("Send") {
-                            submitConversationInput(conversationInput)
-                        }
-                        .disabled(conversationInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-                }
-
-                Section("Round") {
-                    Picker("Current Hole", selection: $selectedHoleNumber) {
-                        ForEach(holeOptions, id: \.holeNumber) { hole in
-                            Text("Hole \(hole.holeNumber)").tag(hole.holeNumber)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    Picker("View", selection: $selectedPlanMode) {
-                        ForEach(HostRoundPreviewModel.RoundPlanMode.allCases) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    Picker("Strategy", selection: $roundOverrides.strategyPreference) {
-                        ForEach(HoleInspectorModel.strategyOptions, id: \.rawValue) { strategy in
-                            Text(strategy.rawValue.capitalized).tag(strategy)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-
-                    Picker("Tee", selection: $roundOverrides.teeSetId) {
-                        ForEach(teeOptions) { tee in
-                            Text(tee.name).tag(tee.teeSetId)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    Toggle("Wind", isOn: $roundOverrides.windEnabled)
-
-                    if roundOverrides.windEnabled {
-                        Picker("Direction", selection: $roundOverrides.windDirection) {
-                            ForEach(HoleInspectorModel.windDirectionOptions, id: \.rawValue) { direction in
-                                Text(direction.rawValue.capitalized).tag(direction)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        LabeledContent("Speed", value: "\(metric(roundOverrides.windSpeedMps)) m/s")
-
-                        Slider(
-                            value: $roundOverrides.windSpeedMps,
-                            in: 0...12,
-                            step: 1
-                        )
-                    }
-
-                    LabeledContent("Mode", value: selectedPlanMode.title)
-
-                    if isHoleFinished {
-                        LabeledContent("Scenario", value: "Hole finished")
-                    } else if usesLiveState {
-                        LabeledContent("Scenario", value: "Live hole state")
-                    } else {
-                        Picker("Scenario", selection: $selectedScenarioId) {
-                            ForEach(scenarioOptions) { scenario in
-                                Text(scenario.name).tag(scenario.id)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                    }
-                }
-
-                Section("Hole State") {
-                    if usesLiveState,
-                       let selectedHoleState,
-                       let shotStateContext = selectedHoleState.shotStateContext {
-                        HStack {
-                            Button("Advance shot") {
-                                advanceSelectedHole()
-                            }
-
-                            Spacer()
-
-                            Button("Record shot result") {
-                                beginShotResultCapture(from: shotStateContext)
-                            }
-                            .tint(.blue)
-
-                            Spacer()
-
-                            Button("Hole out") {
-                                beginHoleOutFlow()
-                            }
-                            .tint(.green)
-                        }
-
-                        if let pendingHoleOutStrokes {
-                            Stepper(
-                                "Finish in \(pendingHoleOutStrokes) strokes",
-                                value: Binding(
-                                    get: { pendingHoleOutStrokes },
-                                    set: { self.pendingHoleOutStrokes = $0 }
-                                ),
-                                in: 1...15
-                            )
-
-                            HStack {
-                                Button("Confirm score") {
-                                    confirmHoleOut()
-                                }
-                                .tint(.green)
-
-                                Spacer()
-
-                                Button("Cancel") {
-                                    cancelHoleOut()
-                                }
-                            }
-                        }
-
-                        Stepper(
-                            "Shot \(shotStateContext.shotNumber)",
-                            value: Binding(
-                                get: { shotStateContext.shotNumber },
-                                set: updateSelectedHoleShotNumber
-                            ),
-                            in: 1...10
-                        )
-
-                        Picker(
-                            "Lie",
-                            selection: Binding(
-                                get: { shotStateContext.lie },
-                                set: updateSelectedHoleLie
-                            )
-                        ) {
-                            ForEach(HostRoundPreviewModel.lieOptions, id: \.rawValue) { lie in
-                                Text(lie.rawValue.capitalized).tag(lie)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        LabeledContent(
-                            "Remaining",
-                            value: "\(metric(shotStateContext.remainingDistanceM)) m"
-                        )
-
-                        Slider(
-                            value: Binding(
-                                get: { shotStateContext.remainingDistanceM },
-                                set: updateSelectedHoleRemainingDistance
-                            ),
-                            in: liveDistanceRange,
-                            step: 1
-                        )
-                    } else if isHoleFinished {
-                        LabeledContent("Status", value: "Finished")
-                        LabeledContent("Score", value: "\(selectedHoleState?.strokesTaken ?? 0)")
-
-                        Button("Reset hole") {
-                            resetSelectedHole()
-                        }
-                    } else {
-                        Button("Start hole") {
-                            startSelectedHole()
-                        }
-                    }
-                }
-
-                if isHoleFinished {
-                    Section {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Hole complete")
-                                .font(.title3.weight(.semibold))
-
-                            Text("Hole \(preview.holeNumber) is marked finished in the live round state.")
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                } else {
-                    Section {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Today’s caddie line")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.secondary)
-
-                            Text("Hole \(preview.holeNumber) • Par \(preview.par)")
-                                .font(.headline)
-
-                            Text(preview.packet.headline)
-                                .font(.title3.weight(.semibold))
-
-                            Text(preview.packet.primaryReason)
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
-                    }
-
-                    Section("Current Shot") {
-                        LabeledContent("Scenario", value: currentScenarioLabel(for: preview))
-                        LabeledContent("Lie", value: preview.packet.lie.rawValue.capitalized)
-                        LabeledContent("Remaining", value: "\(metric(preview.packet.remainingDistanceM)) m")
-                        LabeledContent("Tee", value: effectiveRoundContext.teeSetName)
-                        LabeledContent(
-                            "Plan",
-                            value: (preview.packet.strategyPreference ?? effectiveRoundContext.strategyPreference.rawValue).capitalized
-                        )
-                        if let wind = effectiveRoundContext.wind {
-                            LabeledContent("Wind", value: windLabel(wind))
-                        } else {
-                            LabeledContent("Wind", value: "Calm")
-                        }
-                    }
-
-                    Section("Recommendation") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(preview.voicePreview)
-                                .font(.body)
-
-                            HStack(spacing: 12) {
-                                Text("Club \(preview.packet.recommendedClub ?? "n/a")")
-                                Text("Risk \(preview.packet.riskLevel.capitalized)")
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 2)
-                    }
-                }
-            } else {
-                Section {
-                    ContentUnavailableView(
-                        "Preview Unavailable",
-                        systemImage: "flag.slash",
-                        description: Text("Could not build a next-shot preview from the current sample bundle.")
-                    )
-                }
+        TabView(selection: $selectedTab) {
+            CaddieTabView(
+                bundle: bundle,
+                playerContext: playerContext,
+                baseRoundContext: baseRoundContext,
+                selectedHoleNumber: $selectedHoleNumber,
+                roundOverrides: $roundOverrides,
+                roundState: $roundState,
+                preview: preview,
+                voiceController: voiceController,
+                onRequestInspector: { selectedTab = .inspector }
+            )
+            .tabItem {
+                Label("Caddie", systemImage: "figure.golf")
             }
+            .tag(ContentView.CaddieHostTab.caddie)
+
+            InspectorTabView(
+                bundle: bundle,
+                playerContext: playerContext,
+                baseRoundContext: baseRoundContext,
+                selectedHoleNumber: $selectedHoleNumber,
+                roundOverrides: $roundOverrides,
+                roundState: $roundState,
+                editingScoreHoleNumber: $editingScoreHoleNumber,
+                editingScoreStrokes: $editingScoreStrokes,
+                selectedPlanMode: $selectedPlanMode,
+                selectedScenarioId: $selectedScenarioId,
+                pendingHoleOutStrokes: $pendingHoleOutStrokes,
+                scenarioOptions: scenarioOptions,
+                voiceController: voiceController,
+                onResetRound: resetRound,
+                onStartHole: startSelectedHole,
+                onAdvanceHole: advanceSelectedHole,
+                onConfirmHoleOut: confirmHoleOut,
+                onCancelHoleOut: cancelHoleOut,
+                onResetHole: resetSelectedHole,
+                onBeginShotResultCapture: beginShotResultCapture
+            )
+            .tabItem {
+                Label("Inspector", systemImage: "list.bullet.rectangle")
+            }
+            .tag(ContentView.CaddieHostTab.inspector)
         }
-        .navigationTitle("TrueCaddie")
         .onAppear {
             syncSelection()
             syncVoiceSessionSnapshot()
-        }
-        .sheet(isPresented: isShotResultSheetPresented) {
-            shotResultSheet
         }
         .onChange(of: selectedHoleNumber) {
             shotResultDraft = nil
@@ -745,6 +221,12 @@ private struct RoundPreviewView: View {
             persistRoundProgress()
             syncVoiceSessionSnapshot()
         }
+        .onChange(of: voiceController.state.lastResponse) { _, response in
+            if let response { applyVoiceResponse(response) }
+        }
+        .sheet(isPresented: isShotResultSheetPresented) {
+            shotResultSheet
+        }
     }
 
     @ViewBuilder
@@ -754,9 +236,7 @@ private struct RoundPreviewView: View {
                 Form {
                     Section("Shot Result") {
                         LabeledContent("Shot", value: "\(shotResultDraft.currentShotNumber)")
-
                         Toggle("Holed out", isOn: shotResultHoledOutBinding)
-
                         if !shotResultDraft.holedOut {
                             Picker("Lie", selection: shotResultLieBinding) {
                                 ForEach(HostRoundPreviewModel.lieOptions, id: \.rawValue) { lie in
@@ -764,32 +244,18 @@ private struct RoundPreviewView: View {
                                 }
                             }
                             .pickerStyle(.segmented)
-
-                            LabeledContent(
-                                "Remaining",
-                                value: "\(metric(shotResultDraft.remainingDistanceM)) m"
-                            )
-
-                            Slider(
-                                value: shotResultRemainingDistanceBinding,
-                                in: liveDistanceRange,
-                                step: 1
-                            )
+                            LabeledContent("Remaining", value: "\(metric(shotResultDraft.remainingDistanceM)) m")
+                            Slider(value: shotResultRemainingDistanceBinding, in: liveDistanceRange, step: 1)
                         }
                     }
                 }
                 .navigationTitle("Record Result")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel") {
-                            self.shotResultDraft = nil
-                        }
+                        Button("Cancel") { self.shotResultDraft = nil }
                     }
-
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
-                            saveShotResultDraft()
-                        }
+                        Button("Save") { saveShotResultDraft() }
                     }
                 }
             }
@@ -797,141 +263,65 @@ private struct RoundPreviewView: View {
     }
 
     private var shotResultHoledOutBinding: Binding<Bool> {
-        Binding(
-            get: { shotResultDraft?.holedOut ?? false },
-            set: { updateShotResultDraft(holedOut: $0) }
-        )
+        Binding(get: { shotResultDraft?.holedOut ?? false }, set: { updateShotResultDraft(holedOut: $0) })
     }
 
     private var shotResultLieBinding: Binding<ShotLie> {
-        Binding(
-            get: { shotResultDraft?.resultingLie ?? .fairway },
-            set: { updateShotResultDraft(resultingLie: $0) }
-        )
+        Binding(get: { shotResultDraft?.resultingLie ?? .fairway }, set: { updateShotResultDraft(resultingLie: $0) })
     }
 
     private var shotResultRemainingDistanceBinding: Binding<Double> {
-        Binding(
-            get: { shotResultDraft?.remainingDistanceM ?? 0 },
-            set: { updateShotResultDraft(remainingDistanceM: $0) }
-        )
-    }
-
-    private func metric(_ number: Double) -> String {
-        if number.rounded() == number {
-            return String(Int(number))
-        }
-
-        return String(format: "%.1f", number)
-    }
-
-    @ViewBuilder
-    private func quickPromptButton(
-        _ title: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(title, action: action)
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-    }
-
-    private func windLabel(_ wind: WindContext) -> String {
-        "\(wind.relativeDirection.rawValue.capitalized) • \(metric(wind.speedMps)) m/s"
+        Binding(get: { shotResultDraft?.remainingDistanceM ?? 0 }, set: { updateShotResultDraft(remainingDistanceM: $0) })
     }
 
     private func syncSelection() {
         if selectedHoleNumber == 0 {
             selectedHoleNumber = bundle.holes.first?.holeNumber ?? 0
         }
-
         syncTeeSelection()
         syncScenarioSelection()
     }
 
     private func syncTeeSelection() {
-        guard !teeOptions.isEmpty else {
-            return
-        }
-
-        if teeOptions.contains(where: { $0.teeSetId == roundOverrides.teeSetId }) {
-            return
-        }
-
+        guard !teeOptions.isEmpty else { return }
+        if teeOptions.contains(where: { $0.teeSetId == roundOverrides.teeSetId }) { return }
         roundOverrides.teeSetId = teeOptions.first(where: { $0.isDefault == true })?.teeSetId
             ?? teeOptions.first?.teeSetId
             ?? roundOverrides.teeSetId
     }
 
     private func syncScenarioSelection(forceReset: Bool = false) {
-        guard !usesLiveState else {
-            selectedScenarioId = ""
-            return
-        }
-
-        if !forceReset, scenarioOptions.contains(where: { $0.id == selectedScenarioId }) {
-            return
-        }
-
+        guard !usesLiveState else { selectedScenarioId = ""; return }
+        if !forceReset, scenarioOptions.contains(where: { $0.id == selectedScenarioId }) { return }
         selectedScenarioId = scenarioOptions.first?.id ?? ""
-    }
-
-    private func currentScenarioLabel(for preview: HostRoundPreviewModel.HolePreview) -> String {
-        usesLiveState ? "Live state" : preview.scenarioName
-    }
-
-    private func submitConversationInput(_ rawInput: String) {
-        let trimmedInput = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedInput.isEmpty else {
-            return
-        }
-
-        conversationInput = ""
-
-        guard let response = voiceController.submitTypedUtterance(trimmedInput) else {
-            return
-        }
-
-        applyVoiceResponse(response)
-    }
-
-    private func submitVoiceDebugUtterance(_ utterance: String) {
-        guard let response = voiceController.submitVoiceUtterance(utterance) else {
-            return
-        }
-
-        applyVoiceResponse(response)
-    }
-
-    private func submitVoiceDebugToolInvocation(_ invocation: VoiceToolInvocation) {
-        guard let response = voiceController.submitVoiceToolInvocation(invocation) else {
-            return
-        }
-
-        applyVoiceResponse(response)
-    }
-
-    private func applyVoiceResponse(_ response: VoiceTurnResponse) {
-        if let strategyPreference = response.strategyPreference {
-            roundOverrides.strategyPreference = strategyPreference
-        }
-
-        roundState = response.sessionSnapshot.roundState
-        selectedHoleNumber = response.sessionSnapshot.selectedHoleNumber
-        pendingHoleOutStrokes = nil
-        editingScoreHoleNumber = nil
-        shotResultDraft = nil
-        syncScenarioSelection(forceReset: true)
     }
 
     private func syncVoiceSessionSnapshot() {
         voiceController.updateContext(currentTurnContext)
     }
 
-    private func startSelectedHole() {
-        guard let hole = selectedHole else {
-            return
-        }
+    private func persistRoundProgress() {
+        HostRoundProgressStore.save(
+            .init(selectedHoleNumber: selectedHoleNumber, roundState: roundState),
+            courseId: bundle.courseId
+        )
+    }
 
+    private func resetRound() {
+        shotResultDraft = nil
+        pendingHoleOutStrokes = nil
+        editingScoreHoleNumber = nil
+        roundState = RoundState(courseId: bundle.courseId, holeStates: [])
+        selectedHoleNumber = HostRoundProgressModel.currentHoleNumber(
+            bundle: bundle,
+            roundState: roundState,
+            preferredHoleNumber: nil
+        ) ?? (bundle.holes.first?.holeNumber ?? 0)
+        syncScenarioSelection(forceReset: true)
+    }
+
+    private func startSelectedHole() {
+        guard let hole = selectedHole else { return }
         pendingHoleOutStrokes = nil
         editingScoreHoleNumber = nil
         roundState = roundState.startHole(hole, roundContext: effectiveRoundContext)
@@ -947,16 +337,12 @@ private struct RoundPreviewView: View {
         shotResultDraft = nil
         editingScoreHoleNumber = nil
         pendingHoleOutStrokes = selectedHoleState?.shotStateContext?.shotNumber
-            ?? selectedHoleState?.strokesTaken
-            ?? 1
+            ?? selectedHoleState?.strokesTaken ?? 1
     }
 
     private func confirmHoleOut() {
-        guard let pendingHoleOutStrokes else {
-            return
-        }
-
-        finishSelectedHole(strokesTaken: pendingHoleOutStrokes)
+        guard let strokes = pendingHoleOutStrokes else { return }
+        finishSelectedHole(strokesTaken: strokes)
     }
 
     private func cancelHoleOut() {
@@ -975,22 +361,6 @@ private struct RoundPreviewView: View {
         syncScenarioSelection(forceReset: true)
     }
 
-    private func toggleScoreEdit(for entry: HostRoundProgressModel.ScorecardEntry) {
-        if editingScoreHoleNumber == entry.holeNumber {
-            editingScoreHoleNumber = nil
-            return
-        }
-
-        pendingHoleOutStrokes = nil
-        editingScoreHoleNumber = entry.holeNumber
-        editingScoreStrokes = entry.rawStrokesTaken ?? 1
-    }
-
-    private func saveEditedScore(for holeNumber: Int) {
-        roundState = roundState.updateFinishedHoleScore(editingScoreStrokes, for: holeNumber)
-        editingScoreHoleNumber = nil
-    }
-
     private func beginShotResultCapture(from shotStateContext: ShotStateContext) {
         pendingHoleOutStrokes = nil
         editingScoreHoleNumber = nil
@@ -1002,10 +372,7 @@ private struct RoundPreviewView: View {
         remainingDistanceM: Double? = nil,
         holedOut: Bool? = nil
     ) {
-        guard let draft = shotResultDraft else {
-            return
-        }
-
+        guard let draft = shotResultDraft else { return }
         shotResultDraft = HostRoundProgressModel.ShotResultDraft(
             currentShotNumber: draft.currentShotNumber,
             resultingLie: resultingLie ?? draft.resultingLie,
@@ -1016,17 +383,13 @@ private struct RoundPreviewView: View {
 
     private func saveShotResultDraft() {
         guard let shotResultDraft,
-              let result = HostRoundProgressModel.applyShotResultDraft(shotResultDraft) else {
-            return
-        }
-
+              let result = HostRoundProgressModel.applyShotResultDraft(shotResultDraft) else { return }
         switch result {
-        case .advance(let shotStateContext):
-            roundState = roundState.updateShotState(shotStateContext, for: selectedHoleNumber)
+        case .advance(let ctx):
+            roundState = roundState.updateShotState(ctx, for: selectedHoleNumber)
         case .holeOut(let strokesTaken):
             finishSelectedHole(strokesTaken: strokesTaken)
         }
-
         self.shotResultDraft = nil
     }
 
@@ -1038,73 +401,26 @@ private struct RoundPreviewView: View {
         syncScenarioSelection(forceReset: true)
     }
 
-    private func resetRound() {
-        shotResultDraft = nil
+    private func applyVoiceResponse(_ response: VoiceTurnResponse) {
+        if let strategyPreference = response.strategyPreference {
+            roundOverrides.strategyPreference = strategyPreference
+        }
+        roundState = response.sessionSnapshot.roundState
+        selectedHoleNumber = response.sessionSnapshot.selectedHoleNumber
         pendingHoleOutStrokes = nil
         editingScoreHoleNumber = nil
-        roundState = RoundState(courseId: bundle.courseId, holeStates: [])
-        selectedHoleNumber = HostRoundProgressModel.currentHoleNumber(
-            bundle: bundle,
-            roundState: roundState,
-            preferredHoleNumber: nil
-        ) ?? (bundle.holes.first?.holeNumber ?? 0)
+        shotResultDraft = nil
         syncScenarioSelection(forceReset: true)
     }
 
-    private func updateSelectedHoleShotNumber(_ shotNumber: Int) {
-        guard let shotStateContext = selectedHoleState?.shotStateContext else {
-            return
-        }
-
-        roundState = roundState.updateShotState(
-            ShotStateContext(
-                shotNumber: shotNumber,
-                remainingDistanceM: shotStateContext.remainingDistanceM,
-                lie: shotStateContext.lie
-            ),
-            for: selectedHoleNumber
-        )
+    private func metric(_ number: Double) -> String {
+        if number.rounded() == number { return String(Int(number)) }
+        return String(format: "%.1f", number)
     }
+}
 
-    private func updateSelectedHoleLie(_ lie: ShotLie) {
-        guard let shotStateContext = selectedHoleState?.shotStateContext else {
-            return
-        }
-
-        roundState = roundState.updateShotState(
-            ShotStateContext(
-                shotNumber: shotStateContext.shotNumber,
-                remainingDistanceM: shotStateContext.remainingDistanceM,
-                lie: lie
-            ),
-            for: selectedHoleNumber
-        )
-    }
-
-    private func updateSelectedHoleRemainingDistance(_ remainingDistanceM: Double) {
-        guard let shotStateContext = selectedHoleState?.shotStateContext else {
-            return
-        }
-
-        roundState = roundState.updateShotState(
-            ShotStateContext(
-                shotNumber: shotStateContext.shotNumber,
-                remainingDistanceM: remainingDistanceM,
-                lie: shotStateContext.lie
-            ),
-            for: selectedHoleNumber
-        )
-    }
-
-    private func persistRoundProgress() {
-        HostRoundProgressStore.save(
-            .init(
-                selectedHoleNumber: selectedHoleNumber,
-                roundState: roundState
-            ),
-            courseId: bundle.courseId
-        )
-    }
+#Preview {
+    ContentView()
 }
 
 enum HostRoundPreviewModel {
