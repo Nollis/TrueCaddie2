@@ -2,6 +2,7 @@ import SwiftUI
 
 struct CaddieVoiceCluster: View {
     @ObservedObject var voiceController: HostVoiceSessionController
+    @State private var listeningPulse = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -11,10 +12,12 @@ struct CaddieVoiceCluster: View {
                 if voiceController.canInterrupt {
                     Button("Interrupt") { voiceController.interrupt() }
                         .buttonStyle(.bordered)
+                        .font(.callout)
                 }
                 if voiceController.isSpeaking {
                     Button("Finish") { voiceController.finishPlayback() }
                         .buttonStyle(.bordered)
+                        .font(.callout)
                 }
                 Spacer(minLength: 0)
                 statusChip
@@ -80,6 +83,16 @@ struct CaddieVoiceCluster: View {
             Circle()
                 .fill(dotColor)
                 .frame(width: 8, height: 8)
+                .opacity(voiceController.isListening ? (listeningPulse ? 1.0 : 0.35) : 1.0)
+                .animation(
+                    voiceController.isListening
+                        ? .easeInOut(duration: 0.5).repeatForever(autoreverses: true)
+                        : .default,
+                    value: listeningPulse
+                )
+                .onChange(of: voiceController.isListening) { _, listening in
+                    listeningPulse = listening
+                }
             Text(stateLabel)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
