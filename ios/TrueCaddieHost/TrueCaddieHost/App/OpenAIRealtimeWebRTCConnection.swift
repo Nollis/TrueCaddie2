@@ -21,7 +21,7 @@ final class OpenAIRealtimeWebRTCConnection: NSObject, OpenAIRealtimeConnectionin
     private var isDataChannelOpen = false
 
     init(
-        configuration: OpenAIRealtimeSessionConfiguration = .default,
+        configuration: OpenAIRealtimeSessionConfiguration,
         credential: RealtimeVoiceCredential
     ) {
         self.configuration = configuration
@@ -150,7 +150,7 @@ extension OpenAIRealtimeWebRTCConnection: WKScriptMessageHandler {
                 isDataChannelOpen = true
                 let queued = pendingMessages
                 pendingMessages.removeAll()
-                queued.forEach { dispatch($0) }
+                queued.forEach { self.dispatch($0) }
             case "rtcClose":
                 isDataChannelOpen = false
                 onDisconnected?()
