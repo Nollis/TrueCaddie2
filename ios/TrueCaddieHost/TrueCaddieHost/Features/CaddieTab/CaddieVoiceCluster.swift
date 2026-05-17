@@ -1,7 +1,9 @@
 import SwiftUI
+import TrueCaddieDomain
 
 struct CaddieVoiceCluster: View {
     @ObservedObject var voiceController: HostVoiceSessionController
+    @ObservedObject var locationModel: LiveCourseLocationModel
     @State private var listeningPulse = false
 
     var body: some View {
@@ -19,10 +21,37 @@ struct CaddieVoiceCluster: View {
                         .buttonStyle(.bordered)
                         .font(.callout)
                 }
+                markBallButton
                 Spacer(minLength: 0)
                 statusChip
             }
         }
+    }
+
+    @ViewBuilder
+    private var markBallButton: some View {
+        if voiceController.isConnected {
+            Button(markBallButtonLabel) {
+                _ = voiceController.markBallPosition()
+            }
+            .buttonStyle(.bordered)
+            .font(.callout)
+            .disabled(!isCaptureReady)
+            .accessibilityLabel("Mark ball position from GPS")
+        }
+    }
+
+    private var markBallButtonLabel: String {
+        guard let fix = locationModel.lastFix else { return "GPS warming up" }
+        if fix.horizontalAccuracyM > GolfGeometry.Constants.minimumAcceptableAccuracyM {
+            return "GPS warming up"
+        }
+        return "I'm at my ball"
+    }
+
+    private var isCaptureReady: Bool {
+        guard let fix = locationModel.lastFix else { return false }
+        return fix.horizontalAccuracyM <= GolfGeometry.Constants.minimumAcceptableAccuracyM
     }
 
     @ViewBuilder

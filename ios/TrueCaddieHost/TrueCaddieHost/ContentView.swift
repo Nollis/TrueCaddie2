@@ -54,6 +54,7 @@ private struct CaddieHostTabContainer: View {
     @State private var shotResultDraft: HostRoundProgressModel.ShotResultDraft?
     @State private var pendingHoleOutStrokes: Int?
     @StateObject private var voiceController: HostVoiceSessionController
+    @StateObject private var locationModel: LiveCourseLocationModel
 
     init(
         bundle: CourseBundle,
@@ -63,18 +64,24 @@ private struct CaddieHostTabContainer: View {
     ) {
         let savedProgress = HostRoundProgressStore.load(courseId: bundle.courseId)
         let initialRoundState = savedProgress?.roundState ?? RoundState(courseId: bundle.courseId, holeStates: [])
+        let initialHoleNumber = HostRoundProgressModel.currentHoleNumber(
+            bundle: bundle,
+            roundState: initialRoundState,
+            preferredHoleNumber: savedProgress?.selectedHoleNumber
+        ) ?? bundle.holes.first?.holeNumber ?? 0
         self.bundle = bundle
         self.playerContext = playerContext
         self.baseRoundContext = roundContext
         _selectedTab = selectedTab
-        _selectedHoleNumber = State(initialValue: HostRoundProgressModel.currentHoleNumber(
-            bundle: bundle,
-            roundState: initialRoundState,
-            preferredHoleNumber: savedProgress?.selectedHoleNumber
-        ) ?? bundle.holes.first?.holeNumber ?? 0)
+        _selectedHoleNumber = State(initialValue: initialHoleNumber)
         _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
         _roundState = State(initialValue: initialRoundState)
         _voiceController = StateObject(wrappedValue: HostVoiceSessionController.makeWithPilotCredentials())
+        _locationModel = StateObject(wrappedValue: LiveCourseLocationModel(
+            provider: CoreLocationProvider(),
+            bundle: bundle,
+            currentHoleNumber: initialHoleNumber == 0 ? nil : initialHoleNumber
+        ))
     }
 
     private var selectedHole: CourseHole? {
@@ -162,6 +169,7 @@ private struct CaddieHostTabContainer: View {
                 roundState: $roundState,
                 preview: preview,
                 voiceController: voiceController,
+                locationModel: locationModel,
                 onRequestInspector: { selectedTab = .inspector }
             )
             .tabItem {
@@ -199,6 +207,9 @@ private struct CaddieHostTabContainer: View {
         .onAppear {
             syncSelection()
             syncVoiceSessionSnapshot()
+            voiceController.locationModel = locationModel
+            locationModel.currentHoleNumber = selectedHoleNumber == 0 ? nil : selectedHoleNumber
+            locationModel.start()
         }
         .onChange(of: selectedHoleNumber) {
             shotResultDraft = nil
@@ -208,6 +219,7 @@ private struct CaddieHostTabContainer: View {
             syncScenarioSelection()
             persistRoundProgress()
             syncVoiceSessionSnapshot()
+            locationModel.currentHoleNumber = selectedHoleNumber == 0 ? nil : selectedHoleNumber
         }
         .onChange(of: selectedPlanMode) {
             syncScenarioSelection(forceReset: true)

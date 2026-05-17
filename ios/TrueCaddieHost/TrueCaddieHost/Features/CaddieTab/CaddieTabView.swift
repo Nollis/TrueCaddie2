@@ -10,6 +10,7 @@ struct CaddieTabView: View {
     @Binding var roundState: RoundState
     let preview: HostRoundPreviewModel.HolePreview?
     @ObservedObject var voiceController: HostVoiceSessionController
+    @ObservedObject var locationModel: LiveCourseLocationModel
     let onRequestInspector: () -> Void
 
     private var currentPar: Int {
@@ -56,12 +57,17 @@ struct CaddieTabView: View {
                 VStack(spacing: 16) {
                     CaddieRecommendationHero(
                         packet: preview?.packet,
-                        emptyStateText: emptyStateText
+                        emptyStateText: emptyStateText,
+                        livePinDistanceM: locationModel.distanceToPinM,
+                        locationAuthorizationStatus: locationModel.authorizationStatus
                     )
                     .padding(.horizontal, 16)
 
-                    CaddieVoiceCluster(voiceController: voiceController)
-                        .padding(.horizontal, 16)
+                    CaddieVoiceCluster(
+                        voiceController: voiceController,
+                        locationModel: locationModel
+                    )
+                    .padding(.horizontal, 16)
 
                     Spacer(minLength: 0)
                 }

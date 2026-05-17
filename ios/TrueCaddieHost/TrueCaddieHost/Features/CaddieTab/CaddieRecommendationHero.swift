@@ -4,6 +4,20 @@ import TrueCaddieDomain
 struct CaddieRecommendationHero: View {
     let packet: NextShotRecommendationPacket?
     let emptyStateText: String
+    let livePinDistanceM: Double?
+    let locationAuthorizationStatus: LocationAuthorizationStatus?
+
+    init(
+        packet: NextShotRecommendationPacket?,
+        emptyStateText: String,
+        livePinDistanceM: Double? = nil,
+        locationAuthorizationStatus: LocationAuthorizationStatus? = nil
+    ) {
+        self.packet = packet
+        self.emptyStateText = emptyStateText
+        self.livePinDistanceM = livePinDistanceM
+        self.locationAuthorizationStatus = locationAuthorizationStatus
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -26,6 +40,12 @@ struct CaddieRecommendationHero: View {
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
+
+            if let livePinDistanceM {
+                liveDistanceRow(distanceM: livePinDistanceM)
+            } else if let locationAuthorizationStatus, locationAuthorizationStatus == .denied {
+                locationDeniedRow
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -34,6 +54,31 @@ struct CaddieRecommendationHero: View {
                 .fill(Color(uiColor: .secondarySystemBackground))
         )
         .animation(.easeInOut(duration: 0.25), value: packet?.headline)
+    }
+
+    private func liveDistanceRow(distanceM: Double) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "location.fill")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Text("\(Int(distanceM.rounded())) m to pin")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .accessibilityLabel("Live distance to pin: \(Int(distanceM.rounded())) meters")
+    }
+
+    private var locationDeniedRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "location.slash.fill")
+                .font(.footnote)
+                .foregroundStyle(.orange)
+            Text("Location permission denied — distances unavailable.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
     }
 
     @ViewBuilder

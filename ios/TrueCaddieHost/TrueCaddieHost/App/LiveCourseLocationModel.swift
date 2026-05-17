@@ -21,20 +21,29 @@ final class LiveCourseLocationModel: ObservableObject {
     private let provider: any LocationProviding
     private let bundle: CourseBundle
 
-    /// Caller-supplied getter so the model can read the currently selected
-    /// hole without owning it (ContentView is the source of truth).
-    private let currentHole: () -> Int?
+    /// The hole the player is currently committed to playing (per the round
+    /// state, not GPS). Used as the anchor for hysteresis: the model refuses
+    /// to flip away from this hole until the player has been clearly
+    /// outside its features for several consecutive fixes. ContentView keeps
+    /// this in sync with its `selectedHoleNumber` state.
+    var currentHoleNumber: Int? {
+        didSet {
+            if oldValue != currentHoleNumber {
+                consecutiveMisses = 0
+            }
+        }
+    }
 
     private var consecutiveMisses: Int = 0
 
     init(
         provider: any LocationProviding,
         bundle: CourseBundle,
-        currentHole: @escaping () -> Int?
+        currentHoleNumber: Int? = nil
     ) {
         self.provider = provider
         self.bundle = bundle
-        self.currentHole = currentHole
+        self.currentHoleNumber = currentHoleNumber
         self.authorizationStatus = provider.authorizationStatus
 
         provider.onFix = { [weak self] fix in
@@ -53,7 +62,6 @@ final class LiveCourseLocationModel: ObservableObject {
     private func handle(fix: LocationFix) {
         lastFix = fix
 
-        let currentHoleNumber = currentHole()
         updateMissStreak(for: fix, currentHoleNumber: currentHoleNumber)
 
         let detected = HoleDetector.activeHole(

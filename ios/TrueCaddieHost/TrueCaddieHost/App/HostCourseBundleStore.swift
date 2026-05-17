@@ -60,6 +60,7 @@ enum HostCaddieSession {
         case balancedPlay = "balanced_play"
         case repeatGuidance = "repeat_guidance"
         case reportResult = "report_result"
+        case markBallPosition = "mark_ball_position"
         case holeOut = "hole_out"
         case correctScore = "correct_score"
     }
@@ -78,6 +79,11 @@ enum HostCaddieSession {
         let remainingDistanceM: Double
     }
 
+    struct MarkBallPositionPayload: Equatable {
+        let lie: ShotLie
+        let remainingDistanceM: Double
+    }
+
     struct CorrectScorePayload: Equatable {
         let strokesTaken: Int
         let holeNumber: Int?
@@ -86,6 +92,7 @@ enum HostCaddieSession {
     enum RealtimeToolPayload: Equatable {
         case none
         case reportResult(ReportResultPayload)
+        case markBallPosition(MarkBallPositionPayload)
         case correctScore(CorrectScorePayload)
     }
 
@@ -130,6 +137,7 @@ enum HostCaddieSession {
         case balancedPlay
         case repeatGuidance
         case reportShotResult(lie: ShotLie, remainingDistanceM: Double)
+        case markBallPosition(lie: ShotLie, remainingDistanceM: Double)
         case holeOut
         case correctScore(strokesTaken: Int, holeNumber: Int?)
 
@@ -147,6 +155,8 @@ enum HostCaddieSession {
                 return .repeatGuidance
             case .reportShotResult:
                 return .reportResult
+            case .markBallPosition:
+                return .markBallPosition
             case .holeOut:
                 return .holeOut
             case .correctScore:
@@ -372,6 +382,14 @@ enum HostCaddieSession {
                         remainingDistanceM: payload.remainingDistanceM
                     )
                 )
+            case let .markBallPosition(payload):
+                return WireToolCall(
+                    name: toolCall.name.rawValue,
+                    arguments: WireToolArguments(
+                        lie: payload.lie,
+                        remainingDistanceM: payload.remainingDistanceM
+                    )
+                )
             case let .correctScore(payload):
                 return WireToolCall(
                     name: toolCall.name.rawValue,
@@ -559,6 +577,12 @@ enum HostCaddieSession {
             sampleUtterances: ["rough 128", "fairway 96"]
         ),
         VoiceToolDefinition(
+            name: .markBallPosition,
+            description: "Capture the player's current GPS position as the end of the previous shot and the start of the next one. The host fills in the lie and remaining distance from device GPS — call this with no arguments when the player indicates they have reached their ball.",
+            fields: [],
+            sampleUtterances: ["I'm at my ball", "we're at the ball"]
+        ),
+        VoiceToolDefinition(
             name: .holeOut,
             description: "Finish the current hole using the current live shot count.",
             fields: [],
@@ -605,6 +629,19 @@ enum HostCaddieSession {
                 )
             )
 
+        case .markBallPosition:
+            // The model calls this with no arguments; the controller layer
+            // backfills lie + remainingDistanceM from device GPS before the
+            // call reaches this factory. If we get here without populated
+            // arguments, drop the call rather than fabricate state.
+            guard let lie, let remainingDistanceM else { return nil }
+            return RealtimeToolCall(
+                name: name,
+                payload: .markBallPosition(
+                    MarkBallPositionPayload(lie: lie, remainingDistanceM: remainingDistanceM)
+                )
+            )
+
         case .correctScore:
             guard let strokesTaken else { return nil }
             return RealtimeToolCall(
@@ -625,6 +662,8 @@ enum HostCaddieSession {
         case (.repeatGuidance, .none): .repeatGuidance
         case let (.reportResult, .reportResult(payload)):
             .reportShotResult(lie: payload.lie, remainingDistanceM: payload.remainingDistanceM)
+        case let (.markBallPosition, .markBallPosition(payload)):
+            .markBallPosition(lie: payload.lie, remainingDistanceM: payload.remainingDistanceM)
         case (.holeOut, .none): .holeOut
         case let (.correctScore, .correctScore(payload)):
             .correctScore(strokesTaken: payload.strokesTaken, holeNumber: payload.holeNumber)
@@ -787,6 +826,38 @@ enum HostCaddieSession {
             return TurnOutcome(
                 actionName: action.name,
                 assistantReply: "Got it. From \(lie.rawValue) at \(format(number: remainingDistanceM))m: \(preview.voicePreview)",
+                roundState: updatedRoundState,
+                selectedHoleNumber: context.selectedHoleNumber,
+                strategyPreference: nil
+            )
+
+        case let .markBallPosition(lie, remainingDistanceM):
+            let currentShotNumber = context.roundState.holeState(
+                for: context.selectedHoleNumber
+            )?.shotStateContext?.shotNumber
+
+            guard let currentShotNumber else {
+                return TurnOutcome(
+                    actionName: action.name,
+                    assistantReply: "Start the hole first, then I can pick up your ball position.",
+                    roundState: context.roundState,
+                    selectedHoleNumber: context.selectedHoleNumber,
+                    strategyPreference: nil
+                )
+            }
+
+            let updatedRoundState = context.roundState.updateShotState(
+                ShotStateContext(
+                    shotNumber: currentShotNumber + 1,
+                    remainingDistanceM: remainingDistanceM,
+                    lie: lie
+                ),
+                for: context.selectedHoleNumber
+            )
+            guard let preview = preview(for: context, roundState: updatedRoundState) else { return nil }
+            return TurnOutcome(
+                actionName: action.name,
+                assistantReply: "You're \(format(number: remainingDistanceM))m out from the \(lie.rawValue). \(preview.voicePreview)",
                 roundState: updatedRoundState,
                 selectedHoleNumber: context.selectedHoleNumber,
                 strategyPreference: nil
@@ -1891,7 +1962,7 @@ struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
         model: "gpt-realtime-2",
         webSocketURL: "wss://api.openai.com/v1/realtime",
         audio: .default,
-        instructions: "You are a concise, grounded golf caddie. Use the live round state and tool outputs. Keep spoken replies short.",
+        instructions: "You are a concise, grounded golf caddie. Use the live round state and tool outputs. Keep spoken replies short. When the player says they are at their ball or have walked up to it, call mark_ball_position with no arguments — the host fills in the lie and remaining distance from GPS.",
         voice: "alloy"
     )
 }
@@ -3321,6 +3392,10 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             let lie = invocation.arguments.lie?.rawValue ?? "result"
             let distance = invocation.arguments.remainingDistanceM.map(format(number:)) ?? ""
             return distance.isEmpty ? lie : "\(lie) \(distance)"
+        case .markBallPosition:
+            let lie = invocation.arguments.lie?.rawValue ?? "ball"
+            let distance = invocation.arguments.remainingDistanceM.map(format(number:)) ?? ""
+            return distance.isEmpty ? "I'm at my ball" : "I'm at my ball (\(lie) \(distance)m)"
         case .holeOut:
             return "holed out"
         case .correctScore:
@@ -3352,6 +3427,13 @@ final class HostVoiceSessionController: ObservableObject {
     private let playbackEngine: any RealtimePlaybackEngine
     private var currentContext: HostCaddieSession.TurnContext?
     private var lastEventResponse: VoiceTurnResponse?
+
+    /// Optional source of live GPS-derived state, used by
+    /// ``markBallPosition()`` and by the model-tool intercept for
+    /// `mark_ball_position`. The location model is owned by ContentView and
+    /// injected after construction so the controller doesn't itself depend on
+    /// CoreLocation.
+    var locationModel: LiveCourseLocationModel?
 
     init(
         sessionManager: RealtimeVoiceSessionManager = RealtimeVoiceSessionManager(
@@ -3578,6 +3660,53 @@ final class HostVoiceSessionController: ObservableObject {
         return lastEventResponse
     }
 
+    /// Outcome of a "mark ball position" attempt — surfaced to UI so the
+    /// Caddie tab can show a brief reason when capture isn't possible
+    /// (no fix, poor accuracy, no hole started).
+    enum MarkBallPositionResult: Equatable {
+        case captured(remainingDistanceM: Double, lie: ShotLie)
+        case noFix
+        case poorAccuracy(horizontalAccuracyM: Double)
+        case noActiveHole
+        case sessionInactive
+    }
+
+    /// UI tap entry point (and the resolution target for the model-side
+    /// `mark_ball_position` tool intercept). Reads the latest fix from the
+    /// injected ``LiveCourseLocationModel``, gates on capture-accuracy,
+    /// derives lie + remaining-distance, and submits a fully-populated voice
+    /// tool invocation so the existing dispatch / persistence path handles
+    /// the round-state mutation.
+    @discardableResult
+    func markBallPosition() -> MarkBallPositionResult {
+        guard let context = currentContext else { return .sessionInactive }
+        guard let model = locationModel, let fix = model.lastFix else { return .noFix }
+
+        guard fix.horizontalAccuracyM <= GolfGeometry.Constants.minimumAcceptableAccuracyM else {
+            return .poorAccuracy(horizontalAccuracyM: fix.horizontalAccuracyM)
+        }
+
+        guard
+            let hole = context.bundle.holes.first(where: { $0.holeNumber == context.selectedHoleNumber }),
+            let green = GeoCoordinate2D(lonLatPair: hole.baseMappingData.green.center)
+        else { return .noActiveHole }
+
+        let remainingDistanceM = GolfGeometry.haversineDistance(fix.coordinate, green)
+        let lie = LieInference.lie(at: fix.coordinate, in: hole)
+
+        _ = submitVoiceToolInvocation(
+            VoiceToolInvocation(
+                actionName: .markBallPosition,
+                arguments: VoiceToolInvocationArguments(
+                    lie: lie,
+                    remainingDistanceM: remainingDistanceM
+                )
+            )
+        )
+
+        return .captured(remainingDistanceM: remainingDistanceM, lie: lie)
+    }
+
     func simulateToolCallback(_ callback: RealtimeVoiceToolCallbackEvent) {
         guard currentContext != nil else {
             return
@@ -3605,6 +3734,19 @@ final class HostVoiceSessionController: ObservableObject {
     private func receiveRealtimeEvent(_ event: RealtimeVoiceTransportEvent) {
         if case let .outputAudioChunk(data) = event {
             playbackEngine.enqueue(data)
+        }
+
+        // Intercept the model's mark_ball_position tool call before it
+        // reaches the session manager. The model has no access to device GPS
+        // so it sends the call with no arguments — we backfill lie +
+        // remaining-distance from the device fix and dispatch through the
+        // standard markBallPosition() path so UI and voice see the same
+        // result whether the user tapped or spoke.
+        if case let .toolInvocation(invocation) = event,
+           invocation.actionName == .markBallPosition,
+           invocation.arguments.lie == nil || invocation.arguments.remainingDistanceM == nil {
+            _ = markBallPosition()
+            return
         }
 
         guard let currentContext else {

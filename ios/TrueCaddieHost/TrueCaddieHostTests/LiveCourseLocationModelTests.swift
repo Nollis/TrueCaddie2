@@ -9,7 +9,7 @@ struct LiveCourseLocationModelTests {
     @Test func emittingFixOnTeeReportsThatHoleAndDistanceToGreen() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let provider = StubLocationProvider()
-        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHole: { nil })
+        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHoleNumber: nil)
         model.start()
 
         // Hole 1 White tee coordinate from the bundle.
@@ -25,7 +25,7 @@ struct LiveCourseLocationModelTests {
     @Test func fixOnGreenInfersFairwayLie() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let provider = StubLocationProvider()
-        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHole: { nil })
+        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHoleNumber: nil)
 
         // Hole 1 green center.
         let greenCoord = GeoCoordinate2D(lon: 11.992440149, lat: 57.491023724)
@@ -39,7 +39,7 @@ struct LiveCourseLocationModelTests {
     @Test func authorizationChangesPropagate() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let provider = StubLocationProvider()
-        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHole: { nil })
+        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHoleNumber: nil)
 
         #expect(model.authorizationStatus == .authorizedWhenInUse)
 
@@ -53,7 +53,7 @@ struct LiveCourseLocationModelTests {
     @Test func lastFixIsPublishedEvenWhenAccuracyIsPoor() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let provider = StubLocationProvider()
-        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHole: { nil })
+        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHoleNumber: nil)
 
         // The model does not gate fixes by accuracy itself — that gate lives
         // at the capture seam. So a poor-accuracy fix should still surface
@@ -69,7 +69,7 @@ struct LiveCourseLocationModelTests {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let provider = StubLocationProvider()
         // "Currently on hole 1" — model uses this to track misses.
-        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHole: { 1 })
+        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHoleNumber: 1)
 
         // A coordinate clearly inside hole 2's footprint (and well outside hole 1's).
         let hole2Green = GeoCoordinate2D(lon: 11.997032761573793, lat: 57.488330174334116)
@@ -88,7 +88,7 @@ struct LiveCourseLocationModelTests {
     @Test func returningToCurrentHoleResetsTheMissStreak() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let provider = StubLocationProvider()
-        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHole: { 1 })
+        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHoleNumber: 1)
 
         let hole2Green = GeoCoordinate2D(lon: 11.997032761573793, lat: 57.488330174334116)
         let hole1Green = GeoCoordinate2D(lon: 11.992440149, lat: 57.491023724)
