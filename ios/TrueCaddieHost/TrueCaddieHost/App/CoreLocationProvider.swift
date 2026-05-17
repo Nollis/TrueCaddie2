@@ -53,7 +53,7 @@ final class CoreLocationProvider: NSObject, LocationProviding {
         manager.stopUpdatingLocation()
     }
 
-    private static func mapStatus(_ status: CLAuthorizationStatus) -> LocationAuthorizationStatus {
+    nonisolated private static func mapStatus(_ status: CLAuthorizationStatus) -> LocationAuthorizationStatus {
         switch status {
         case .notDetermined: return .notDetermined
         case .restricted: return .restricted
@@ -68,7 +68,7 @@ final class CoreLocationProvider: NSObject, LocationProviding {
     /// Apple uses negative `horizontalAccuracy` to signal "no fix"; we also
     /// drop anything outside 2× the capture-accuracy threshold so noisy
     /// readings don't churn the UI distance number.
-    private static func shouldKeep(_ location: CLLocation) -> Bool {
+    nonisolated private static func shouldKeep(_ location: CLLocation) -> Bool {
         guard location.horizontalAccuracy > 0 else { return false }
         return location.horizontalAccuracy <= GolfGeometry.Constants.minimumAcceptableAccuracyM * 2
     }
