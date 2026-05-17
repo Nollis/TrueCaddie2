@@ -413,6 +413,7 @@
 				DEVELOPMENT_TEAM = XT9G73WJRY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "TrueCaddie uses your location during a round to know which hole you're on and measure distance to the pin.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TrueCaddie uses the microphone for live caddie voice conversations.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -446,6 +447,7 @@
 				DEVELOPMENT_TEAM = XT9G73WJRY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "TrueCaddie uses your location during a round to know which hole you're on and measure distance to the pin.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TrueCaddie uses the microphone for live caddie voice conversations.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
