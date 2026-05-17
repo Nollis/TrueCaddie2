@@ -191,6 +191,7 @@ private struct CaddieHostTabContainer: View {
                 pendingHoleOutStrokes: $pendingHoleOutStrokes,
                 scenarioOptions: scenarioOptions,
                 voiceController: voiceController,
+                locationModel: locationModel,
                 onResetRound: resetRound,
                 onStartHole: startSelectedHole,
                 onAdvanceHole: advanceSelectedHole,
@@ -235,6 +236,14 @@ private struct CaddieHostTabContainer: View {
         }
         .onChange(of: voiceController.state.lastResponse) { _, response in
             if let response { applyVoiceResponse(response) }
+        }
+        .onChange(of: locationModel.detectedHoleNumber) { _, detected in
+            // Auto-select the detected hole. LiveCourseLocationModel already
+            // enforces hysteresis (5 consecutive fixes > 80 m outside the
+            // current hole) before emitting a different value, so simply
+            // following it here is safe.
+            guard let detected, detected != selectedHoleNumber else { return }
+            selectedHoleNumber = detected
         }
         .sheet(isPresented: isShotResultSheetPresented) {
             shotResultSheet

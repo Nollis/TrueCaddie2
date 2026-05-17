@@ -15,6 +15,7 @@ struct InspectorTabView: View {
     @Binding var pendingHoleOutStrokes: Int?
     let scenarioOptions: [HoleInspectorModel.ShotStateScenario]
     @ObservedObject var voiceController: HostVoiceSessionController
+    @ObservedObject var locationModel: LiveCourseLocationModel
     let onResetRound: () -> Void
     let onStartHole: () -> Void
     let onAdvanceHole: () -> Void
@@ -61,7 +62,11 @@ struct InspectorTabView: View {
 
                 InspectorVoiceDiagnosticsSection(voiceController: voiceController)
 
-                InspectorDeveloperSection(voiceController: voiceController)
+                InspectorDeveloperSection(
+                    voiceController: voiceController,
+                    locationModel: locationModel,
+                    bundle: bundle
+                )
             }
             .navigationTitle("Inspector")
         }

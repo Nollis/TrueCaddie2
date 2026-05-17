@@ -57,6 +57,14 @@ final class LiveCourseLocationModel: ObservableObject {
     func start() { provider.start() }
     func stop() { provider.stop() }
 
+    /// Inject a fix as if it had arrived from the underlying provider.
+    /// Used by the Inspector's developer section to drive the full
+    /// pipeline (hole detection, distance, lie, capture) on the iOS
+    /// Simulator, where real CoreLocation never delivers fixes.
+    func injectStubFix(_ fix: LocationFix) {
+        handle(fix: fix)
+    }
+
     // MARK: - Private
 
     private func handle(fix: LocationFix) {
