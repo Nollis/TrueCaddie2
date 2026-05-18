@@ -66,6 +66,7 @@ struct CaddieVoiceCluster: View {
                     .padding(.vertical, 8)
             }
             .buttonStyle(.borderedProminent)
+            .tint(.green)
             .accessibilityLabel("Enable microphone access")
         } else if !voiceController.isConnected {
             Button {
@@ -77,6 +78,7 @@ struct CaddieVoiceCluster: View {
                     .padding(.vertical, 8)
             }
             .buttonStyle(.borderedProminent)
+            .tint(.green)
             .disabled(!voiceController.canConnect)
             .accessibilityLabel("Connect to caddie")
         } else if voiceController.isListening {

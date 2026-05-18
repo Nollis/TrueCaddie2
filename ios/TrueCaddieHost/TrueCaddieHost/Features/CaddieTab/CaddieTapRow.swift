@@ -4,6 +4,9 @@ import TrueCaddieDomain
 struct CaddieTapRow: View {
     @ObservedObject var voiceController: HostVoiceSessionController
     let currentRemainingDistanceM: Double
+    /// When `true` an **Edit…** button appears that opens the Inspector tab.
+    /// Set to `false` for normal players (inspector hidden).
+    var showEditButton: Bool = false
     let onRequestEditor: () -> Void
 
     private var isEnabled: Bool { voiceController.isConnected }
@@ -15,9 +18,11 @@ struct CaddieTapRow: View {
                 resultChip(.rough, label: "Rough")
                 resultChip(.bunker, label: "Bunker")
                 holeOutChip
-                Button("Edit…") { onRequestEditor() }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                if showEditButton {
+                    Button("Edit…") { onRequestEditor() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
             }
             .padding(.horizontal, 16)
         }

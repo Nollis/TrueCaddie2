@@ -12,6 +12,8 @@ struct CaddieTabView: View {
     @ObservedObject var voiceController: HostVoiceSessionController
     @ObservedObject var locationModel: LiveCourseLocationModel
     @ObservedObject var windModel: LiveWindModel
+    /// Controls whether Inspector-only UI (pill chevron, Edit button) is visible.
+    var showInspectorControls: Bool = false
     let onRequestInspector: () -> Void
 
     @State private var showSettings = false
@@ -53,7 +55,7 @@ struct CaddieTabView: View {
                 remainingDistanceM: currentRemainingDistanceM,
                 lie: currentLie,
                 roundScoreVsPar: currentRoundScoreVsPar,
-                onTap: onRequestInspector
+                onTap: showInspectorControls ? onRequestInspector : nil
             )
 
             ScrollView {
@@ -82,6 +84,7 @@ struct CaddieTabView: View {
             CaddieTapRow(
                 voiceController: voiceController,
                 currentRemainingDistanceM: currentRemainingDistanceM,
+                showEditButton: showInspectorControls,
                 onRequestEditor: onRequestInspector
             )
             .padding(.bottom, 8)
