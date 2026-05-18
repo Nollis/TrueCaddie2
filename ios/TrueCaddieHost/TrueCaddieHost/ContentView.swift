@@ -11,30 +11,51 @@ import TrueCaddieDomain
 struct ContentView: View {
     enum CaddieHostTab: Hashable { case caddie, inspector }
 
-    private let bundleResult = Result {
-        try HostCourseBundleStore.loadKungsbackaNya()
-    }
-    private let playerContext = PlayerContext.pilotSample
-    private let roundContext = RoundContext.pilotSample
+    // Pre-round GPS + proximity ranking.  Kept alive for the full app session
+    // so the Welcome screen can begin ranking before the user taps anything.
+    @StateObject private var proximityModel = CourseProximityModel(
+        provider: CoreLocationProvider(),
+        courses: HostCourseBundleStore.availableCourses
+    )
 
+    // Round router state.
+    @State private var activeBundle: CourseBundle?
+    @State private var roundActive = false
     @State private var selectedTab: CaddieHostTab = .caddie
 
     var body: some View {
-        switch bundleResult {
-        case .success(let bundle):
+        if roundActive, let bundle = activeBundle {
             CaddieHostTabContainer(
                 bundle: bundle,
-                playerContext: playerContext,
-                roundContext: roundContext,
-                selectedTab: $selectedTab
+                playerContext: PlayerContext.pilotSample,
+                roundContext: RoundContext.pilotSample,
+                selectedTab: $selectedTab,
+                onRoundEnded: handleRoundEnded
             )
-        case .failure(let error):
-            ContentUnavailableView(
-                "Course Bundle Missing",
-                systemImage: "exclamationmark.triangle",
-                description: Text(error.localizedDescription)
+        } else {
+            WelcomeView(
+                proximityModel: proximityModel,
+                onStartRound: handleStartRound
             )
+            .onAppear { proximityModel.start() }
         }
+    }
+
+    // MARK: - Round lifecycle
+
+    private func handleStartRound(_ bundle: CourseBundle) {
+        // Clear any stale saved progress so CaddieHostTabContainer begins fresh.
+        HostRoundProgressStore.delete(courseId: bundle.courseId)
+        proximityModel.stop()
+        selectedTab = .caddie
+        activeBundle = bundle
+        roundActive = true
+    }
+
+    private func handleRoundEnded() {
+        roundActive = false
+        activeBundle = nil
+        proximityModel.start()
     }
 }
 
@@ -43,7 +64,11 @@ private struct CaddieHostTabContainer: View {
     let playerContext: PlayerContext
     let baseRoundContextBaseline: RoundContext
     @Binding var selectedTab: ContentView.CaddieHostTab
+    let onRoundEnded: () -> Void
 
+    @AppStorage("truecaddie.developerToolsEnabled") private var showInspector: Bool = false
+
+    @State private var showRoundSummary = false
     @State private var selectedHoleNumber: Int
     @State private var roundOverrides: HoleInspectorModel.RoundOverrideState
     @State private var roundState: RoundState
@@ -61,8 +86,10 @@ private struct CaddieHostTabContainer: View {
         bundle: CourseBundle,
         playerContext: PlayerContext,
         roundContext: RoundContext,
-        selectedTab: Binding<ContentView.CaddieHostTab>
+        selectedTab: Binding<ContentView.CaddieHostTab>,
+        onRoundEnded: @escaping () -> Void
     ) {
+        self.onRoundEnded = onRoundEnded
         let savedProgress = HostRoundProgressStore.load(courseId: bundle.courseId)
         let initialRoundState = savedProgress?.roundState ?? RoundState(courseId: bundle.courseId, holeStates: [])
         let initialHoleNumber = HostRoundProgressModel.currentHoleNumber(
@@ -196,34 +223,36 @@ private struct CaddieHostTabContainer: View {
             }
             .tag(ContentView.CaddieHostTab.caddie)
 
-            InspectorTabView(
-                bundle: bundle,
-                playerContext: playerContext,
-                baseRoundContext: baseRoundContext,
-                selectedHoleNumber: $selectedHoleNumber,
-                roundOverrides: $roundOverrides,
-                roundState: $roundState,
-                editingScoreHoleNumber: $editingScoreHoleNumber,
-                editingScoreStrokes: $editingScoreStrokes,
-                selectedPlanMode: $selectedPlanMode,
-                selectedScenarioId: $selectedScenarioId,
-                pendingHoleOutStrokes: $pendingHoleOutStrokes,
-                scenarioOptions: scenarioOptions,
-                voiceController: voiceController,
-                locationModel: locationModel,
-                windModel: windModel,
-                onResetRound: resetRound,
-                onStartHole: startSelectedHole,
-                onAdvanceHole: advanceSelectedHole,
-                onConfirmHoleOut: confirmHoleOut,
-                onCancelHoleOut: cancelHoleOut,
-                onResetHole: resetSelectedHole,
-                onBeginShotResultCapture: beginShotResultCapture
-            )
-            .tabItem {
-                Label("Inspector", systemImage: "list.bullet.rectangle")
+            if showInspector {
+                InspectorTabView(
+                    bundle: bundle,
+                    playerContext: playerContext,
+                    baseRoundContext: baseRoundContext,
+                    selectedHoleNumber: $selectedHoleNumber,
+                    roundOverrides: $roundOverrides,
+                    roundState: $roundState,
+                    editingScoreHoleNumber: $editingScoreHoleNumber,
+                    editingScoreStrokes: $editingScoreStrokes,
+                    selectedPlanMode: $selectedPlanMode,
+                    selectedScenarioId: $selectedScenarioId,
+                    pendingHoleOutStrokes: $pendingHoleOutStrokes,
+                    scenarioOptions: scenarioOptions,
+                    voiceController: voiceController,
+                    locationModel: locationModel,
+                    windModel: windModel,
+                    onResetRound: resetRound,
+                    onStartHole: startSelectedHole,
+                    onAdvanceHole: advanceSelectedHole,
+                    onConfirmHoleOut: confirmHoleOut,
+                    onCancelHoleOut: cancelHoleOut,
+                    onResetHole: resetSelectedHole,
+                    onBeginShotResultCapture: beginShotResultCapture
+                )
+                .tabItem {
+                    Label("Inspector", systemImage: "list.bullet.rectangle")
+                }
+                .tag(ContentView.CaddieHostTab.inspector)
             }
-            .tag(ContentView.CaddieHostTab.inspector)
         }
         .onAppear {
             syncSelection()
@@ -267,6 +296,21 @@ private struct CaddieHostTabContainer: View {
         .onChange(of: roundState) {
             persistRoundProgress()
             syncVoiceSessionSnapshot()
+            // Detect round completion and present the summary sheet.
+            // The guard prevents re-triggering if onChange fires more than once
+            // for the same state (SwiftUI value-type equality handles most
+            // cases, but the explicit guard is a safety net).
+            if !showRoundSummary {
+                let s = HostRoundProgressModel.summary(
+                    bundle: bundle,
+                    roundState: roundState,
+                    currentHoleNumber: selectedHoleNumber
+                )
+                if s.isRoundComplete {
+                    voiceController.stopListening()
+                    showRoundSummary = true
+                }
+            }
         }
         .onChange(of: voiceController.state.lastResponse) { _, response in
             if let response { applyVoiceResponse(response) }
@@ -281,6 +325,38 @@ private struct CaddieHostTabContainer: View {
         }
         .sheet(isPresented: isShotResultSheetPresented) {
             shotResultSheet
+        }
+        .sheet(
+            isPresented: $showRoundSummary,
+            onDismiss: {
+                // If the sheet is dismissed by any means other than the
+                // New Round button (e.g., keyboard shortcut, assistive
+                // action), re-assert it so the user cannot return to a
+                // completed round without explicitly choosing New Round.
+                let s = HostRoundProgressModel.summary(
+                    bundle: bundle,
+                    roundState: roundState,
+                    currentHoleNumber: selectedHoleNumber
+                )
+                if s.isRoundComplete {
+                    showRoundSummary = true
+                }
+            }
+        ) {
+            RoundSummaryView(
+                bundle: bundle,
+                roundState: roundState,
+                onNewRound: {
+                    showRoundSummary = false
+                    onRoundEnded()
+                }
+            )
+        }
+        .onDisappear {
+            // Release microphone and WebRTC resources when ContentView
+            // removes this container (i.e. the player taps New Round and
+            // the welcome screen is shown).
+            voiceController.disconnect()
         }
     }
 
@@ -976,6 +1052,12 @@ private enum HostRoundProgressStore {
         }
 
         UserDefaults.standard.set(data, forKey: key(for: courseId))
+    }
+
+    /// Remove any saved progress for `courseId`.  Called before starting a
+    /// fresh round so ``CaddieHostTabContainer`` does not restore stale state.
+    static func delete(courseId: String) {
+        UserDefaults.standard.removeObject(forKey: key(for: courseId))
     }
 
     private static func key(for courseId: String) -> String {

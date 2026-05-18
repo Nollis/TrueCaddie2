@@ -14,6 +14,8 @@ struct CaddieTabView: View {
     @ObservedObject var windModel: LiveWindModel
     let onRequestInspector: () -> Void
 
+    @State private var showSettings = false
+
     private var currentPar: Int {
         bundle.holes.first(where: { $0.holeNumber == selectedHoleNumber })?.par ?? 0
     }
@@ -85,5 +87,17 @@ struct CaddieTabView: View {
             .padding(.bottom, 8)
         }
         .background(Color(uiColor: .systemBackground))
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
     }
 }
