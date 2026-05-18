@@ -216,6 +216,7 @@ private struct CaddieHostTabContainer: View {
                 voiceController: voiceController,
                 locationModel: locationModel,
                 windModel: windModel,
+                showInspectorControls: showInspector,
                 onRequestInspector: { selectedTab = .inspector }
             )
             .tabItem {
@@ -254,6 +255,9 @@ private struct CaddieHostTabContainer: View {
                 .tag(ContentView.CaddieHostTab.inspector)
             }
         }
+        // Hide the tab bar when only the Caddie tab is visible — a single-item
+        // tab bar adds visual noise without providing navigation value.
+        .toolbar(showInspector ? .automatic : .hidden, for: .tabBar)
         .onAppear {
             syncSelection()
             syncVoiceSessionSnapshot()
