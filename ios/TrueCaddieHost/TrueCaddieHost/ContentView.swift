@@ -347,6 +347,7 @@ private struct CaddieHostTabContainer: View {
                 bundle: bundle,
                 roundState: roundState,
                 onNewRound: {
+                    HostRoundProgressStore.delete(courseId: bundle.courseId)
                     showRoundSummary = false
                     onRoundEnded()
                 }
