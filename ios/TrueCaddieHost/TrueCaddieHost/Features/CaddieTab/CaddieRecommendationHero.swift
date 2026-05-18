@@ -6,17 +6,20 @@ struct CaddieRecommendationHero: View {
     let emptyStateText: String
     let livePinDistanceM: Double?
     let locationAuthorizationStatus: LocationAuthorizationStatus?
+    let liveWind: WindContext?
 
     init(
         packet: NextShotRecommendationPacket?,
         emptyStateText: String,
         livePinDistanceM: Double? = nil,
-        locationAuthorizationStatus: LocationAuthorizationStatus? = nil
+        locationAuthorizationStatus: LocationAuthorizationStatus? = nil,
+        liveWind: WindContext? = nil
     ) {
         self.packet = packet
         self.emptyStateText = emptyStateText
         self.livePinDistanceM = livePinDistanceM
         self.locationAuthorizationStatus = locationAuthorizationStatus
+        self.liveWind = liveWind
     }
 
     var body: some View {
@@ -46,6 +49,10 @@ struct CaddieRecommendationHero: View {
             } else if let locationAuthorizationStatus, locationAuthorizationStatus == .denied {
                 locationDeniedRow
             }
+
+            if let liveWind {
+                liveWindRow(wind: liveWind)
+            }
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -67,6 +74,19 @@ struct CaddieRecommendationHero: View {
             Spacer(minLength: 0)
         }
         .accessibilityLabel("Live distance to pin: \(Int(distanceM.rounded())) meters")
+    }
+
+    private func liveWindRow(wind: WindContext) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "wind")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            Text("\(Int(wind.speedMps.rounded())) m/s \(wind.relativeDirection.rawValue)")
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .accessibilityLabel("Live wind: \(Int(wind.speedMps.rounded())) meters per second, \(wind.relativeDirection.rawValue)")
     }
 
     private var locationDeniedRow: some View {

@@ -41,7 +41,7 @@ struct ContentView: View {
 private struct CaddieHostTabContainer: View {
     let bundle: CourseBundle
     let playerContext: PlayerContext
-    let baseRoundContext: RoundContext
+    let baseRoundContextBaseline: RoundContext
     @Binding var selectedTab: ContentView.CaddieHostTab
 
     @State private var selectedHoleNumber: Int
@@ -55,6 +55,7 @@ private struct CaddieHostTabContainer: View {
     @State private var pendingHoleOutStrokes: Int?
     @StateObject private var voiceController: HostVoiceSessionController
     @StateObject private var locationModel: LiveCourseLocationModel
+    @StateObject private var windModel: LiveWindModel
 
     init(
         bundle: CourseBundle,
@@ -71,7 +72,7 @@ private struct CaddieHostTabContainer: View {
         ) ?? bundle.holes.first?.holeNumber ?? 0
         self.bundle = bundle
         self.playerContext = playerContext
-        self.baseRoundContext = roundContext
+        self.baseRoundContextBaseline = roundContext
         _selectedTab = selectedTab
         _selectedHoleNumber = State(initialValue: initialHoleNumber)
         _roundOverrides = State(initialValue: HoleInspectorModel.makeRoundOverrideState(from: roundContext))
@@ -82,6 +83,23 @@ private struct CaddieHostTabContainer: View {
             bundle: bundle,
             currentHoleNumber: initialHoleNumber == 0 ? nil : initialHoleNumber
         ))
+        _windModel = StateObject(wrappedValue: LiveWindModel(
+            provider: WeatherKitWindProvider(),
+            bundle: bundle
+        ))
+    }
+
+    /// Effective base context: the original baseline with its `wind` replaced
+    /// by the live observation whenever one is available. The Inspector's
+    /// manual override (R7 cleanup in Unit 7 will remove it; until then it
+    /// still wins via `makeEffectiveRoundContext`) layers on top.
+    private var baseRoundContext: RoundContext {
+        RoundContext(
+            teeSetId: baseRoundContextBaseline.teeSetId,
+            teeSetName: baseRoundContextBaseline.teeSetName,
+            strategyPreference: baseRoundContextBaseline.strategyPreference,
+            wind: windModel.windContext ?? baseRoundContextBaseline.wind
+        )
     }
 
     private var selectedHole: CourseHole? {
@@ -170,6 +188,7 @@ private struct CaddieHostTabContainer: View {
                 preview: preview,
                 voiceController: voiceController,
                 locationModel: locationModel,
+                windModel: windModel,
                 onRequestInspector: { selectedTab = .inspector }
             )
             .tabItem {
@@ -211,6 +230,11 @@ private struct CaddieHostTabContainer: View {
             voiceController.locationModel = locationModel
             locationModel.currentHoleNumber = selectedHoleNumber == 0 ? nil : selectedHoleNumber
             locationModel.start()
+            windModel.setCurrentHole(selectedHole, teeSetId: roundOverrides.teeSetId)
+            if let fix = locationModel.lastFix {
+                windModel.setLocation(fix.coordinate)
+            }
+            windModel.startRefreshLoop()
         }
         .onChange(of: selectedHoleNumber) {
             shotResultDraft = nil
@@ -221,6 +245,15 @@ private struct CaddieHostTabContainer: View {
             persistRoundProgress()
             syncVoiceSessionSnapshot()
             locationModel.currentHoleNumber = selectedHoleNumber == 0 ? nil : selectedHoleNumber
+            windModel.setCurrentHole(selectedHole, teeSetId: roundOverrides.teeSetId)
+        }
+        .onChange(of: roundOverrides.teeSetId) {
+            windModel.setCurrentHole(selectedHole, teeSetId: roundOverrides.teeSetId)
+        }
+        .onChange(of: locationModel.lastFix?.coordinate) { _, coord in
+            if let coord {
+                windModel.setLocation(coord)
+            }
         }
         .onChange(of: selectedPlanMode) {
             syncScenarioSelection(forceReset: true)

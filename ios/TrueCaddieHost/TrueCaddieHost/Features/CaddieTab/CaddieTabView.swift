@@ -11,6 +11,7 @@ struct CaddieTabView: View {
     let preview: HostRoundPreviewModel.HolePreview?
     @ObservedObject var voiceController: HostVoiceSessionController
     @ObservedObject var locationModel: LiveCourseLocationModel
+    @ObservedObject var windModel: LiveWindModel
     let onRequestInspector: () -> Void
 
     private var currentPar: Int {
@@ -59,7 +60,8 @@ struct CaddieTabView: View {
                         packet: preview?.packet,
                         emptyStateText: emptyStateText,
                         livePinDistanceM: locationModel.distanceToPinM,
-                        locationAuthorizationStatus: locationModel.authorizationStatus
+                        locationAuthorizationStatus: locationModel.authorizationStatus,
+                        liveWind: windModel.windContext
                     )
                     .padding(.horizontal, 16)
 
