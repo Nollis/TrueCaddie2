@@ -139,7 +139,6 @@ struct RoundSummaryView: View {
 
     private var newRoundButton: some View {
         Button {
-            HostRoundProgressStore.delete(courseId: bundle.courseId)
             onNewRound()
         } label: {
             Label("New Round", systemImage: "arrow.counterclockwise")
