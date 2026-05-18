@@ -16,6 +16,7 @@ struct InspectorTabView: View {
     let scenarioOptions: [HoleInspectorModel.ShotStateScenario]
     @ObservedObject var voiceController: HostVoiceSessionController
     @ObservedObject var locationModel: LiveCourseLocationModel
+    @ObservedObject var windModel: LiveWindModel
     let onResetRound: () -> Void
     let onStartHole: () -> Void
     let onAdvanceHole: () -> Void
@@ -57,7 +58,8 @@ struct InspectorTabView: View {
                     selectedScenarioId: $selectedScenarioId,
                     scenarioOptions: scenarioOptions,
                     usesLiveState: roundState.holeState(for: selectedHoleNumber)?.status == .inProgress,
-                    isHoleFinished: roundState.holeState(for: selectedHoleNumber)?.status == .finished
+                    isHoleFinished: roundState.holeState(for: selectedHoleNumber)?.status == .finished,
+                    windModel: windModel
                 )
 
                 InspectorVoiceDiagnosticsSection(voiceController: voiceController)
@@ -65,6 +67,7 @@ struct InspectorTabView: View {
                 InspectorDeveloperSection(
                     voiceController: voiceController,
                     locationModel: locationModel,
+                    windModel: windModel,
                     bundle: bundle
                 )
             }

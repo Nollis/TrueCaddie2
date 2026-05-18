@@ -9,6 +9,7 @@ struct InspectorStrategySection: View {
     let scenarioOptions: [HoleInspectorModel.ShotStateScenario]
     let usesLiveState: Bool
     let isHoleFinished: Bool
+    @ObservedObject var windModel: LiveWindModel
 
     var body: some View {
         Section("Strategy & overlays") {
@@ -25,6 +26,8 @@ struct InspectorStrategySection: View {
                 }
             }
             .pickerStyle(.segmented)
+
+            liveWindRow
 
             Toggle("Wind", isOn: $roundOverrides.windEnabled)
 
@@ -53,6 +56,27 @@ struct InspectorStrategySection: View {
                 }
                 .pickerStyle(.menu)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var liveWindRow: some View {
+        if let wind = windModel.windContext {
+            LabeledContent("Live wind", value: "\(Int(wind.speedMps.rounded())) m/s \(wind.relativeDirection.rawValue)")
+        } else if let error = windModel.lastFetchError {
+            LabeledContent("Live wind", value: "unavailable — \(describe(error))")
+                .foregroundStyle(.secondary)
+        } else {
+            LabeledContent("Live wind", value: "warming up")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func describe(_ error: WindProvidingError) -> String {
+        switch error {
+        case .notAuthorized: return "not authorized"
+        case .network(let message): return message
+        case .unknown(let message): return message
         }
     }
 }

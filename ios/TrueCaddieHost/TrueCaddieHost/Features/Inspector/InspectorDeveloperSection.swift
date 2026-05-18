@@ -4,6 +4,7 @@ import TrueCaddieDomain
 struct InspectorDeveloperSection: View {
     @ObservedObject var voiceController: HostVoiceSessionController
     @ObservedObject var locationModel: LiveCourseLocationModel
+    @ObservedObject var windModel: LiveWindModel
     let bundle: CourseBundle
     @AppStorage("truecaddie.developerToolsEnabled") private var developerToolsEnabled = false
     @State private var typedInput = ""
@@ -59,6 +60,8 @@ struct InspectorDeveloperSection: View {
 
                 stubLocationControls
 
+                stubWindControls
+
                 Button("Simulate transport failure") {
                     voiceController.simulateTransportFailure("Debug transport drop")
                 }
@@ -103,6 +106,90 @@ struct InspectorDeveloperSection: View {
                     .foregroundStyle(.secondary)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var stubWindControls: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Stub wind")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    chip("5 m/s tailwind") {
+                        injectStubWind(offsetFromShot: 180, speedMps: 5)
+                    }
+                    chip("10 m/s headwind") {
+                        injectStubWind(offsetFromShot: 0, speedMps: 10)
+                    }
+                    chip("8 m/s crosswind") {
+                        injectStubWind(offsetFromShot: 90, speedMps: 8)
+                    }
+                    chip("Calm") {
+                        injectStubWind(offsetFromShot: 0, speedMps: 0)
+                    }
+                    chip("Error: offline") {
+                        windModel.injectStubError(.network("offline"))
+                    }
+                }
+            }
+
+            if let context = windModel.windContext {
+                Text("Current: \(Int(context.speedMps.rounded())) m/s \(context.relativeDirection.rawValue)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else if let error = windModel.lastFetchError {
+                Text("Last error: \(describe(error))")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    /// Inject a canned advisory whose absolute direction is `offsetFromShot`
+    /// degrees added to the current hole's tee→green bearing. The shot
+    /// always means "downrange from the tee", so offset 0° = headwind,
+    /// 180° = tailwind, 90° = crosswind. Falls back to a north-relative
+    /// offset when no hole is selected yet.
+    private func injectStubWind(offsetFromShot: Double, speedMps: Double) {
+        let shotBearing = currentShotBearing() ?? 0
+        // The wind direction in the advisory is "where the wind is coming
+        // FROM". A headwind (offset 0°) means wind FROM the direction the
+        // shot is going, which is just `shotBearing`. A tailwind (offset
+        // 180°) means wind FROM the opposite direction. So:
+        //   windFromDeg = (shotBearing + offset) mod 360
+        // when offset == 0 -> shotBearing -> headwind (hurting)
+        // when offset == 180 -> opposite -> tailwind (helping)
+        // when offset == 90 -> 90° off shot axis -> crosswind
+        // shotBearing is in [0, 360), offsetFromShot is non-negative,
+        // so the truncatingRemainder result is already in [0, 360).
+        let windFromDeg = (shotBearing + offsetFromShot).truncatingRemainder(dividingBy: 360)
+        windModel.injectStubAdvisory(WindAdvisory(
+            directionDegFromNorth: windFromDeg,
+            speedMps: speedMps,
+            fetchedAt: Date()
+        ))
+    }
+
+    private func currentShotBearing() -> Double? {
+        guard
+            let hole = windModel.currentHole,
+            let tee = hole.tees.first(where: { $0.teeSetId == windModel.currentTeeSetId })
+                ?? hole.tees.first(where: { $0.isDefault == true })
+                ?? hole.tees.first,
+            let teeCoord = GeoCoordinate2D(lonLatPair: tee.teeCoordinate),
+            let greenCoord = GeoCoordinate2D(lonLatPair: hole.baseMappingData.green.center)
+        else { return nil }
+        return GolfGeometry.bearingDeg(from: teeCoord, to: greenCoord)
+    }
+
+    private func describe(_ error: WindProvidingError) -> String {
+        switch error {
+        case .notAuthorized: return "not authorized"
+        case .network(let message): return message
+        case .unknown(let message): return message
         }
     }
 

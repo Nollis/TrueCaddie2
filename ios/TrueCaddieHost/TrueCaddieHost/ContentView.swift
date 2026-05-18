@@ -211,6 +211,7 @@ private struct CaddieHostTabContainer: View {
                 scenarioOptions: scenarioOptions,
                 voiceController: voiceController,
                 locationModel: locationModel,
+                windModel: windModel,
                 onResetRound: resetRound,
                 onStartHole: startSelectedHole,
                 onAdvanceHole: advanceSelectedHole,
