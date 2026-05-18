@@ -53,6 +53,13 @@ public enum GolfGeometry {
         /// Combined with the consecutive-miss streak in `HoleDetector`, this
         /// produces a conservative hysteresis that avoids mid-shot flips.
         public static let holeSwitchOuterRadiusM: Double = 80.0
+
+        /// Half-width (in degrees) of the helping and hurting bands when
+        /// mapping continuous wind direction onto the three
+        /// ``WindRelativeDirection`` categories. With 45° bands, a wind
+        /// 0–45° off the shot axis counts as hurting (or helping), and
+        /// anything beyond is `.cross`.
+        public static let windHelpingHurtingBandDeg: Double = 45.0
     }
 
     /// Earth radius used by the haversine formula. WGS84 mean radius.
@@ -69,6 +76,24 @@ public enum GolfGeometry {
         let h = sin(dLat / 2) * sin(dLat / 2)
             + cos(lat1) * cos(lat2) * sin(dLon / 2) * sin(dLon / 2)
         return 2 * earthRadiusM * asin(min(1.0, sqrt(h)))
+    }
+
+    /// Initial great-circle bearing in degrees clockwise from north
+    /// (0 = due north, 90 = due east), normalized to `[0, 360)`. Returns 0
+    /// when `from` and `to` coincide. Accurate at hole scale and immune to
+    /// any pole / antimeridian concerns since golf courses don't span them.
+    public static func bearingDeg(from a: GeoCoordinate2D, to b: GeoCoordinate2D) -> Double {
+        let lat1 = a.lat.radians
+        let lat2 = b.lat.radians
+        let dLon = (b.lon - a.lon).radians
+
+        let y = sin(dLon) * cos(lat2)
+        let x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
+
+        // atan2 returns radians in (-π, π]; convert and wrap into [0, 360).
+        let degrees = atan2(y, x) * 180.0 / .pi
+        let normalized = degrees.truncatingRemainder(dividingBy: 360)
+        return normalized < 0 ? normalized + 360 : normalized
     }
 
     /// Returns true if `coord` lies inside (or exactly on an edge of) the

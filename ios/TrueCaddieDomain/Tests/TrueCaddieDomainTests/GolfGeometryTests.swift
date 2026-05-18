@@ -124,11 +124,103 @@ final class GolfGeometryTests: XCTestCase {
         XCTAssertFalse(GolfGeometry.pointInPolygon(farAway, ring: rings[0]))
     }
 
+    // MARK: - bearingDeg
+
+    func testBearingMatchesKnownHoleOneTeeToGreenValue() {
+        // Hole-1 White tee -> Green center on the Kungsbacka bundle is
+        // ~120.87° per external haversine bearing calculation.
+        let bearing = GolfGeometry.bearingDeg(from: whiteTeeHole1, to: greenCenterHole1)
+        XCTAssertEqual(bearing, 120.87, accuracy: 1.0)
+    }
+
+    func testBearingDueEastIs90() {
+        let from = GeoCoordinate2D(lon: 0, lat: 50)
+        let to = GeoCoordinate2D(lon: 0.001, lat: 50)
+        XCTAssertEqual(GolfGeometry.bearingDeg(from: from, to: to), 90.0, accuracy: 0.1)
+    }
+
+    func testBearingDueNorthIs0() {
+        let from = GeoCoordinate2D(lon: 0, lat: 50)
+        let to = GeoCoordinate2D(lon: 0, lat: 50.001)
+        XCTAssertEqual(GolfGeometry.bearingDeg(from: from, to: to), 0.0, accuracy: 0.1)
+    }
+
+    func testBearingDueSouthIs180() {
+        let from = GeoCoordinate2D(lon: 0, lat: 50)
+        let to = GeoCoordinate2D(lon: 0, lat: 49.999)
+        XCTAssertEqual(GolfGeometry.bearingDeg(from: from, to: to), 180.0, accuracy: 0.1)
+    }
+
+    func testBearingDueWestIs270() {
+        let from = GeoCoordinate2D(lon: 0, lat: 50)
+        let to = GeoCoordinate2D(lon: -0.001, lat: 50)
+        XCTAssertEqual(GolfGeometry.bearingDeg(from: from, to: to), 270.0, accuracy: 0.1)
+    }
+
+    func testBearingFromPointToItselfReturnsZeroWithoutCrash() {
+        XCTAssertEqual(GolfGeometry.bearingDeg(from: whiteTeeHole1, to: whiteTeeHole1), 0.0)
+    }
+
+    func testBearingIsNormalizedToZeroThreeSixty() {
+        // Walk around all four cardinals plus the diagonals; verify all
+        // returned values lie in [0, 360).
+        let center = GeoCoordinate2D(lon: 0, lat: 50)
+        for (dLon, dLat) in [(0.001, 0.001), (-0.001, 0.001), (-0.001, -0.001), (0.001, -0.001)] {
+            let to = GeoCoordinate2D(lon: dLon, lat: 50 + dLat)
+            let bearing = GolfGeometry.bearingDeg(from: center, to: to)
+            XCTAssertGreaterThanOrEqual(bearing, 0.0)
+            XCTAssertLessThan(bearing, 360.0)
+        }
+    }
+
+    // MARK: - WindRelativeDirection.from(windFromDeg:shotBearingDeg:)
+
+    func testWindFromDirectlyAheadIsHurting() {
+        // Shot points east (90°). Wind from east (90°) blows straight back.
+        let direction = WindRelativeDirection.from(windFromDeg: 90, shotBearingDeg: 90)
+        XCTAssertEqual(direction, .hurting)
+    }
+
+    func testWindFromDirectlyBehindIsHelping() {
+        // Shot points east (90°). Wind from west (270°) blows in shot direction.
+        let direction = WindRelativeDirection.from(windFromDeg: 270, shotBearingDeg: 90)
+        XCTAssertEqual(direction, .helping)
+    }
+
+    func testWindFromPerpendicularIsCross() {
+        // Shot east (90°), wind from north (0°) — 90° crosswind.
+        XCTAssertEqual(WindRelativeDirection.from(windFromDeg: 0, shotBearingDeg: 90), .cross)
+        // Shot east (90°), wind from south (180°) — also 90° crosswind.
+        XCTAssertEqual(WindRelativeDirection.from(windFromDeg: 180, shotBearingDeg: 90), .cross)
+    }
+
+    func testWindOnHurtingBoundaryIsHurting() {
+        // Boundary band: relative <=45 or >=315 -> hurting.
+        // Shot 90°, wind from 45° => relative = 90-45 = 45° -> hurting (inclusive).
+        XCTAssertEqual(WindRelativeDirection.from(windFromDeg: 45, shotBearingDeg: 90), .hurting)
+        // Shot 90°, wind from 135° => relative = 90-135 = -45 -> normalized 315 -> hurting (inclusive).
+        XCTAssertEqual(WindRelativeDirection.from(windFromDeg: 135, shotBearingDeg: 90), .hurting)
+    }
+
+    func testWindOnHelpingBoundaryIsHelping() {
+        // Boundary band: 135 <= relative <= 225 -> helping.
+        // Shot 90°, wind from 315° => relative = 90 - 315 = -225 -> normalized 135 -> helping (inclusive).
+        XCTAssertEqual(WindRelativeDirection.from(windFromDeg: 315, shotBearingDeg: 90), .helping)
+        // Shot 90°, wind from 225° => relative = 90 - 225 = -135 -> normalized 225 -> helping (inclusive).
+        XCTAssertEqual(WindRelativeDirection.from(windFromDeg: 225, shotBearingDeg: 90), .helping)
+    }
+
+    func testWindDirectlyOpposingFullCircleNormalizesToHurting() {
+        // Shot 0° (north), wind from 360° — wraparound case.
+        XCTAssertEqual(WindRelativeDirection.from(windFromDeg: 360, shotBearingDeg: 0), .hurting)
+    }
+
     // MARK: - Constants
 
     func testConstantsHaveExpectedValues() {
         XCTAssertEqual(GolfGeometry.Constants.minimumAcceptableAccuracyM, 15.0)
         XCTAssertEqual(GolfGeometry.Constants.holeSwitchOuterRadiusM, 80.0)
+        XCTAssertEqual(GolfGeometry.Constants.windHelpingHurtingBandDeg, 45.0)
     }
 
     // MARK: - Helpers
