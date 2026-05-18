@@ -141,13 +141,13 @@ struct TrueCaddieHostTests {
         )
     }
 
-    @Test func roundOverridesCanDisableWindAndChangeStrategy() {
+    @Test func roundOverridesPassWindThroughFromBase() {
+        // The manual wind override was removed; live wind (or whatever the
+        // base context already had) now flows through unchanged. Strategy
+        // and tee overrides still apply.
         let overrides = HoleInspectorModel.RoundOverrideState(
             teeSetId: "white",
-            strategyPreference: .conservative,
-            windEnabled: false,
-            windDirection: .hurting,
-            windSpeedMps: 7
+            strategyPreference: .conservative
         )
 
         let effectiveRoundContext = HoleInspectorModel.makeEffectiveRoundContext(
@@ -159,7 +159,7 @@ struct TrueCaddieHostTests {
         #expect(effectiveRoundContext.teeSetId == "white")
         #expect(effectiveRoundContext.teeSetName == "White")
         #expect(effectiveRoundContext.strategyPreference == .conservative)
-        #expect(effectiveRoundContext.wind == nil)
+        #expect(effectiveRoundContext.wind == RoundContext.pilotSample.wind)
     }
 
     @Test func layupPacketRespondsToRoundOverrides() throws {
@@ -167,10 +167,7 @@ struct TrueCaddieHostTests {
         let hole = try #require(bundle.holes.first(where: { $0.holeNumber == 1 }))
         let roundOverrides = HoleInspectorModel.RoundOverrideState(
             teeSetId: "white",
-            strategyPreference: .conservative,
-            windEnabled: false,
-            windDirection: .helping,
-            windSpeedMps: 5
+            strategyPreference: .conservative
         )
         let effectiveRoundContext = HoleInspectorModel.makeEffectiveRoundContext(
             from: roundOverrides,
@@ -295,10 +292,7 @@ struct TrueCaddieHostTests {
         let effectiveRoundContext = HoleInspectorModel.makeEffectiveRoundContext(
             from: .init(
                 teeSetId: "white",
-                strategyPreference: .conservative,
-                windEnabled: false,
-                windDirection: .helping,
-                windSpeedMps: 5
+                strategyPreference: .conservative
             ),
             baseRoundContext: .pilotSample,
             hole: hole

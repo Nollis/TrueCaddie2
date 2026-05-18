@@ -29,21 +29,6 @@ struct InspectorStrategySection: View {
 
             liveWindRow
 
-            Toggle("Wind", isOn: $roundOverrides.windEnabled)
-
-            if roundOverrides.windEnabled {
-                Picker("Direction", selection: $roundOverrides.windDirection) {
-                    ForEach(HoleInspectorModel.windDirectionOptions, id: \.rawValue) { direction in
-                        Text(direction.rawValue.capitalized).tag(direction)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                LabeledContent("Speed", value: "\(Int(roundOverrides.windSpeedMps)) m/s")
-
-                Slider(value: $roundOverrides.windSpeedMps, in: 0...12, step: 1)
-            }
-
             if isHoleFinished {
                 LabeledContent("Scenario", value: "Hole finished")
             } else if usesLiveState {

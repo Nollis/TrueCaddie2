@@ -249,25 +249,6 @@ private struct HoleInspectorDetail: View {
                         }
                     }
                     .pickerStyle(.menu)
-
-                    Toggle("Wind", isOn: $roundOverrides.windEnabled)
-
-                    if roundOverrides.windEnabled {
-                        Picker("Direction", selection: $roundOverrides.windDirection) {
-                            ForEach(HoleInspectorModel.windDirectionOptions, id: \.rawValue) { direction in
-                                Text(direction.rawValue.capitalized).tag(direction)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        LabeledContent("Speed", value: "\(format(number: roundOverrides.windSpeedMps)) m/s")
-
-                        Slider(
-                            value: $roundOverrides.windSpeedMps,
-                            in: 0...12,
-                            step: 1
-                        )
-                    }
                 }
             }
 
@@ -882,9 +863,6 @@ enum HoleInspectorModel {
     struct RoundOverrideState: Equatable {
         var teeSetId: String
         var strategyPreference: StrategyPreference
-        var windEnabled: Bool
-        var windDirection: WindRelativeDirection
-        var windSpeedMps: Double
     }
 
     struct RecommendationFact: Equatable {
@@ -893,7 +871,6 @@ enum HoleInspectorModel {
     }
 
     static let strategyOptions: [StrategyPreference] = [.conservative, .balanced, .aggressive]
-    static let windDirectionOptions: [WindRelativeDirection] = [.helping, .hurting, .cross]
 
     static func makeShotStateScenarios(
         for hole: CourseHole,
@@ -1112,10 +1089,7 @@ enum HoleInspectorModel {
     static func makeRoundOverrideState(from roundContext: RoundContext) -> RoundOverrideState {
         RoundOverrideState(
             teeSetId: roundContext.teeSetId,
-            strategyPreference: roundContext.strategyPreference,
-            windEnabled: roundContext.wind != nil,
-            windDirection: roundContext.wind?.relativeDirection ?? .helping,
-            windSpeedMps: roundContext.wind?.speedMps ?? 5
+            strategyPreference: roundContext.strategyPreference
         )
     }
 
@@ -1127,18 +1101,13 @@ enum HoleInspectorModel {
         let teeSetName = hole?.tees.first(where: { $0.teeSetId == overrides.teeSetId })?.name
             ?? baseRoundContext.teeSetName
 
-        let wind = overrides.windEnabled
-            ? WindContext(
-                relativeDirection: overrides.windDirection,
-                speedMps: overrides.windSpeedMps
-            )
-            : nil
-
+        // Wind is no longer overridable from the Inspector — the live wind
+        // observation (or the baseline fallback) flows through unchanged.
         return RoundContext(
             teeSetId: overrides.teeSetId,
             teeSetName: teeSetName,
             strategyPreference: overrides.strategyPreference,
-            wind: wind
+            wind: baseRoundContext.wind
         )
     }
 
