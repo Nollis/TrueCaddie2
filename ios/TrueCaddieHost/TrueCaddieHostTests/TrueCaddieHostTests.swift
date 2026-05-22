@@ -1367,7 +1367,7 @@ struct TrueCaddieHostTests {
             manager.state.connectionState ==
             .connected(
                 .init(
-                    model: "gpt-realtime",
+                    model: "gpt-realtime-2",
                     transport: .rawRealtimeWebRTC,
                     authMode: .pilotDirectEmbedded
                 )
@@ -1379,7 +1379,7 @@ struct TrueCaddieHostTests {
         #expect(
             transport.connectedDescriptor ==
             .init(
-                model: "gpt-realtime",
+                model: "gpt-realtime-2",
                 transport: .rawRealtimeWebRTC,
                 authMode: .pilotDirectEmbedded
             )
@@ -1392,7 +1392,7 @@ struct TrueCaddieHostTests {
         starter.bootstrapSource = .directAppStub
         let transport = DirectAppRealtimeVoiceTransportAdapter(sessionStarter: starter)
         let descriptor = RealtimeVoiceSessionDescriptor(
-            model: "gpt-realtime",
+            model: "gpt-realtime-2",
             transport: .rawRealtimeWebRTC,
             authMode: .pilotDirectEmbedded
         )
@@ -2101,7 +2101,7 @@ struct TrueCaddieHostTests {
 
     @Test func openAIRealtimeWebSocketConnectionRequestRejectsInvalidWebSocketURL() {
         let configuration = OpenAIRealtimeSessionConfiguration(
-            model: "gpt-realtime",
+            model: "gpt-realtime-2",
             webSocketURL: "",
             audio: .default,
             instructions: "",
