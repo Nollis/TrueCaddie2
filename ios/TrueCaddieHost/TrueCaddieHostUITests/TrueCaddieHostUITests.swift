@@ -23,14 +23,17 @@ final class TrueCaddieHostUITests: XCTestCase {
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testStartsRoundFromVisibleCourseCatalog() throws {
         let app = XCUIApplication()
+        app.launchArguments = ["-truecaddie-ui-testing-location-denied"]
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+        XCTAssertTrue(app.staticTexts["TrueCaddie"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Start Round"].waitForExistence(timeout: 2))
+
+        app.buttons["Start Round"].tap()
+
+        XCTAssertTrue(app.buttons["Enable microphone access"].waitForExistence(timeout: 2))
     }
 
     @MainActor

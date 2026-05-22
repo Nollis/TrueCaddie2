@@ -219,10 +219,11 @@ final class HostVoiceSessionController: ObservableObject {
 
         lastEventResponse = nil
         eventSource.submitFinalUtterance(utterance)
-        if let response = lastEventResponse {
+        let response = lastEventResponse
+        if let response {
             eventSource.playAssistantReply(response.spokenReply)
         }
-        return lastEventResponse
+        return response
     }
 
     func submitPartialVoiceUtterance(_ utterance: String) {
@@ -240,10 +241,11 @@ final class HostVoiceSessionController: ObservableObject {
 
         lastEventResponse = nil
         eventSource.submitToolInvocation(invocation)
-        if let response = lastEventResponse {
+        let response = lastEventResponse
+        if let response {
             eventSource.playAssistantReply(response.spokenReply)
         }
-        return lastEventResponse
+        return response
     }
 
     /// Outcome of a "mark ball position" attempt — surfaced to UI so the

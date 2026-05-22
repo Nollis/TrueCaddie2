@@ -74,7 +74,7 @@ struct DirectAppRealtimeSessionBootstrapper: RealtimeVoiceSessionBootstrapping {
     let transport: RealtimeVoiceTransport
 
     init(
-        model: String = "gpt-4o-realtime-preview",
+        model: String = OpenAIRealtimeSessionConfiguration.default.model,
         transport: RealtimeVoiceTransport = .rawRealtimeWebRTC
     ) {
         self.model = model
@@ -1312,4 +1312,3 @@ final class StubRealtimeVoiceEventSource: RealtimeVoiceEventSourcing {
         onEvent?(event)
     }
 }
-

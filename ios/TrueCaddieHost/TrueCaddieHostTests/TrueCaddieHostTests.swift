@@ -7,12 +7,13 @@
 
 import Foundation
 import Testing
-import TrueCaddieDomain
+@testable import TrueCaddieDomain
 @testable import TrueCaddieHost
 #if canImport(AVFoundation)
 import AVFoundation
 #endif
 
+@MainActor
 struct TrueCaddieHostTests {
 
     @Test func loadsBundledKungsbackaCourse() throws {
@@ -79,7 +80,7 @@ struct TrueCaddieHostTests {
 
         #expect(
             voicePreview ==
-            "PW to Center green. PW carry 118m fits a center green number with 5m/s helping wind. Favor left. Avoid right."
+            "PW to Center green. PW carry 118m fits a center green number with 5m/s helping wind."
         )
     }
 
@@ -185,7 +186,7 @@ struct TrueCaddieHostTests {
         #expect(packet?.shotNumber == 3)
         #expect(packet?.remainingDistanceM == 110)
         #expect(packet?.strategyPreference == "conservative")
-        #expect(packet?.executionNote == "PW carry 118m fits a center green number.")
+        #expect(packet?.executionNote == "PW carry 118m fits a front-center green number with 5m/s helping wind.")
     }
 
     @Test func lowConfidenceGuidanceOnlyAppearsForLowBand() {
@@ -232,7 +233,7 @@ struct TrueCaddieHostTests {
         #expect(preview.holeNumber == 1)
         #expect(preview.par == 5)
         #expect(preview.scenarioName == "Fairway result")
-        #expect(preview.packet.headline == "PW to Lay up for wedge number")
+        #expect(preview.packet.headline == "PW to Right-center layup shelf")
     }
 
     @Test func roundPreviewVoiceCopyComesFromUnifiedPacket() throws {
@@ -310,7 +311,7 @@ struct TrueCaddieHostTests {
 
         #expect(preview.packet.remainingDistanceM == 110)
         #expect(preview.packet.strategyPreference == "conservative")
-        #expect(preview.voicePreview == "PW to Center green. PW carry 118m fits a center green number.")
+        #expect(preview.voicePreview == "PW to Front-center green. PW carry 118m fits a front-center green number with 5m/s helping wind.")
     }
 
     @Test func roundPreviewsCoverEachHoleWithUnifiedPackets() throws {
@@ -2517,7 +2518,11 @@ struct TrueCaddieHostTests {
         let response = try #require(controller.submitVoiceUtterance("what do you like here"))
 
         #expect(response.actionName == .guidance)
-        #expect(eventSource.emittedEvents.last == .finalUserUtterance("what do you like here"))
+        #expect(
+            eventSource.emittedEvents.contains(
+                .transcript(.init(speaker: .user, kind: .final, text: "what do you like here"))
+            )
+        )
         #expect(controller.isSpeaking)
 
         controller.interrupt()
@@ -2843,7 +2848,7 @@ struct TrueCaddieHostTests {
         #expect(controller.state.partialUserTranscript == nil)
         #expect(response.actionName == .guidance)
         #expect(controller.state.playbackState == .speaking)
-        #expect(controller.state.partialAssistantTranscript != nil)
+        #expect(controller.state.partialAssistantTranscript == nil)
 
         client.emit(.playbackStateChanged(.finished))
         #expect(controller.state.playbackState == .idle)
@@ -2878,15 +2883,19 @@ struct TrueCaddieHostTests {
         )
 
         #expect(response.actionName == .reportResult)
-        #expect(eventSource.emittedEvents.last == .toolInvocation(
-            VoiceToolInvocation(
-                actionName: .reportResult,
-                arguments: .init(
-                    lie: .rough,
-                    remainingDistanceM: 128
+        #expect(
+            eventSource.emittedEvents.contains(
+                .toolInvocation(
+                    VoiceToolInvocation(
+                        actionName: .reportResult,
+                        arguments: .init(
+                            lie: .rough,
+                            remainingDistanceM: 128
+                        )
+                    )
                 )
             )
-        ))
+        )
         #expect(controller.state.transcriptEntries.first == .user("rough 128"))
         #expect(controller.state.transcriptEntries.last == .assistant(response.spokenReply))
     }

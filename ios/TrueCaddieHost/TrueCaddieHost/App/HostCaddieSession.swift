@@ -36,6 +36,10 @@ enum HostCaddieSession {
         static func assistant(_ text: String) -> TranscriptEntry {
             TranscriptEntry(speaker: .assistant, text: text, id: UUID())
         }
+
+        static func == (lhs: TranscriptEntry, rhs: TranscriptEntry) -> Bool {
+            lhs.speaker == rhs.speaker && lhs.text == rhs.text
+        }
     }
 
     enum ActionName: String, CaseIterable, Equatable, Codable {

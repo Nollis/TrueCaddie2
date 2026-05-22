@@ -125,6 +125,13 @@ final class OpenAIRealtimeWebSocketConnection: NSObject, OpenAIRealtimeConnectio
         guard var components = URLComponents(string: configuration.webSocketURL) else {
             return nil
         }
+        guard
+            let scheme = components.scheme,
+            ["ws", "wss"].contains(scheme),
+            components.host != nil
+        else {
+            return nil
+        }
         var queryItems = components.queryItems ?? []
         if !queryItems.contains(where: { $0.name == "model" }) {
             queryItems.append(URLQueryItem(name: "model", value: configuration.model))

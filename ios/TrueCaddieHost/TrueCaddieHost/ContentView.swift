@@ -13,15 +13,21 @@ struct ContentView: View {
 
     // Pre-round GPS + proximity ranking.  Kept alive for the full app session
     // so the Welcome screen can begin ranking before the user taps anything.
-    @StateObject private var proximityModel = CourseProximityModel(
-        provider: CoreLocationProvider(),
-        courses: HostCourseBundleStore.availableCourses
-    )
+    @StateObject private var proximityModel: CourseProximityModel
 
     // Round router state.
     @State private var activeBundle: CourseBundle?
     @State private var roundActive = false
     @State private var selectedTab: CaddieHostTab = .caddie
+
+    init() {
+        _proximityModel = StateObject(
+            wrappedValue: CourseProximityModel(
+                provider: Self.welcomeLocationProvider(),
+                courses: HostCourseBundleStore.availableCourses
+            )
+        )
+    }
 
     var body: some View {
         if roundActive, let bundle = activeBundle {
@@ -56,6 +62,16 @@ struct ContentView: View {
         roundActive = false
         activeBundle = nil
         proximityModel.start()
+    }
+
+    private static func welcomeLocationProvider() -> any LocationProviding {
+        if ProcessInfo.processInfo.arguments.contains("-truecaddie-ui-testing-location-denied") {
+            let provider = StubLocationProvider()
+            provider.setAuthorization(.denied)
+            return provider
+        }
+
+        return CoreLocationProvider()
     }
 }
 
