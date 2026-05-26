@@ -20,6 +20,7 @@ final class LiveCourseLocationModel: ObservableObject {
 
     private let provider: any LocationProviding
     private let bundle: CourseBundle
+    private let debugLog = AppDebugLogStore.shared
 
     /// The hole the player is currently committed to playing (per the round
     /// state, not GPS). Used as the anchor for hysteresis: the model refuses
@@ -51,6 +52,11 @@ final class LiveCourseLocationModel: ObservableObject {
         }
         provider.onAuthorizationChange = { [weak self] status in
             self?.authorizationStatus = status
+            self?.debugLog.record(
+                "Location authorization changed",
+                category: .location,
+                metadata: ["status": Self.authorizationLabel(status)]
+            )
         }
     }
 
@@ -68,6 +74,8 @@ final class LiveCourseLocationModel: ObservableObject {
     // MARK: - Private
 
     private func handle(fix: LocationFix) {
+        let previousDetectedHole = detectedHoleNumber
+        let previousLie = inferredLie
         lastFix = fix
 
         updateMissStreak(for: fix, currentHoleNumber: currentHoleNumber)
@@ -94,6 +102,20 @@ final class LiveCourseLocationModel: ObservableObject {
             distanceToPinM = nil
             inferredLie = nil
         }
+
+        if previousDetectedHole != detectedHoleNumber || previousLie != inferredLie {
+            debugLog.record(
+                "Processed live fix",
+                category: .location,
+                metadata: [
+                    "accuracyM": Self.metric(fix.horizontalAccuracyM),
+                    "currentHole": currentHoleNumber.map(String.init) ?? "nil",
+                    "detectedHole": detectedHoleNumber.map(String.init) ?? "nil",
+                    "lie": inferredLie?.rawValue ?? "nil",
+                    "misses": String(consecutiveMisses)
+                ]
+            )
+        }
     }
 
     private func updateMissStreak(for fix: LocationFix, currentHoleNumber: Int?) {
@@ -109,5 +131,28 @@ final class LiveCourseLocationModel: ObservableObject {
         } else {
             consecutiveMisses = 0
         }
+    }
+
+    nonisolated private static func authorizationLabel(_ status: LocationAuthorizationStatus) -> String {
+        switch status {
+        case .notDetermined:
+            return "not_determined"
+        case .restricted:
+            return "restricted"
+        case .denied:
+            return "denied"
+        case .authorizedAlways:
+            return "authorized_always"
+        case .authorizedWhenInUse:
+            return "authorized_when_in_use"
+        }
+    }
+
+    nonisolated private static func metric(_ number: Double) -> String {
+        if number.rounded() == number {
+            return String(Int(number))
+        }
+
+        return String(format: "%.1f", number)
     }
 }

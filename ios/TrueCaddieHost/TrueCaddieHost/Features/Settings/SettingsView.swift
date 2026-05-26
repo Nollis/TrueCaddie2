@@ -6,6 +6,7 @@ import SwiftUI
 struct SettingsView: View {
 
     @AppStorage("truecaddie.developerToolsEnabled") private var developerToolsEnabled = false
+    @ObservedObject private var debugLog = AppDebugLogStore.shared
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -21,6 +22,24 @@ struct SettingsView: View {
 
                 Section {
                     LabeledContent("Version", value: appVersion)
+                }
+
+                Section("Debug Log") {
+                    LabeledContent("Events", value: "\(debugLog.entryCount)")
+
+                    Button("Copy Debug Log") {
+                        UIPasteboard.general.string = debugLog.exportText()
+                    }
+                    .disabled(debugLog.entries.isEmpty)
+
+                    Button("Clear Debug Log", role: .destructive) {
+                        debugLog.clear()
+                    }
+                    .disabled(debugLog.entries.isEmpty)
+                } footer: {
+                    Text("Stores recent round, location, and voice events on-device so you can copy them after an on-course test.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Settings")

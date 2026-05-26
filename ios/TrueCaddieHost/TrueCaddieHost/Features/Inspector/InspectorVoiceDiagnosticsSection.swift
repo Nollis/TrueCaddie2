@@ -2,10 +2,12 @@ import SwiftUI
 
 struct InspectorVoiceDiagnosticsSection: View {
     @ObservedObject var voiceController: HostVoiceSessionController
+    @ObservedObject private var debugLog = AppDebugLogStore.shared
 
     var body: some View {
         Section("Voice diagnostics") {
             LabeledContent("Connection", value: connectionLabel)
+            LabeledContent("Debug log", value: "\(debugLog.entryCount) events")
 
             if let session = voiceController.state.activeSession {
                 LabeledContent("Session") {
@@ -42,10 +44,35 @@ struct InspectorVoiceDiagnosticsSection: View {
                 }
             }
 
-            Button("Copy session") {
-                UIPasteboard.general.string = transcriptDump
+            DisclosureGroup("Recent debug events") {
+                if debugLog.entries.isEmpty {
+                    Text("No debug events yet.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(debugLog.entries.suffix(30)) { entry in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(logHeader(for: entry))
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                            Text(logBody(for: entry))
+                                .font(.footnote.monospaced())
+                                .textSelection(.enabled)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
             }
-            .disabled(voiceController.state.transcriptEntries.isEmpty)
+
+            Button("Copy diagnostics") {
+                UIPasteboard.general.string = diagnosticsDump
+            }
+            .disabled(voiceController.state.transcriptEntries.isEmpty && debugLog.entries.isEmpty)
+
+            Button("Clear debug log", role: .destructive) {
+                debugLog.clear()
+            }
+            .disabled(debugLog.entries.isEmpty)
         }
     }
 
@@ -67,5 +94,29 @@ struct InspectorVoiceDiagnosticsSection: View {
         voiceController.state.transcriptEntries
             .map { "\($0.speakerLabel): \($0.text)" }
             .joined(separator: "\n")
+    }
+
+    private var diagnosticsDump: String {
+        let transcriptSection = transcriptDump.isEmpty ? "No transcript" : transcriptDump
+        let logSection = debugLog.exportText()
+        return """
+        Transcript
+        \(transcriptSection)
+
+        Debug log
+        \(logSection.isEmpty ? "No debug events" : logSection)
+        """
+    }
+
+    private func logHeader(for entry: AppDebugLogEntry) -> String {
+        "\(entry.timestamp.formatted(date: .omitted, time: .standard)) · \(entry.category.rawValue)"
+    }
+
+    private func logBody(for entry: AppDebugLogEntry) -> String {
+        let metadata = entry.metadata
+            .sorted(by: { $0.key < $1.key })
+            .map { "\($0.key)=\($0.value)" }
+            .joined(separator: " ")
+        return metadata.isEmpty ? entry.message : "\(entry.message) \(metadata)"
     }
 }

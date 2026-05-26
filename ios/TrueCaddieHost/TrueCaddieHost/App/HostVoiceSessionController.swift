@@ -118,6 +118,15 @@ final class HostVoiceSessionController: ObservableObject {
         currentContext = context
         permissionState = permissionProvider.currentPermissionState()
         sessionManager.syncSnapshot(from: context)
+        logDebug(
+            "Updated voice context",
+            category: .round,
+            metadata: [
+                "hole": String(context.selectedHoleNumber),
+                "planMode": context.planMode.rawValue,
+                "strategy": context.roundContext.strategyPreference.rawValue
+            ]
+        )
         refreshState()
     }
 
@@ -132,6 +141,7 @@ final class HostVoiceSessionController: ObservableObject {
             return
         }
 
+        logDebug("Connecting voice session", category: .voice)
         try? sessionManager.connect()
         eventSource.connect()
         do {
@@ -143,6 +153,7 @@ final class HostVoiceSessionController: ObservableObject {
     }
 
     func disconnect() {
+        logDebug("Disconnecting voice session", category: .voice)
         microphoneSource.stop()
         playbackEngine.stop()
         sessionManager.disconnect()
@@ -159,6 +170,7 @@ final class HostVoiceSessionController: ObservableObject {
         }
 
         connectIfNeeded()
+        logDebug("Begin listening", category: .voice)
         try? sessionManager.beginListening()
         do {
             try microphoneSource.start()
@@ -173,6 +185,7 @@ final class HostVoiceSessionController: ObservableObject {
             return
         }
 
+        logDebug("Stop listening", category: .voice)
         microphoneSource.stop()
         sessionManager.stopListening()
         eventSource.stopListening()
@@ -191,6 +204,7 @@ final class HostVoiceSessionController: ObservableObject {
             return
         }
 
+        logDebug("Interrupt current turn", category: .voice)
         // Drain any queued playback so the user doesn't hear stale audio
         // after they cut the assistant off; restart so the engine stays
         // ready for the next turn.
@@ -217,6 +231,11 @@ final class HostVoiceSessionController: ObservableObject {
             return nil
         }
 
+        logDebug(
+            "Submit final utterance",
+            category: .voice,
+            metadata: ["utterance": utterance]
+        )
         lastEventResponse = nil
         eventSource.submitFinalUtterance(utterance)
         let response = lastEventResponse
@@ -231,6 +250,11 @@ final class HostVoiceSessionController: ObservableObject {
             return
         }
 
+        logDebug(
+            "Submit partial utterance",
+            category: .voice,
+            metadata: ["utterance": utterance]
+        )
         eventSource.submitPartialUtterance(utterance)
     }
 
@@ -239,6 +263,11 @@ final class HostVoiceSessionController: ObservableObject {
             return nil
         }
 
+        logDebug(
+            "Submit tool invocation",
+            category: .voice,
+            metadata: Self.metadata(for: invocation)
+        )
         lastEventResponse = nil
         eventSource.submitToolInvocation(invocation)
         let response = lastEventResponse
@@ -267,20 +296,51 @@ final class HostVoiceSessionController: ObservableObject {
     /// the round-state mutation.
     @discardableResult
     func markBallPosition() -> MarkBallPositionResult {
-        guard let context = currentContext else { return .sessionInactive }
-        guard let model = locationModel, let fix = model.lastFix else { return .noFix }
+        guard let context = currentContext else {
+            logDebug("Mark ball position failed", category: .capture, metadata: ["reason": "session_inactive"])
+            return .sessionInactive
+        }
+        guard let model = locationModel, let fix = model.lastFix else {
+            logDebug("Mark ball position failed", category: .capture, metadata: ["reason": "no_fix"])
+            return .noFix
+        }
 
         guard fix.horizontalAccuracyM <= GolfGeometry.Constants.minimumAcceptableAccuracyM else {
+            logDebug(
+                "Mark ball position blocked by accuracy gate",
+                category: .capture,
+                metadata: [
+                    "accuracyM": Self.metric(fix.horizontalAccuracyM),
+                    "maxAccuracyM": Self.metric(GolfGeometry.Constants.minimumAcceptableAccuracyM)
+                ]
+            )
             return .poorAccuracy(horizontalAccuracyM: fix.horizontalAccuracyM)
         }
 
         guard
             let hole = context.bundle.holes.first(where: { $0.holeNumber == context.selectedHoleNumber }),
             let green = GeoCoordinate2D(lonLatPair: hole.baseMappingData.green.center)
-        else { return .noActiveHole }
+        else {
+            logDebug(
+                "Mark ball position failed",
+                category: .capture,
+                metadata: ["reason": "no_active_hole"]
+            )
+            return .noActiveHole
+        }
 
         let remainingDistanceM = GolfGeometry.haversineDistance(fix.coordinate, green)
         let lie = LieInference.lie(at: fix.coordinate, in: hole)
+        logDebug(
+            "Captured ball position",
+            category: .capture,
+            metadata: [
+                "hole": String(context.selectedHoleNumber),
+                "accuracyM": Self.metric(fix.horizontalAccuracyM),
+                "distanceM": Self.metric(remainingDistanceM),
+                "lie": lie.rawValue
+            ]
+        )
 
         _ = submitVoiceToolInvocation(
             VoiceToolInvocation(
@@ -333,6 +393,11 @@ final class HostVoiceSessionController: ObservableObject {
         if case let .toolInvocation(invocation) = event,
            invocation.actionName == .markBallPosition,
            invocation.arguments.lie == nil || invocation.arguments.remainingDistanceM == nil {
+            logDebug(
+                "Intercept model mark_ball_position request",
+                category: .capture,
+                metadata: Self.metadata(for: invocation)
+            )
             _ = markBallPosition()
             return
         }
@@ -341,6 +406,11 @@ final class HostVoiceSessionController: ObservableObject {
             return
         }
 
+        logDebug(
+            "Received realtime event",
+            category: .transport,
+            metadata: ["event": Self.eventName(for: event)]
+        )
         lastEventResponse = sessionManager.handleTransportEvent(
             event,
             context: currentContext
@@ -350,6 +420,64 @@ final class HostVoiceSessionController: ObservableObject {
 
     private func refreshState() {
         state = sessionManager.state
+    }
+
+    private func logDebug(
+        _ message: String,
+        category: AppDebugLogCategory,
+        metadata: [String: String] = [:]
+    ) {
+        Task { @MainActor in
+            AppDebugLogStore.shared.record(message, category: category, metadata: metadata)
+        }
+    }
+
+    private static func eventName(for event: RealtimeVoiceTransportEvent) -> String {
+        switch event {
+        case .listeningStarted:
+            return "listening_started"
+        case .listeningStopped:
+            return "listening_stopped"
+        case .transcript:
+            return "transcript"
+        case .toolInvocation:
+            return "tool_invocation"
+        case .toolCallback:
+            return "tool_callback"
+        case .outputAudioChunk:
+            return "output_audio_chunk"
+        case .playbackStateChanged:
+            return "playback_state_changed"
+        case .interrupted:
+            return "interrupted"
+        case .transportFailed:
+            return "transport_failed"
+        }
+    }
+
+    private static func metadata(for invocation: VoiceToolInvocation) -> [String: String] {
+        var metadata: [String: String] = ["action": invocation.actionName.rawValue]
+        if let lie = invocation.arguments.lie {
+            metadata["lie"] = lie.rawValue
+        }
+        if let remainingDistanceM = invocation.arguments.remainingDistanceM {
+            metadata["distanceM"] = metric(remainingDistanceM)
+        }
+        if let strokesTaken = invocation.arguments.strokesTaken {
+            metadata["strokes"] = String(strokesTaken)
+        }
+        if let holeNumber = invocation.arguments.holeNumber {
+            metadata["hole"] = String(holeNumber)
+        }
+        return metadata
+    }
+
+    private static func metric(_ number: Double) -> String {
+        if number.rounded() == number {
+            return String(Int(number))
+        }
+
+        return String(format: "%.1f", number)
     }
 }
 

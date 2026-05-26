@@ -122,6 +122,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
 
     func connect() throws {
         state.connectionState = .connecting
+        logDebug("Voice session connect started", category: .voice)
 
         do {
             let credential = try credentialProvider.currentCredential()
@@ -131,9 +132,19 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             state.activeSession = transport.currentSession
             state.connectionState = .connected(descriptor)
             state.playbackState = .idle
+            logDebug(
+                "Voice session connected",
+                category: .voice,
+                metadata: ["model": descriptor.model]
+            )
         } catch {
             state.activeSession = nil
             state.connectionState = .failed(String(describing: error))
+            logDebug(
+                "Voice session connect failed",
+                category: .voice,
+                metadata: ["error": String(describing: error)]
+            )
             throw error
         }
     }
@@ -149,6 +160,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         state.playbackState = .idle
         state.partialUserTranscript = nil
         state.partialAssistantTranscript = nil
+        logDebug("Voice session disconnected", category: .voice)
     }
 
     func beginListening() throws {
@@ -160,6 +172,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         try transport.beginListening()
         state.turnState = .listening
         state.partialUserTranscript = nil
+        logDebug("Voice session listening", category: .voice)
     }
 
     func stopListening() {
@@ -169,6 +182,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         if case .listening = state.turnState {
             state.turnState = .idle
         }
+        logDebug("Voice session stopped listening", category: .voice)
     }
 
     func handleTurn(_ request: VoiceTurnRequest) -> VoiceTurnResponse? {
@@ -176,12 +190,21 @@ final class RealtimeVoiceSessionManager: ObservableObject {
 
         guard let response = VoiceToolDispatch.respond(to: request) else {
             state.turnState = .idle
+            logDebug("Voice turn failed to resolve", category: .voice)
             return nil
         }
 
         state.latestSnapshot = response.sessionSnapshot
         state.lastResponse = response
         state.turnState = .speaking(request.turnID)
+        logDebug(
+            "Voice turn resolved",
+            category: .voice,
+            metadata: [
+                "action": response.actionName.rawValue,
+                "hole": String(response.sessionSnapshot.selectedHoleNumber)
+            ]
+        )
         return response
     }
 
@@ -217,6 +240,11 @@ final class RealtimeVoiceSessionManager: ObservableObject {
 
         case let .toolInvocation(invocation):
             state.lastToolCallback = .init(invocation: invocation, phase: .requested)
+            logDebug(
+                "Realtime tool invocation received",
+                category: .transport,
+                metadata: ["action": invocation.actionName.rawValue]
+            )
             return submitInput(
                 .toolInvocation(invocation),
                 userVisibleText: Self.transcriptText(for: invocation),
@@ -226,10 +254,23 @@ final class RealtimeVoiceSessionManager: ObservableObject {
 
         case let .toolCallback(callback):
             state.lastToolCallback = callback
+            logDebug(
+                "Realtime tool callback",
+                category: .transport,
+                metadata: [
+                    "action": callback.invocation.actionName.rawValue,
+                    "phase": callback.phase == .requested ? "requested" : "completed"
+                ]
+            )
             return nil
 
         case let .playbackStateChanged(playbackState):
             state.playbackState = playbackState
+            logDebug(
+                "Playback state changed",
+                category: .transport,
+                metadata: ["state": Self.playbackStateLabel(playbackState)]
+            )
             if playbackState == .finished {
                 finishSpeaking()
             }
@@ -246,6 +287,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
 
         case .interrupted:
             interruptCurrentTurn()
+            logDebug("Realtime turn interrupted", category: .transport)
             return nil
 
         case let .transportFailed(message):
@@ -253,6 +295,11 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             state.connectionState = .failed(message)
             state.turnState = .idle
             state.playbackState = .idle
+            logDebug(
+                "Transport failed",
+                category: .transport,
+                metadata: ["error": message]
+            )
             return nil
         }
     }
@@ -270,6 +317,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
 
         state.playbackState = .idle
         state.partialAssistantTranscript = nil
+        logDebug("Interrupted current turn", category: .voice)
     }
 
     func finishSpeaking() {
@@ -278,6 +326,7 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         }
         state.playbackState = .idle
         state.partialAssistantTranscript = nil
+        logDebug("Finished speaking", category: .voice)
     }
 
     private func submitInput(
@@ -292,6 +341,14 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         syncSnapshot(from: context)
         state.partialUserTranscript = nil
         state.transcriptEntries.append(.user(trimmed))
+        logDebug(
+            "Accepted input",
+            category: .voice,
+            metadata: [
+                "kind": Self.inputLabel(for: input),
+                "text": trimmed
+            ]
+        )
 
         if case .disconnected = state.connectionState {
             try? connect()
@@ -303,11 +360,20 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             state.transcriptEntries.append(
                 .assistant("I couldn't ground that yet. Try asking for guidance or say something like rough 128.")
             )
+            logDebug("Failed to ground input", category: .voice, metadata: ["text": trimmed])
             return nil
         }
 
         state.transcriptEntries.append(.assistant(response.spokenReply))
         state.playbackState = .speaking
+        logDebug(
+            "Assistant reply prepared",
+            category: .voice,
+            metadata: [
+                "action": response.actionName.rawValue,
+                "reply": response.spokenReply
+            ]
+        )
         if autoFinishSpeaking {
             finishSpeaking()
         }
@@ -324,6 +390,11 @@ final class RealtimeVoiceSessionManager: ObservableObject {
             return nil
 
         case (.user, .final):
+            logDebug(
+                "User transcript final",
+                category: .transport,
+                metadata: ["text": transcript.text]
+            )
             return submitInput(
                 .utterance(transcript.text),
                 userVisibleText: transcript.text,
@@ -339,7 +410,42 @@ final class RealtimeVoiceSessionManager: ObservableObject {
         case (.assistant, .final):
             state.partialAssistantTranscript = nil
             state.playbackState = .speaking
+            logDebug(
+                "Assistant transcript final",
+                category: .transport,
+                metadata: ["text": transcript.text]
+            )
             return nil
+        }
+    }
+
+    private func logDebug(
+        _ message: String,
+        category: AppDebugLogCategory,
+        metadata: [String: String] = [:]
+    ) {
+        Task { @MainActor in
+            AppDebugLogStore.shared.record(message, category: category, metadata: metadata)
+        }
+    }
+
+    nonisolated private static func inputLabel(for input: VoiceTurnInput) -> String {
+        switch input {
+        case .utterance:
+            return "utterance"
+        case .toolInvocation:
+            return "tool"
+        }
+    }
+
+    nonisolated private static func playbackStateLabel(_ state: RealtimeVoicePlaybackState) -> String {
+        switch state {
+        case .idle:
+            return "idle"
+        case .speaking:
+            return "speaking"
+        case .finished:
+            return "finished"
         }
     }
 

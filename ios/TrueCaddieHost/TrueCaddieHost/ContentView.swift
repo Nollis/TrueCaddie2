@@ -52,6 +52,14 @@ struct ContentView: View {
     private func handleStartRound(_ bundle: CourseBundle) {
         // Clear any stale saved progress so CaddieHostTabContainer begins fresh.
         HostRoundProgressStore.delete(courseId: bundle.courseId)
+        AppDebugLogStore.shared.record(
+            "Round started",
+            category: .round,
+            metadata: [
+                "courseId": bundle.courseId,
+                "courseName": bundle.courseName
+            ]
+        )
         proximityModel.stop()
         selectedTab = .caddie
         activeBundle = bundle
@@ -59,6 +67,16 @@ struct ContentView: View {
     }
 
     private func handleRoundEnded() {
+        if let activeBundle {
+            AppDebugLogStore.shared.record(
+                "Round ended",
+                category: .round,
+                metadata: [
+                    "courseId": activeBundle.courseId,
+                    "courseName": activeBundle.courseName
+                ]
+            )
+        }
         roundActive = false
         activeBundle = nil
         proximityModel.start()

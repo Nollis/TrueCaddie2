@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import TrueCaddieDomain
 
@@ -163,4 +164,114 @@ struct VoiceSessionState: Equatable {
     var lastResponse: VoiceTurnResponse?
     var lastInterruptedTurnID: UUID?
     var transcriptEntries: [HostCaddieSession.TranscriptEntry] = []
+}
+
+enum AppDebugLogCategory: String, Codable, Equatable {
+    case round
+    case voice
+    case transport
+    case location
+    case capture
+}
+
+struct AppDebugLogEntry: Codable, Equatable, Identifiable {
+    let id: UUID
+    let timestamp: Date
+    let category: AppDebugLogCategory
+    let message: String
+    let metadata: [String: String]
+
+    init(
+        id: UUID = UUID(),
+        timestamp: Date = Date(),
+        category: AppDebugLogCategory,
+        message: String,
+        metadata: [String: String] = [:]
+    ) {
+        self.id = id
+        self.timestamp = timestamp
+        self.category = category
+        self.message = message
+        self.metadata = metadata
+    }
+}
+
+@MainActor
+final class AppDebugLogStore: ObservableObject {
+    static let shared = AppDebugLogStore()
+
+    @Published private(set) var entries: [AppDebugLogEntry]
+
+    private let userDefaults: UserDefaults
+    private let storageKey: String
+    private let maxEntries: Int
+
+    init(
+        userDefaults: UserDefaults = .standard,
+        storageKey: String = "truecaddie.debug-log",
+        maxEntries: Int = 400
+    ) {
+        self.userDefaults = userDefaults
+        self.storageKey = storageKey
+        self.maxEntries = maxEntries
+
+        if let data = userDefaults.data(forKey: storageKey),
+           let decoded = try? JSONDecoder().decode([AppDebugLogEntry].self, from: data) {
+            self.entries = decoded
+        } else {
+            self.entries = []
+        }
+    }
+
+    var entryCount: Int { entries.count }
+
+    func record(
+        _ message: String,
+        category: AppDebugLogCategory,
+        metadata: [String: String] = [:]
+    ) {
+        var nextEntries = entries
+        nextEntries.append(
+            AppDebugLogEntry(
+                category: category,
+                message: message,
+                metadata: metadata
+            )
+        )
+        if nextEntries.count > maxEntries {
+            nextEntries.removeFirst(nextEntries.count - maxEntries)
+        }
+        entries = nextEntries
+        persist()
+    }
+
+    func clear() {
+        entries = []
+        userDefaults.removeObject(forKey: storageKey)
+    }
+
+    func exportText(limit: Int? = nil) -> String {
+        let formatter = ISO8601DateFormatter()
+        let sourceEntries: ArraySlice<AppDebugLogEntry>
+        if let limit {
+            sourceEntries = entries.suffix(limit)
+        } else {
+            sourceEntries = entries[...]
+        }
+
+        return sourceEntries.map { entry in
+            let metadata = entry.metadata
+                .sorted(by: { $0.key < $1.key })
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: " ")
+            let suffix = metadata.isEmpty ? "" : " \(metadata)"
+            return "\(formatter.string(from: entry.timestamp)) [\(entry.category.rawValue)] \(entry.message)\(suffix)"
+        }
+        .joined(separator: "\n")
+    }
+
+    private func persist() {
+        guard let data = try? JSONEncoder().encode(entries) else { return }
+        userDefaults.set(data, forKey: storageKey)
+    }
 }

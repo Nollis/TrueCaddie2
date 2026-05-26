@@ -3043,6 +3043,51 @@ struct TrueCaddieHostTests {
         #expect(outcome.assistantReply.contains("stock plan"))
     }
 
+    @MainActor
+    @Test func debugLogStorePersistsAndExportsRecentEvents() throws {
+        let suiteName = "TrueCaddieHostTests.debugLog.\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        userDefaults.removePersistentDomain(forName: suiteName)
+
+        let store = AppDebugLogStore(
+            userDefaults: userDefaults,
+            storageKey: "debug-log",
+            maxEntries: 2
+        )
+
+        store.record(
+            "Round started",
+            category: .round,
+            metadata: ["courseId": "kungsbacka-nya"]
+        )
+        store.record(
+            "Processed live fix",
+            category: .location,
+            metadata: ["hole": "1", "lie": "fairway"]
+        )
+        store.record(
+            "Captured ball position",
+            category: .capture,
+            metadata: ["distanceM": "128", "lie": "rough"]
+        )
+
+        #expect(store.entries.count == 2)
+        #expect(store.entries.first?.message == "Processed live fix")
+        #expect(store.entries.last?.message == "Captured ball position")
+
+        let export = store.exportText()
+        #expect(export.contains("[location] Processed live fix"))
+        #expect(export.contains("hole=1"))
+        #expect(export.contains("[capture] Captured ball position"))
+
+        let restored = AppDebugLogStore(
+            userDefaults: userDefaults,
+            storageKey: "debug-log",
+            maxEntries: 2
+        )
+        #expect(restored.entries == store.entries)
+    }
+
     private func makePacket(confidenceBand: String = "medium") -> NextShotRecommendationPacket {
         NextShotRecommendationPacket(
             courseId: "course",
