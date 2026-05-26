@@ -24,7 +24,7 @@ struct SettingsView: View {
                     LabeledContent("Version", value: appVersion)
                 }
 
-                Section("Debug Log") {
+                Section {
                     LabeledContent("Events", value: "\(debugLog.entryCount)")
 
                     Button("Copy Debug Log") {
@@ -36,6 +36,8 @@ struct SettingsView: View {
                         debugLog.clear()
                     }
                     .disabled(debugLog.entries.isEmpty)
+                } header: {
+                    Text("Debug Log")
                 } footer: {
                     Text("Stores recent round, location, and voice events on-device so you can copy them after an on-course test.")
                         .font(.footnote)
