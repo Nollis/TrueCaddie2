@@ -34,6 +34,12 @@ final class TrueCaddieHostUITests: XCTestCase {
         app.buttons["Start Round"].tap()
 
         XCTAssertTrue(app.buttons["Enable microphone access"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Open Settings"].waitForExistence(timeout: 2))
+
+        app.buttons["Open Settings"].tap()
+
+        XCTAssertTrue(app.buttons["Copy Debug Log"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["End Round"].waitForExistence(timeout: 2))
     }
 
     @MainActor

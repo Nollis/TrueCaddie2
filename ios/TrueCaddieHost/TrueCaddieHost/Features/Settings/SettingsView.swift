@@ -8,6 +8,11 @@ struct SettingsView: View {
     @AppStorage("truecaddie.developerToolsEnabled") private var developerToolsEnabled = false
     @ObservedObject private var debugLog = AppDebugLogStore.shared
     @Environment(\.dismiss) private var dismiss
+    let onEndRound: (() -> Void)?
+
+    init(onEndRound: (() -> Void)? = nil) {
+        self.onEndRound = onEndRound
+    }
 
     var body: some View {
         NavigationStack {
@@ -42,6 +47,15 @@ struct SettingsView: View {
                     Text("Stores recent round, location, and voice events on-device so you can copy them after an on-course test.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+
+                if let onEndRound {
+                    Section {
+                        Button("End Round", role: .destructive) {
+                            dismiss()
+                            onEndRound()
+                        }
+                    }
                 }
             }
             .navigationTitle("Settings")

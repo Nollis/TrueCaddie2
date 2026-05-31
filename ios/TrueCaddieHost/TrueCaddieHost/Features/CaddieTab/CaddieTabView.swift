@@ -15,6 +15,7 @@ struct CaddieTabView: View {
     /// Controls whether Inspector-only UI (pill chevron, Edit button) is visible.
     var showInspectorControls: Bool = false
     let onRequestInspector: () -> Void
+    let onEndRound: () -> Void
 
     @State private var showSettings = false
 
@@ -23,11 +24,21 @@ struct CaddieTabView: View {
     }
 
     private var currentLie: ShotLie {
-        roundState.holeState(for: selectedHoleNumber)?.shotStateContext?.lie ?? .tee
+        if let lie = roundState.holeState(for: selectedHoleNumber)?.shotStateContext?.lie {
+            return lie
+        }
+
+        if locationModel.distanceToPinM != nil {
+            return liveShotStateContext?.lie ?? locationModel.inferredLie ?? .fairway
+        }
+
+        return .tee
     }
 
     private var currentRemainingDistanceM: Double {
-        roundState.holeState(for: selectedHoleNumber)?.shotStateContext?.remainingDistanceM ?? 0
+        roundState.holeState(for: selectedHoleNumber)?.shotStateContext?.remainingDistanceM
+            ?? locationModel.distanceToPinM
+            ?? 0
     }
 
     private var currentRoundScoreVsPar: Int {
@@ -41,27 +52,66 @@ struct CaddieTabView: View {
         if voiceController.needsMicrophonePermission {
             return "Enable microphone access to start the caddie."
         }
-        if !voiceController.isConnected {
-            return "Tap Connect to start the caddie."
+        return "Hole \(selectedHoleNumber) ready"
+    }
+
+    private var usesLiveRoundState: Bool {
+        roundState.holeState(for: selectedHoleNumber)?.status == .inProgress
+    }
+
+    private var selectedHole: CourseHole? {
+        bundle.holes.first(where: { $0.holeNumber == selectedHoleNumber })
+    }
+
+    private var effectiveRoundContext: RoundContext {
+        HoleInspectorModel.makeEffectiveRoundContext(
+            from: roundOverrides,
+            baseRoundContext: baseRoundContext,
+            hole: selectedHole
+        )
+    }
+
+    private var liveShotStateContext: ShotStateContext? {
+        guard let selectedHole, let distanceToPinM = locationModel.distanceToPinM else {
+            return nil
         }
-        return "Hole \(selectedHoleNumber) ready · Tap Start Listening"
+
+        return HostRoundPreviewModel.liveShotStateContext(
+            for: selectedHole,
+            roundContext: effectiveRoundContext,
+            livePinDistanceM: distanceToPinM,
+            inferredLie: locationModel.inferredLie
+        )
+    }
+
+    private var displayPreview: HostRoundPreviewModel.HolePreview? {
+        if usesLiveRoundState {
+            return preview
+        }
+
+        if let distanceToPinM = locationModel.distanceToPinM,
+           let livePreview = HostRoundPreviewModel.liveGPSPreview(
+            bundle: bundle,
+            playerContext: playerContext,
+            roundContext: effectiveRoundContext,
+            holeNumber: selectedHoleNumber,
+            livePinDistanceM: distanceToPinM,
+            inferredLie: locationModel.inferredLie
+           ) {
+            return livePreview
+        }
+
+        return preview
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            CaddieStatusPill(
-                holeNumber: selectedHoleNumber,
-                par: currentPar,
-                remainingDistanceM: currentRemainingDistanceM,
-                lie: currentLie,
-                roundScoreVsPar: currentRoundScoreVsPar,
-                onTap: showInspectorControls ? onRequestInspector : nil
-            )
+            topBar
 
             ScrollView {
                 VStack(spacing: 16) {
                     CaddieRecommendationHero(
-                        packet: preview?.packet,
+                        packet: displayPreview?.packet,
                         emptyStateText: emptyStateText,
                         livePinDistanceM: locationModel.distanceToPinM,
                         locationAuthorizationStatus: locationModel.authorizationStatus,
@@ -90,17 +140,33 @@ struct CaddieTabView: View {
             .padding(.bottom, 8)
         }
         .background(Color(uiColor: .systemBackground))
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape")
-                }
-            }
-        }
         .sheet(isPresented: $showSettings) {
-            SettingsView()
+            SettingsView(onEndRound: onEndRound)
         }
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 8) {
+            CaddieStatusPill(
+                holeNumber: selectedHoleNumber,
+                par: currentPar,
+                remainingDistanceM: currentRemainingDistanceM,
+                lie: currentLie,
+                roundScoreVsPar: currentRoundScoreVsPar,
+                onTap: showInspectorControls ? onRequestInspector : nil
+            )
+
+            Button {
+                showSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.headline)
+                    .frame(width: 38, height: 38)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Open Settings")
+        }
+        .padding(.trailing, 12)
     }
 }

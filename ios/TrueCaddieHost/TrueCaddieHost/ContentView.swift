@@ -251,7 +251,8 @@ private struct CaddieHostTabContainer: View {
                 locationModel: locationModel,
                 windModel: windModel,
                 showInspectorControls: showInspector,
-                onRequestInspector: { selectedTab = .inspector }
+                onRequestInspector: { selectedTab = .inspector },
+                onEndRound: endRoundFromSettings
             )
             .tabItem {
                 Label("Caddie", systemImage: "figure.golf")
@@ -583,6 +584,13 @@ private struct CaddieHostTabContainer: View {
         syncScenarioSelection(forceReset: true)
     }
 
+    private func endRoundFromSettings() {
+        voiceController.disconnect()
+        HostRoundProgressStore.delete(courseId: bundle.courseId)
+        showRoundSummary = false
+        onRoundEnded()
+    }
+
     private func metric(_ number: Double) -> String {
         if number.rounded() == number { return String(Int(number)) }
         return String(format: "%.1f", number)
@@ -765,6 +773,60 @@ enum HostRoundPreviewModel {
                 roundState: roundState
             )
         }
+    }
+
+    static func liveGPSPreview(
+        bundle: CourseBundle,
+        playerContext: PlayerContext,
+        roundContext: RoundContext,
+        holeNumber: Int,
+        livePinDistanceM: Double,
+        inferredLie: ShotLie?
+    ) -> HolePreview? {
+        guard let hole = hole(bundle: bundle, holeNumber: holeNumber) else {
+            return nil
+        }
+
+        let shotStateContext = liveShotStateContext(
+            for: hole,
+            roundContext: roundContext,
+            livePinDistanceM: livePinDistanceM,
+            inferredLie: inferredLie
+        )
+        guard let packet = NextShotRecommendationEngine.build(
+            courseId: bundle.courseId,
+            for: hole,
+            playerContext: playerContext,
+            roundContext: roundContext,
+            shotStateContext: shotStateContext
+        ) else {
+            return nil
+        }
+
+        return HolePreview(
+            holeNumber: hole.holeNumber,
+            par: hole.par,
+            scenarioName: "Live GPS",
+            packet: packet,
+            voicePreview: HoleInspectorModel.voicePreviewText(for: packet)
+        )
+    }
+
+    static func liveShotStateContext(
+        for hole: CourseHole,
+        roundContext: RoundContext,
+        livePinDistanceM: Double,
+        inferredLie: ShotLie?
+    ) -> ShotStateContext {
+        let teeLengthM = selectedTee(in: hole, roundContext: roundContext)?.teeLengthM
+        let looksLikeTee = inferredLie == .tee || teeLengthM.map { livePinDistanceM >= $0 - 25 } == true
+        let lie = looksLikeTee ? ShotLie.tee : (inferredLie ?? .fairway)
+
+        return ShotStateContext(
+            shotNumber: looksLikeTee ? 1 : 2,
+            remainingDistanceM: livePinDistanceM,
+            lie: lie
+        )
     }
 
     private static func scenarios(

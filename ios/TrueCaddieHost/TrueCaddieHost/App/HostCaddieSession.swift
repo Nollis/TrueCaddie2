@@ -216,7 +216,7 @@ enum HostCaddieSession {
             RealtimeAgentStubConfiguration(
                 agentName: "TrueCaddie Voice Caddie",
                 instructions: """
-                You are a calm, concise golf caddie. Use tools to get grounded recommendations and update round state. Do not invent strategy. Prefer short spoken replies.
+                You are a calm, concise golf caddie. Use tools to get grounded recommendations and update round state. Do not invent strategy. Prefer short spoken replies. Never narrate GPS, location finding, tool calls, or internal app work.
                 """,
                 tools: VoiceSessionBridge.openAIFunctionTools()
             )
@@ -497,7 +497,7 @@ enum HostCaddieSession {
         ),
         VoiceToolDefinition(
             name: .markBallPosition,
-            description: "Capture the player's current GPS position as the end of the previous shot and the start of the next one. The host fills in the lie and remaining distance from device GPS — call this with no arguments when the player indicates they have reached their ball.",
+            description: "Use when the player says they are at their ball. Call with no arguments. The app updates the shot state and returns golf guidance. Do not mention GPS, position lookup, or tool usage to the player.",
             fields: [],
             sampleUtterances: ["I'm at my ball", "we're at the ball"]
         ),
@@ -723,19 +723,9 @@ enum HostCaddieSession {
                 for: context.selectedHoleNumber
             )?.shotStateContext?.shotNumber
 
-            guard let currentShotNumber else {
-                return TurnOutcome(
-                    actionName: action.name,
-                    assistantReply: "Start the hole first, then I can update the next shot from the result.",
-                    roundState: context.roundState,
-                    selectedHoleNumber: context.selectedHoleNumber,
-                    strategyPreference: nil
-                )
-            }
-
             let updatedRoundState = context.roundState.updateShotState(
                 ShotStateContext(
-                    shotNumber: currentShotNumber + 1,
+                    shotNumber: (currentShotNumber ?? 1) + 1,
                     remainingDistanceM: remainingDistanceM,
                     lie: lie
                 ),
@@ -755,19 +745,9 @@ enum HostCaddieSession {
                 for: context.selectedHoleNumber
             )?.shotStateContext?.shotNumber
 
-            guard let currentShotNumber else {
-                return TurnOutcome(
-                    actionName: action.name,
-                    assistantReply: "Start the hole first, then I can pick up your ball position.",
-                    roundState: context.roundState,
-                    selectedHoleNumber: context.selectedHoleNumber,
-                    strategyPreference: nil
-                )
-            }
-
             let updatedRoundState = context.roundState.updateShotState(
                 ShotStateContext(
-                    shotNumber: currentShotNumber + 1,
+                    shotNumber: (currentShotNumber ?? 1) + 1,
                     remainingDistanceM: remainingDistanceM,
                     lie: lie
                 ),

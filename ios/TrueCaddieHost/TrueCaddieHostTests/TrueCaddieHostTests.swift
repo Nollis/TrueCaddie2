@@ -439,6 +439,45 @@ struct TrueCaddieHostTests {
         #expect(holeOne.packet.remainingDistanceM == 88)
     }
 
+    @Test func liveGPSPreviewUsesLivePinDistanceForUnstartedTeeShot() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let preview = try #require(
+            HostRoundPreviewModel.liveGPSPreview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                holeNumber: 4,
+                livePinDistanceM: 330,
+                inferredLie: .tee
+            )
+        )
+
+        #expect(preview.scenarioName == "Live GPS")
+        #expect(preview.packet.shotNumber == 1)
+        #expect(preview.packet.remainingDistanceM == 330)
+        #expect(preview.packet.lie == .tee)
+        #expect(preview.packet.recommendationType == "tee")
+    }
+
+    @Test func liveGPSPreviewUsesLivePinDistanceForUnstartedBallPosition() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let preview = try #require(
+            HostRoundPreviewModel.liveGPSPreview(
+                bundle: bundle,
+                playerContext: .pilotSample,
+                roundContext: .pilotSample,
+                holeNumber: 3,
+                livePinDistanceM: 268,
+                inferredLie: .fairway
+            )
+        )
+
+        #expect(preview.scenarioName == "Live GPS")
+        #expect(preview.packet.shotNumber == 2)
+        #expect(preview.packet.remainingDistanceM == 268)
+        #expect(preview.packet.lie == .fairway)
+    }
+
     @Test func currentHolePrefersSavedSelectionWhenStillValid() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
 
@@ -1437,7 +1476,7 @@ struct TrueCaddieHostTests {
         )
         #expect(
             DirectRealtimeVoiceEventSourceAdapter.map(.toolEvent(.init(invocation: invocation, phase: .completed))) ==
-            .toolCallback(.init(invocation: invocation, phase: .completed))
+            .toolInvocation(invocation)
         )
         #expect(
             DirectRealtimeVoiceEventSourceAdapter.map(.playbackStateChanged(.finished)) ==
@@ -1611,6 +1650,8 @@ struct TrueCaddieHostTests {
         #expect(sessionEnvelope.type == "session.update")
         #expect(sessionEnvelope.session.type == "realtime")
         #expect(sessionEnvelope.session.audio.input.turnDetection.type == "server_vad")
+        #expect(sessionEnvelope.session.tools.contains(where: { $0.name == "mark_ball_position" }))
+        #expect(sessionEnvelope.session.instructions.contains("Never narrate app operations"))
 
         let cancelData = try #require(connection.sentJSONMessages.last?.data(using: .utf8))
         let cancelEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: cancelData)
@@ -2250,6 +2291,76 @@ struct TrueCaddieHostTests {
         #expect(manager.state.turnState == .speaking(request.turnID))
     }
 
+    @Test func realtimeVoiceSessionManagerSeedsUnstartedHoleFromReportedResult() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let manager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+        )
+        try manager.connect()
+
+        let request = VoiceTurnRequest(
+            input: .toolInvocation(
+                VoiceToolInvocation(
+                    actionName: .reportResult,
+                    arguments: .init(
+                        lie: .fairway,
+                        remainingDistanceM: 268
+                    )
+                )
+            ),
+            context: makeConversationContext(
+                bundle: bundle,
+                selectedHoleNumber: 3,
+                roundState: RoundState(courseId: bundle.courseId, holeStates: [])
+            )
+        )
+
+        let response = try #require(manager.handleTurn(request))
+        let seededState = response.sessionSnapshot.roundState.holeState(for: 3)
+
+        #expect(response.actionName == .reportResult)
+        #expect(seededState?.status == .inProgress)
+        #expect(seededState?.shotStateContext?.shotNumber == 2)
+        #expect(seededState?.shotStateContext?.remainingDistanceM == 268)
+        #expect(seededState?.shotStateContext?.lie == .fairway)
+        #expect(response.spokenReply.contains("From fairway at 268m"))
+    }
+
+    @Test func realtimeVoiceSessionManagerSeedsUnstartedHoleFromMarkedBallPosition() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let manager = RealtimeVoiceSessionManager(
+            credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+        )
+        try manager.connect()
+
+        let request = VoiceTurnRequest(
+            input: .toolInvocation(
+                VoiceToolInvocation(
+                    actionName: .markBallPosition,
+                    arguments: .init(
+                        lie: .rough,
+                        remainingDistanceM: 128
+                    )
+                )
+            ),
+            context: makeConversationContext(
+                bundle: bundle,
+                selectedHoleNumber: 4,
+                roundState: RoundState(courseId: bundle.courseId, holeStates: [])
+            )
+        )
+
+        let response = try #require(manager.handleTurn(request))
+        let seededState = response.sessionSnapshot.roundState.holeState(for: 4)
+
+        #expect(response.actionName == .markBallPosition)
+        #expect(seededState?.status == .inProgress)
+        #expect(seededState?.shotStateContext?.shotNumber == 2)
+        #expect(seededState?.shotStateContext?.remainingDistanceM == 128)
+        #expect(seededState?.shotStateContext?.lie == .rough)
+        #expect(response.spokenReply.contains("You're 128m out from the rough"))
+    }
+
     @Test func realtimeVoiceSessionManagerOwnsTypedHarnessTranscript() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let manager = RealtimeVoiceSessionManager(
@@ -2399,6 +2510,28 @@ struct TrueCaddieHostTests {
         #expect(controller.isConnected)
         #expect(controller.isListening)
         #expect(controller.statusLabel.contains("Listening live"))
+    }
+
+    @Test func hostVoiceSessionControllerConnectsBehindTheScenesWhenListeningStarts() throws {
+        let transport = StubRealtimeVoiceTransport()
+        let microphoneSource = StubMicrophonePCMSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key"),
+                transport: transport
+            ),
+            microphoneSource: microphoneSource,
+            playbackEngine: StubRealtimePlaybackEngine()
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.beginListening()
+
+        #expect(controller.isConnected)
+        #expect(controller.isListening)
+        #expect(microphoneSource.isRunning)
+        #expect(transport.connectedDescriptor != nil)
     }
 
     @Test func hostVoiceSessionControllerRequiresMicrophonePermissionBeforeConnect() throws {
@@ -2898,6 +3031,78 @@ struct TrueCaddieHostTests {
         )
         #expect(controller.state.transcriptEntries.first == .user("rough 128"))
         #expect(controller.state.transcriptEntries.last == .assistant(response.spokenReply))
+    }
+
+    @Test func hostVoiceSessionControllerResolvesLocalToolInvocationWithoutRealtimeRoundTrip() throws {
+        let client = StubDirectRealtimeClient()
+        let eventSource = DirectRealtimeVoiceEventSourceAdapter(client: client)
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            eventSource: eventSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(
+            makeConversationContext(
+                bundle: bundle,
+                roundState: makeInProgressRoundState(courseId: bundle.courseId)
+            )
+        )
+
+        let response = try #require(
+            controller.submitResolvedVoiceToolInvocation(
+                VoiceToolInvocation(
+                    actionName: .reportResult,
+                    arguments: .init(
+                        lie: .rough,
+                        remainingDistanceM: 128
+                    )
+                )
+            )
+        )
+
+        #expect(response.actionName == .reportResult)
+        #expect(client.outboundActions.contains("assistant:\(response.spokenReply)"))
+        #expect(!client.outboundActions.contains("tool:report_result"))
+    }
+
+    @Test func hostVoiceSessionControllerSpeaksAfterCompletedRealtimeFunctionCall() throws {
+        let client = StubDirectRealtimeClient()
+        let eventSource = DirectRealtimeVoiceEventSourceAdapter(client: client)
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            eventSource: eventSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        controller.updateContext(
+            makeConversationContext(
+                bundle: bundle,
+                roundState: makeInProgressRoundState(courseId: bundle.courseId)
+            )
+        )
+
+        client.emit(
+            .toolEvent(
+                .init(
+                    invocation: VoiceToolInvocation(
+                        actionName: .markBallPosition,
+                        arguments: .init(
+                            lie: .fairway,
+                            remainingDistanceM: 128
+                        )
+                    ),
+                    phase: .completed
+                )
+            )
+        )
+
+        #expect(controller.state.lastResponse?.actionName == .markBallPosition)
+        #expect(controller.state.transcriptEntries.last?.speaker == .assistant)
+        #expect(controller.state.transcriptEntries.last?.text.contains("You're 128m out from the fairway") == true)
+        #expect(client.outboundActions.contains(where: { $0.hasPrefix("assistant:You're 128m out from the fairway") }))
     }
 
     @Test func stubRealtimeVoiceEventSourceCanPlayAssistantReply() {

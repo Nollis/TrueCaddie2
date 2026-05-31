@@ -170,6 +170,10 @@ final class HostVoiceSessionController: ObservableObject {
         }
 
         connectIfNeeded()
+        guard isConnected else {
+            refreshState()
+            return
+        }
         logDebug("Begin listening", category: .voice)
         try? sessionManager.beginListening()
         do {
@@ -263,6 +267,7 @@ final class HostVoiceSessionController: ObservableObject {
             return nil
         }
 
+        connectIfNeeded()
         logDebug(
             "Submit tool invocation",
             category: .voice,
@@ -275,6 +280,31 @@ final class HostVoiceSessionController: ObservableObject {
             eventSource.playAssistantReply(response.spokenReply)
         }
         return response
+    }
+
+    func submitResolvedVoiceToolInvocation(_ invocation: VoiceToolInvocation) -> VoiceTurnResponse? {
+        guard let currentContext else {
+            return nil
+        }
+
+        connectIfNeeded()
+        logDebug(
+            "Resolve local tool invocation",
+            category: .voice,
+            metadata: Self.metadata(for: invocation)
+        )
+
+        lastEventResponse = sessionManager.handleTransportEvent(
+            .toolInvocation(invocation),
+            context: currentContext
+        )
+        refreshState()
+
+        if let response = lastEventResponse {
+            eventSource.playAssistantReply(response.spokenReply)
+        }
+
+        return lastEventResponse
     }
 
     /// Outcome of a "mark ball position" attempt — surfaced to UI so the
@@ -342,7 +372,7 @@ final class HostVoiceSessionController: ObservableObject {
             ]
         )
 
-        _ = submitVoiceToolInvocation(
+        _ = submitResolvedVoiceToolInvocation(
             VoiceToolInvocation(
                 actionName: .markBallPosition,
                 arguments: VoiceToolInvocationArguments(

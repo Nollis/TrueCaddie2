@@ -30,15 +30,13 @@ struct CaddieVoiceCluster: View {
 
     @ViewBuilder
     private var markBallButton: some View {
-        if voiceController.isConnected {
-            Button(markBallButtonLabel) {
-                _ = voiceController.markBallPosition()
-            }
-            .buttonStyle(.bordered)
-            .font(.callout)
-            .disabled(!isCaptureReady)
-            .accessibilityLabel("Mark ball position from GPS")
+        Button(markBallButtonLabel) {
+            _ = voiceController.markBallPosition()
         }
+        .buttonStyle(.bordered)
+        .font(.callout)
+        .disabled(!isCaptureReady)
+        .accessibilityLabel("Mark ball position from GPS")
     }
 
     private var markBallButtonLabel: String {
@@ -60,7 +58,7 @@ struct CaddieVoiceCluster: View {
             Button {
                 voiceController.requestMicrophoneAccess()
             } label: {
-                Label("Enable Mic", systemImage: "mic.slash.fill")
+                Label("Allow Microphone", systemImage: "mic.fill")
                     .font(.title3.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -68,24 +66,11 @@ struct CaddieVoiceCluster: View {
             .buttonStyle(.borderedProminent)
             .tint(.green)
             .accessibilityLabel("Enable microphone access")
-        } else if !voiceController.isConnected {
-            Button {
-                voiceController.connectIfNeeded()
-            } label: {
-                Label("Connect", systemImage: "bolt.fill")
-                    .font(.title3.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .disabled(!voiceController.canConnect)
-            .accessibilityLabel("Connect to caddie")
         } else if voiceController.isListening {
             Button {
                 voiceController.stopListening()
             } label: {
-                Label("Stop Listening", systemImage: "mic.fill")
+                Label("Done Speaking", systemImage: "checkmark.circle.fill")
                     .font(.title3.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
@@ -98,14 +83,14 @@ struct CaddieVoiceCluster: View {
             Button {
                 voiceController.beginListening()
             } label: {
-                Label("Start Listening", systemImage: "mic.fill")
+                Label("Talk to Caddie", systemImage: "mic.fill")
                     .font(.title3.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!voiceController.canStartListening)
-            .accessibilityLabel("Start listening, double-tap to start")
+            .disabled(!voiceController.canStartListening && !voiceController.canConnect)
+            .accessibilityLabel("Talk to caddie")
         }
     }
 
@@ -150,12 +135,12 @@ struct CaddieVoiceCluster: View {
 
     private var stateLabel: String {
         switch voiceController.state.connectionState {
-        case .disconnected: return "Disconnected"
-        case .connecting: return "Connecting…"
+        case .disconnected: return "Ready"
+        case .connecting: return "Getting ready"
         case .connected:
             if voiceController.isListening { return "Listening" }
             if voiceController.state.playbackState == .speaking { return "Speaking" }
-            return "Connected"
+            return "Ready"
         case .failed: return "Failed"
         }
     }

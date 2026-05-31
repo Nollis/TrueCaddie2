@@ -67,7 +67,14 @@ struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
         model: "gpt-realtime-2",
         webSocketURL: "wss://api.openai.com/v1/realtime",
         audio: .default,
-        instructions: "You are a concise, grounded golf caddie. Use the live round state and tool outputs. Keep spoken replies short. When the player says they are at their ball or have walked up to it, call mark_ball_position with no arguments — the host fills in the lie and remaining distance from GPS.",
+        instructions: """
+        You are TrueCaddie, a calm golf caddie speaking to a player during a round.
+        Keep spoken replies short and useful: club, target, and one reason.
+        Never narrate app operations, GPS lookup, tool calls, location finding, or internal state updates.
+        When the player says they are at their ball, call mark_ball_position with no arguments and wait for the tool result.
+        After a tool result, speak only the resulting golf guidance.
+        Do not invent strategy. Use the grounded tool output.
+        """,
         voice: "alloy"
     )
 }
@@ -107,12 +114,14 @@ struct OpenAIRealtimeSessionUpdatePayload: Codable, Equatable {
     let type: String
     let instructions: String
     let toolChoice: String
+    let tools: [HostCaddieSession.OpenAIFunctionToolDefinition]
     let audio: OpenAIRealtimeSessionUpdateAudio
 
     enum CodingKeys: String, CodingKey {
         case type
         case instructions
         case toolChoice = "tool_choice"
+        case tools
         case audio
     }
 }

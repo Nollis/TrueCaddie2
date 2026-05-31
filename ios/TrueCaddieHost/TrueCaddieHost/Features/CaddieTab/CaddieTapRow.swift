@@ -9,7 +9,7 @@ struct CaddieTapRow: View {
     var showEditButton: Bool = false
     let onRequestEditor: () -> Void
 
-    private var isEnabled: Bool { voiceController.isConnected }
+    private var isEnabled: Bool { !voiceController.needsMicrophonePermission }
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -30,7 +30,7 @@ struct CaddieTapRow: View {
 
     private func resultChip(_ lie: ShotLie, label: String) -> some View {
         Button(label) {
-            _ = voiceController.submitVoiceToolInvocation(
+            _ = voiceController.submitResolvedVoiceToolInvocation(
                 VoiceToolInvocation(
                     actionName: .reportResult,
                     arguments: .init(lie: lie, remainingDistanceM: currentRemainingDistanceM)
@@ -45,7 +45,7 @@ struct CaddieTapRow: View {
 
     private var holeOutChip: some View {
         Button("Holed Out") {
-            _ = voiceController.submitVoiceToolInvocation(
+            _ = voiceController.submitResolvedVoiceToolInvocation(
                 VoiceToolInvocation(
                     actionName: .holeOut,
                     arguments: .init()

@@ -879,6 +879,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
             type: "realtime",
             instructions: configuration.instructions,
             toolChoice: "auto",
+            tools: HostCaddieSession.VoiceSessionBridge.openAIFunctionTools(),
             audio: .init(
                 input: .init(turnDetection: .init(
                     type: "server_vad",
@@ -1182,17 +1183,7 @@ final class DirectRealtimeVoiceEventSourceAdapter: RealtimeVoiceEventSourcing {
         case let .outputTranscriptFinal(text):
             return .transcript(.init(speaker: .assistant, kind: .final, text: text))
         case let .toolEvent(toolEvent):
-            switch toolEvent.phase {
-            case .requested:
-                return .toolInvocation(toolEvent.invocation)
-            case .completed:
-                return .toolCallback(
-                    .init(
-                        invocation: toolEvent.invocation,
-                        phase: .completed
-                    )
-                )
-            }
+            return .toolInvocation(toolEvent.invocation)
         case let .playbackStateChanged(state):
             switch state {
             case .speaking:
