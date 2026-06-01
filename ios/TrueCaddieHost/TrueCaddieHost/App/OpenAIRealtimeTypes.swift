@@ -95,6 +95,12 @@ struct OpenAIRealtimeSessionUpdateTurnDetection: Codable, Equatable {
         case createResponse = "create_response"
         case interruptResponse = "interrupt_response"
     }
+
+    static let defaultServerVAD = OpenAIRealtimeSessionUpdateTurnDetection(
+        type: "server_vad",
+        createResponse: false,
+        interruptResponse: true
+    )
 }
 
 struct OpenAIRealtimeSessionUpdateAudioInput: Codable, Equatable {
@@ -128,12 +134,6 @@ struct OpenAIRealtimeSessionUpdatePayload: Codable, Equatable {
         case tools
         case audio
     }
-
-    static let defaultServerVAD = OpenAIRealtimeSessionUpdateTurnDetection(
-        type: "server_vad",
-        createResponse: false,
-        interruptResponse: true
-    )
 }
 
 struct OpenAIRealtimeSessionUpdateEventEnvelope: Codable, Equatable {
