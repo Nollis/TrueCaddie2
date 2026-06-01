@@ -795,6 +795,8 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     private let connection: any OpenAIRealtimeConnectioning
     private let configuration: OpenAIRealtimeSessionConfiguration
     private let microphoneEncoder: RealtimeMicrophonePCMEncoder
+    private var hasBufferedUserAudioThisTurn = false
+    private var isAwaitingModelResponse = false
 
     init(
         connection: any OpenAIRealtimeConnectioning = StubOpenAIRealtimeConnection(),
@@ -816,18 +818,28 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func connect() {
         outboundActions.append("connect")
+        isAwaitingModelResponse = false
         connection.connect()
+        connection.setInputAudioEnabled(false)
         sendSessionUpdate()
     }
 
     func beginListening() {
         outboundActions.append("beginListening")
+        hasBufferedUserAudioThisTurn = false
+        isAwaitingModelResponse = false
+        connection.setInputAudioEnabled(true)
         onEvent?(.inputAudioStarted)
     }
 
     func stopListening() {
         outboundActions.append("stopListening")
+        connection.setInputAudioEnabled(false)
         onEvent?(.inputAudioStopped)
+        if hasBufferedUserAudioThisTurn {
+            sendResponseCreate()
+            hasBufferedUserAudioThisTurn = false
+        }
     }
 
     func sendPartialUtterance(_ utterance: String) {
@@ -855,6 +867,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func interrupt() {
         outboundActions.append("interrupt")
+        isAwaitingModelResponse = false
         sendClientEvent(
             .init(
                 type: OpenAIRealtimeClientEventType.responseCancel.rawValue,
@@ -867,6 +880,8 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
 
     func disconnect() {
         outboundActions.append("disconnect")
+        isAwaitingModelResponse = false
+        connection.setInputAudioEnabled(false)
         connection.disconnect()
     }
 
@@ -882,9 +897,9 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
             tools: HostCaddieSession.VoiceSessionBridge.openAIFunctionTools(),
             audio: .init(
                 input: .init(turnDetection: .init(
-                    type: "server_vad",
-                    createResponse: true,
-                    interruptResponse: true
+                    type: OpenAIRealtimeSessionUpdateTurnDetection.defaultServerVAD.type,
+                    createResponse: OpenAIRealtimeSessionUpdateTurnDetection.defaultServerVAD.createResponse,
+                    interruptResponse: OpenAIRealtimeSessionUpdateTurnDetection.defaultServerVAD.interruptResponse
                 )),
                 output: .init(voice: configuration.voice)
             )
@@ -900,6 +915,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
     }
 
     func sendResponseCreate() {
+        isAwaitingModelResponse = true
         let envelope = OpenAIRealtimeResponseCreateEventEnvelope(
             type: OpenAIRealtimeClientEventType.responseCreate.rawValue,
             eventID: UUID().uuidString.lowercased(),
@@ -927,6 +943,7 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
         let encoded = microphoneEncoder.encode(samples, format: format)
         outboundActions.append("input_audio_buffer.append:mic:\(encoded.count)")
         guard !encoded.isEmpty else { return }
+        hasBufferedUserAudioThisTurn = true
         sendAudioBufferAppend(encoded)
     }
 
@@ -943,6 +960,24 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
         guard let envelope = try? decoder.decode(OpenAIRealtimeServerEventEnvelope.self, from: data),
               let event = Self.map(envelope) else {
             return
+        }
+
+        if Self.isModelOutputEvent(envelope.type) && !isAwaitingModelResponse {
+            outboundActions.append("suppressed:\(envelope.type)")
+            sendClientEvent(
+                .init(
+                    type: OpenAIRealtimeClientEventType.responseCancel.rawValue,
+                    eventID: UUID().uuidString.lowercased(),
+                    audio: nil
+                )
+            )
+            return
+        }
+
+        if envelope.type == OpenAIRealtimeServerEventType.outputAudioDone.rawValue ||
+            envelope.type == OpenAIRealtimeServerEventType.functionCallArgumentsDone.rawValue ||
+            envelope.type == OpenAIRealtimeServerEventType.error.rawValue {
+            isAwaitingModelResponse = false
         }
 
         onEvent?(event)
@@ -1027,6 +1062,13 @@ final class OpenAIRealtimeClientShell: DirectRealtimeClienting {
                 holeNumber: arguments.holeNumber
             )
         )
+    }
+
+    private static func isModelOutputEvent(_ type: String) -> Bool {
+        type == OpenAIRealtimeServerEventType.outputAudioTranscriptDelta.rawValue ||
+        type == OpenAIRealtimeServerEventType.outputAudioTranscriptDone.rawValue ||
+        type == OpenAIRealtimeServerEventType.outputAudioDelta.rawValue ||
+        type == OpenAIRealtimeServerEventType.outputAudioDone.rawValue
     }
 }
 

@@ -35,6 +35,12 @@ final class LiveCourseLocationModel: ObservableObject {
         }
     }
 
+    /// During an in-progress hole we keep GPS-derived distance/lie anchored to
+    /// the committed round hole, even if the player walks near another hole.
+    /// Between holes this can be re-enabled so the next tee is picked up
+    /// automatically.
+    var automaticHoleSwitchingEnabled: Bool = true
+
     private var consecutiveMisses: Int = 0
 
     init(
@@ -80,12 +86,18 @@ final class LiveCourseLocationModel: ObservableObject {
 
         updateMissStreak(for: fix, currentHoleNumber: currentHoleNumber)
 
-        let detected = HoleDetector.activeHole(
+        let candidateHole = HoleDetector.activeHole(
             fix: fix.coordinate,
             bundle: bundle,
             current: currentHoleNumber,
             consecutiveMisses: consecutiveMisses
         )
+        let detected: Int?
+        if automaticHoleSwitchingEnabled {
+            detected = candidateHole
+        } else {
+            detected = currentHoleNumber ?? candidateHole
+        }
         detectedHoleNumber = detected
 
         // Derive distance and lie against the *detected* hole — if the user
@@ -110,9 +122,11 @@ final class LiveCourseLocationModel: ObservableObject {
                 metadata: [
                     "accuracyM": Self.metric(fix.horizontalAccuracyM),
                     "currentHole": currentHoleNumber.map(String.init) ?? "nil",
+                    "candidateHole": candidateHole.map(String.init) ?? "nil",
                     "detectedHole": detectedHoleNumber.map(String.init) ?? "nil",
                     "lie": inferredLie?.rawValue ?? "nil",
-                    "misses": String(consecutiveMisses)
+                    "misses": String(consecutiveMisses),
+                    "autoSwitch": automaticHoleSwitchingEnabled ? "enabled" : "locked"
                 ]
             )
         }

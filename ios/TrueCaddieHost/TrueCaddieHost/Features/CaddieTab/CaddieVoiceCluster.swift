@@ -7,21 +7,40 @@ struct CaddieVoiceCluster: View {
     @State private var listeningPulse = false
 
     var body: some View {
-        VStack(spacing: 12) {
-            primaryButton
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(voicePromptTitle)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(.primary)
 
-            HStack(spacing: 12) {
-                if voiceController.canInterrupt {
-                    Button("Interrupt") { voiceController.interrupt() }
-                        .buttonStyle(.bordered)
-                        .font(.callout)
-                }
-                if voiceController.isSpeaking {
-                    Button("Finish") { voiceController.finishPlayback() }
-                        .buttonStyle(.bordered)
-                        .font(.callout)
-                }
+                Text(voicePromptSubtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                primaryButton
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color(uiColor: .secondarySystemBackground))
+            )
+
+            HStack(spacing: 10) {
                 markBallButton
+
+                if voiceController.canInterrupt {
+                    compactActionButton("Interrupt", systemImage: "waveform.slash") {
+                        voiceController.interrupt()
+                    }
+                }
+
+                if voiceController.isSpeaking {
+                    compactActionButton("Done", systemImage: "checkmark.circle") {
+                        voiceController.finishPlayback()
+                    }
+                }
+
                 Spacer(minLength: 0)
                 statusChip
             }
@@ -30,11 +49,9 @@ struct CaddieVoiceCluster: View {
 
     @ViewBuilder
     private var markBallButton: some View {
-        Button(markBallButtonLabel) {
+        compactActionButton(markBallButtonLabel, systemImage: "location.fill") {
             _ = voiceController.markBallPosition()
         }
-        .buttonStyle(.bordered)
-        .font(.callout)
         .disabled(!isCaptureReady)
         .accessibilityLabel("Mark ball position from GPS")
     }
@@ -59,9 +76,9 @@ struct CaddieVoiceCluster: View {
                 voiceController.requestMicrophoneAccess()
             } label: {
                 Label("Allow Microphone", systemImage: "mic.fill")
-                    .font(.title3.weight(.semibold))
+                    .font(.headline.weight(.semibold))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
             .tint(.green)
@@ -71,9 +88,9 @@ struct CaddieVoiceCluster: View {
                 voiceController.stopListening()
             } label: {
                 Label("Done Speaking", systemImage: "checkmark.circle.fill")
-                    .font(.title3.weight(.semibold))
+                    .font(.headline.weight(.semibold))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
             .tint(.red)
@@ -84,9 +101,9 @@ struct CaddieVoiceCluster: View {
                 voiceController.beginListening()
             } label: {
                 Label("Talk to Caddie", systemImage: "mic.fill")
-                    .font(.title3.weight(.semibold))
+                    .font(.headline.weight(.semibold))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
             .disabled(!voiceController.canStartListening && !voiceController.canConnect)
@@ -113,12 +130,26 @@ struct CaddieVoiceCluster: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(
             Capsule().fill(Color(uiColor: .secondarySystemBackground))
         )
         .accessibilityLabel("Voice session: \(stateLabel)")
+    }
+
+    private func compactActionButton(
+        _ title: String,
+        systemImage: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.callout.weight(.medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+        }
+        .buttonStyle(.bordered)
     }
 
     private var dotColor: Color {
@@ -143,5 +174,31 @@ struct CaddieVoiceCluster: View {
             return "Ready"
         case .failed: return "Failed"
         }
+    }
+
+    private var voicePromptTitle: String {
+        if voiceController.needsMicrophonePermission {
+            return "Set up voice"
+        }
+        if voiceController.isListening {
+            return "Listening now"
+        }
+        if voiceController.isSpeaking {
+            return "Caddie is speaking"
+        }
+        return "Ask for the next shot"
+    }
+
+    private var voicePromptSubtitle: String {
+        if voiceController.needsMicrophonePermission {
+            return "Enable the mic once and the caddie will be ready whenever you need it."
+        }
+        if voiceController.isListening {
+            return "Speak naturally, then tap Done Speaking when you've finished."
+        }
+        if voiceController.isSpeaking {
+            return "Let the guidance finish, or interrupt if you want to jump in."
+        }
+        return "Ask what the play is, or mark your ball position for grounded guidance."
     }
 }

@@ -101,4 +101,36 @@ struct LiveCourseLocationModelTests {
         for _ in 1...4 { provider.emit(coordinate: hole2Green) }
         #expect(model.detectedHoleNumber == 1, "Streak reset by intervening hole-1 fix should prevent flip")
     }
+
+    @Test func inProgressHoleLocksDetectionToCurrentHoleEvenNearAnotherHole() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let provider = StubLocationProvider()
+        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHoleNumber: 1)
+        model.automaticHoleSwitchingEnabled = false
+
+        let hole9Green = GeoCoordinate2D(lon: 12.000505438540564, lat: 57.492985279137305)
+
+        for _ in 1...8 {
+            provider.emit(coordinate: hole9Green)
+        }
+
+        #expect(model.detectedHoleNumber == 1)
+        let distance = try #require(model.distanceToPinM)
+        #expect(distance > 300, "Distance should still be anchored to hole 1 rather than flipping to hole 9")
+    }
+
+    @Test func betweenHolesDetectionCanStillAdvanceAutomatically() throws {
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let provider = StubLocationProvider()
+        let model = LiveCourseLocationModel(provider: provider, bundle: bundle, currentHoleNumber: 1)
+        model.automaticHoleSwitchingEnabled = true
+
+        let hole2Green = GeoCoordinate2D(lon: 11.997032761573793, lat: 57.488330174334116)
+
+        for _ in 1...HoleDetector.missesRequiredToSwitch {
+            provider.emit(coordinate: hole2Green)
+        }
+
+        #expect(model.detectedHoleNumber == 2)
+    }
 }

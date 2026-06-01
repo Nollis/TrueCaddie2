@@ -1650,12 +1650,85 @@ struct TrueCaddieHostTests {
         #expect(sessionEnvelope.type == "session.update")
         #expect(sessionEnvelope.session.type == "realtime")
         #expect(sessionEnvelope.session.audio.input.turnDetection.type == "server_vad")
+        #expect(!sessionEnvelope.session.audio.input.turnDetection.createResponse)
         #expect(sessionEnvelope.session.tools.contains(where: { $0.name == "mark_ball_position" }))
         #expect(sessionEnvelope.session.instructions.contains("Never narrate app operations"))
+        #expect(sessionEnvelope.session.instructions.contains("Only respond to speech clearly directed at you"))
+        #expect(connection.inputAudioEnabledValues == [false])
 
         let cancelData = try #require(connection.sentJSONMessages.last?.data(using: .utf8))
         let cancelEnvelope = try JSONDecoder().decode(OpenAIRealtimeClientEventEnvelope.self, from: cancelData)
         #expect(cancelEnvelope.type == "response.cancel")
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellMutesAndUnmutesInputAudioWithListeningState() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+
+        client.connect()
+        client.beginListening()
+        client.stopListening()
+        client.disconnect()
+
+        #expect(connection.inputAudioEnabledValues == [false, true, false, false])
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellDoesNotAutoCreateResponseWhenStoppingWithoutAudio() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+
+        client.connect()
+        client.beginListening()
+        client.stopListening()
+
+        let responseCreates = connection.sentJSONMessages.filter { $0.contains(#""type":"response.create""#) }
+        #expect(responseCreates.isEmpty)
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellCreatesSingleResponseWhenStoppingAfterMicrophoneAudio() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+
+        client.connect()
+        client.beginListening()
+        client.sendMicrophonePCMChunk(
+            [0.1, -0.1, 0.2, -0.2],
+            format: .typicalIOSMicrophone
+        )
+        client.stopListening()
+
+        let responseCreates = connection.sentJSONMessages.filter { $0.contains(#""type":"response.create""#) }
+        #expect(responseCreates.count == 1)
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellSuppressesUnarmedAssistantOutput() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+        var received: [DirectRealtimeClientEvent] = []
+        client.onEvent = { received.append($0) }
+
+        client.connect()
+        connection.receiveJSON(#"{"type":"response.output_audio_transcript.done","transcript":"Adidas sneakers"}"#)
+
+        #expect(received.isEmpty)
+        #expect(connection.sentJSONMessages.contains(where: { $0.contains(#""type":"response.cancel""#) }))
+    }
+
+    @MainActor @Test func openAIRealtimeClientShellAllowsAssistantOutputAfterExplicitResponseCreate() {
+        let connection = StubOpenAIRealtimeConnection()
+        let client = OpenAIRealtimeClientShell(connection: connection)
+        var received: [DirectRealtimeClientEvent] = []
+        client.onEvent = { received.append($0) }
+
+        client.connect()
+        client.sendResponseCreate()
+        connection.receiveJSON(#"{"type":"response.output_audio_transcript.done","transcript":"PW to front-center green"}"#)
+        connection.receiveJSON(#"{"type":"response.output_audio.done"}"#)
+
+        #expect(received == [
+            .outputTranscriptFinal("PW to front-center green"),
+            .playbackStateChanged(.finished)
+        ])
     }
 
     @MainActor @Test func openAIRealtimeClientShellSynthesizesTranscriptEventsForTypedInputWithoutWireTraffic() {

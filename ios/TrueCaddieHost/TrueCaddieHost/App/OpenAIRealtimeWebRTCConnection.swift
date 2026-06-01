@@ -19,6 +19,7 @@ final class OpenAIRealtimeWebRTCConnection: NSObject, OpenAIRealtimeConnectionin
     private var webView: WKWebView?
     private var pendingMessages: [String] = []
     private var isDataChannelOpen = false
+    private var isInputAudioEnabled = false
 
     init(
         configuration: OpenAIRealtimeSessionConfiguration,
@@ -29,6 +30,7 @@ final class OpenAIRealtimeWebRTCConnection: NSObject, OpenAIRealtimeConnectionin
     }
 
     func connect() {
+        isInputAudioEnabled = false
         let webConfig = WKWebViewConfiguration()
         webConfig.allowsInlineMediaPlayback = true
         webConfig.mediaTypesRequiringUserActionForPlayback = []
@@ -72,7 +74,17 @@ final class OpenAIRealtimeWebRTCConnection: NSObject, OpenAIRealtimeConnectionin
         }
     }
 
+    func setInputAudioEnabled(_ enabled: Bool) {
+        isInputAudioEnabled = enabled
+        applyInputAudioEnabled()
+    }
+
     // MARK: - Private
+
+    private func applyInputAudioEnabled() {
+        let enabled = isInputAudioEnabled ? "true" : "false"
+        webView?.evaluateJavaScript("window.__setInputAudioEnabled?.(\(enabled))", completionHandler: nil)
+    }
 
     private func dispatch(_ json: String) {
         let safe = json
@@ -81,11 +93,60 @@ final class OpenAIRealtimeWebRTCConnection: NSObject, OpenAIRealtimeConnectionin
         webView?.evaluateJavaScript("window.__rtcSend?.(`\(safe)`)", completionHandler: nil)
     }
 
+    private func initialSessionJSON() -> String {
+        let sessionObject: [String: Any] = [
+            "type": "realtime",
+            "model": configuration.model,
+            "instructions": configuration.instructions,
+            "tool_choice": "auto",
+            "tools": HostCaddieSession.VoiceSessionBridge.openAIFunctionTools().map { tool in
+                [
+                    "type": tool.type,
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": [
+                        "type": tool.parameters.type,
+                        "properties": tool.parameters.properties.mapValues { property in
+                            var propertyObject: [String: Any] = [
+                                "type": property.type,
+                                "description": property.description
+                            ]
+                            if let enumValues = property.enumValues {
+                                propertyObject["enum"] = enumValues
+                            }
+                            return propertyObject
+                        },
+                        "required": tool.parameters.required,
+                        "additionalProperties": tool.parameters.additionalProperties
+                    ],
+                    "strict": tool.strict
+                ]
+            },
+            "audio": [
+                "input": [
+                    "turn_detection": [
+                        "type": OpenAIRealtimeSessionUpdateTurnDetection.defaultServerVAD.type,
+                        "create_response": OpenAIRealtimeSessionUpdateTurnDetection.defaultServerVAD.createResponse,
+                        "interrupt_response": OpenAIRealtimeSessionUpdateTurnDetection.defaultServerVAD.interruptResponse
+                    ]
+                ],
+                "output": [
+                    "voice": configuration.voice
+                ]
+            ]
+        ]
+
+        guard let data = try? JSONSerialization.data(withJSONObject: sessionObject),
+              let json = String(data: data, encoding: .utf8) else {
+            return #"{"type":"realtime","model":"gpt-realtime-2"}"#
+        }
+
+        return json
+    }
+
     private func buildHTML() -> String {
-        let model = configuration.model
-        let voice = configuration.voice
         let apiKey = credential.apiKey
-        let sessionJSON = #"{"type":"realtime","model":"\#(model)","audio":{"output":{"voice":"\#(voice)"}}}"#
+        let sessionJSON = initialSessionJSON()
 
         return """
         <!DOCTYPE html>
@@ -107,6 +168,10 @@ final class OpenAIRealtimeWebRTCConnection: NSObject, OpenAIRealtimeConnectionin
             window.__rtcSend = j => { if (dc.readyState === 'open') dc.send(j); };
 
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getAudioTracks().forEach(t => { t.enabled = false; });
+            window.__setInputAudioEnabled = enabled => {
+              stream.getAudioTracks().forEach(t => { t.enabled = !!enabled; });
+            };
             stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
             const offer = await pc.createOffer();
@@ -151,6 +216,7 @@ extension OpenAIRealtimeWebRTCConnection: WKScriptMessageHandler {
                 let queued = pendingMessages
                 pendingMessages.removeAll()
                 queued.forEach { self.dispatch($0) }
+                applyInputAudioEnabled()
             case "rtcClose":
                 isDataChannelOpen = false
                 onDisconnected?()

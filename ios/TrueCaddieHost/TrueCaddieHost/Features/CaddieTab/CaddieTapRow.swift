@@ -12,33 +12,49 @@ struct CaddieTapRow: View {
     private var isEnabled: Bool { !voiceController.needsMicrophonePermission }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                resultChip(.fairway, label: "Fairway")
-                resultChip(.rough, label: "Rough")
-                resultChip(.bunker, label: "Bunker")
-                holeOutChip
-                if showEditButton {
-                    Button("Edit…") { onRequestEditor() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("After the shot")
+                    .font(.headline.weight(.semibold))
+                Spacer(minLength: 0)
+                Text("Quick update")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 16)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    resultChip(.fairway, label: "Fairway", systemImage: "checkmark.circle")
+                    resultChip(.rough, label: "Rough", systemImage: "leaf")
+                    resultChip(.bunker, label: "Bunker", systemImage: "triangle")
+                    holeOutChip
+                    if showEditButton {
+                        Button("Edit") { onRequestEditor() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.regular)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
         }
+        .padding(.top, 8)
+        .padding(.bottom, 8)
     }
 
-    private func resultChip(_ lie: ShotLie, label: String) -> some View {
-        Button(label) {
+    private func resultChip(_ lie: ShotLie, label: String, systemImage: String) -> some View {
+        Button {
             _ = voiceController.submitResolvedVoiceToolInvocation(
                 VoiceToolInvocation(
                     actionName: .reportResult,
                     arguments: .init(lie: lie, remainingDistanceM: currentRemainingDistanceM)
                 )
             )
+        } label: {
+            Label(label, systemImage: systemImage)
         }
         .buttonStyle(.bordered)
-        .controlSize(.small)
+        .controlSize(.regular)
         .disabled(!isEnabled)
         .accessibilityLabel("Report \(label) result")
     }
@@ -53,7 +69,7 @@ struct CaddieTapRow: View {
             )
         }
         .buttonStyle(.bordered)
-        .controlSize(.small)
+        .controlSize(.regular)
         .disabled(!isEnabled)
         .accessibilityLabel("Report holed out")
     }

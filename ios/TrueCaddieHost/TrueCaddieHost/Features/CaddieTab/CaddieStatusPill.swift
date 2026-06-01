@@ -29,33 +29,62 @@ struct CaddieStatusPill: View {
     }
 
     private func pillContent(showChevron: Bool) -> some View {
-        HStack(spacing: 6) {
-            Text("Hole \(holeNumber)")
-            separator
-            Text("Par \(par)")
-            separator
-            Text("\(Int(remainingDistanceM)) m")
-            separator
-            Text(lieLabel)
-            separator
-            Text(scoreLabel)
-                .monospacedDigit()
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text("Hole \(holeNumber)")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    scoreBadge
+                }
+
+                HStack(spacing: 6) {
+                    metricChip("Par \(par)")
+                    metricChip("\(Int(remainingDistanceM.rounded())) m")
+                    metricChip(lieLabel)
+                }
+            }
+
             Spacer(minLength: 0)
+
             if showChevron {
-                Image(systemName: "chevron.right")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                Image(systemName: "slider.horizontal.3")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
             }
         }
-        .font(.footnote.weight(.medium))
-        .foregroundStyle(.secondary)
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color(uiColor: .secondarySystemBackground))
+        )
     }
 
-    private var separator: some View {
-        Text("·").foregroundStyle(.tertiary)
+    private func metricChip(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color(uiColor: .tertiarySystemBackground))
+            )
+    }
+
+    private var scoreBadge: some View {
+        Text(scoreLabel)
+            .font(.footnote.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(scoreColor)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(scoreColor.opacity(0.14))
+            )
     }
 
     private var lieLabel: String { lie.rawValue.capitalized }
@@ -65,6 +94,17 @@ struct CaddieStatusPill: View {
         case ..<0: return "\(roundScoreVsPar)"
         case 0: return "E"
         default: return "+\(roundScoreVsPar)"
+        }
+    }
+
+    private var scoreColor: Color {
+        switch roundScoreVsPar {
+        case ..<0:
+            return .green
+        case 0:
+            return .secondary
+        default:
+            return .orange
         }
     }
 }

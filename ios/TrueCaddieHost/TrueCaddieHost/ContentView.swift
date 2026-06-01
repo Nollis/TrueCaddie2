@@ -298,6 +298,7 @@ private struct CaddieHostTabContainer: View {
             syncVoiceSessionSnapshot()
             voiceController.locationModel = locationModel
             locationModel.currentHoleNumber = selectedHoleNumber == 0 ? nil : selectedHoleNumber
+            syncLocationHoleSwitchingMode()
             locationModel.start()
             windModel.setCurrentHole(selectedHole, teeSetId: roundOverrides.teeSetId)
             if let fix = locationModel.lastFix {
@@ -314,6 +315,7 @@ private struct CaddieHostTabContainer: View {
             persistRoundProgress()
             syncVoiceSessionSnapshot()
             locationModel.currentHoleNumber = selectedHoleNumber == 0 ? nil : selectedHoleNumber
+            syncLocationHoleSwitchingMode()
             windModel.setCurrentHole(selectedHole, teeSetId: roundOverrides.teeSetId)
         }
         .onChange(of: roundOverrides.teeSetId) {
@@ -335,6 +337,7 @@ private struct CaddieHostTabContainer: View {
         .onChange(of: roundState) {
             persistRoundProgress()
             syncVoiceSessionSnapshot()
+            syncLocationHoleSwitchingMode()
             // Detect round completion and present the summary sheet.
             // The guard prevents re-triggering if onChange fires more than once
             // for the same state (SwiftUI value-type equality handles most
@@ -355,10 +358,9 @@ private struct CaddieHostTabContainer: View {
             if let response { applyVoiceResponse(response) }
         }
         .onChange(of: locationModel.detectedHoleNumber) { _, detected in
-            // Auto-select the detected hole. LiveCourseLocationModel already
-            // enforces hysteresis (5 consecutive fixes > 80 m outside the
-            // current hole) before emitting a different value, so simply
-            // following it here is safe.
+            // Between holes we allow GPS to move the selection. During an
+            // active hole the location model is locked to the committed round
+            // hole, so nearby fairways or greens cannot hijack selection.
             guard let detected, detected != selectedHoleNumber else { return }
             selectedHoleNumber = detected
         }
@@ -469,6 +471,10 @@ private struct CaddieHostTabContainer: View {
 
     private func syncVoiceSessionSnapshot() {
         voiceController.updateContext(currentTurnContext)
+    }
+
+    private func syncLocationHoleSwitchingMode() {
+        locationModel.automaticHoleSwitchingEnabled = !usesLiveState
     }
 
     private func persistRoundProgress() {

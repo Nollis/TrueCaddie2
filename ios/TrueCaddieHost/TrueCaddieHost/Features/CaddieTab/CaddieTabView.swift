@@ -105,41 +105,54 @@ struct CaddieTabView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(uiColor: .systemBackground),
+                    Color.blue.opacity(0.03)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: 16) {
-                    CaddieRecommendationHero(
-                        packet: displayPreview?.packet,
-                        emptyStateText: emptyStateText,
-                        livePinDistanceM: locationModel.distanceToPinM,
-                        locationAuthorizationStatus: locationModel.authorizationStatus,
-                        liveWind: windModel.windContext
-                    )
+            VStack(spacing: 0) {
+                topBar
                     .padding(.horizontal, 16)
+                    .padding(.top, 8)
 
-                    CaddieVoiceCluster(
-                        voiceController: voiceController,
-                        locationModel: locationModel
-                    )
-                    .padding(.horizontal, 16)
+                ScrollView {
+                    VStack(spacing: 18) {
+                        CaddieRecommendationHero(
+                            packet: displayPreview?.packet,
+                            emptyStateText: emptyStateText,
+                            livePinDistanceM: locationModel.distanceToPinM,
+                            locationAuthorizationStatus: locationModel.authorizationStatus,
+                            liveWind: windModel.windContext
+                        )
+                        .padding(.horizontal, 16)
 
-                    Spacer(minLength: 0)
+                        CaddieVoiceCluster(
+                            voiceController: voiceController,
+                            locationModel: locationModel
+                        )
+                        .padding(.horizontal, 16)
+
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, 16)
+                    .padding(.bottom, 8)
                 }
-                .padding(.top, 16)
+
+                CaddieTapRow(
+                    voiceController: voiceController,
+                    currentRemainingDistanceM: currentRemainingDistanceM,
+                    showEditButton: showInspectorControls,
+                    onRequestEditor: onRequestInspector
+                )
                 .padding(.bottom, 8)
             }
-
-            CaddieTapRow(
-                voiceController: voiceController,
-                currentRemainingDistanceM: currentRemainingDistanceM,
-                showEditButton: showInspectorControls,
-                onRequestEditor: onRequestInspector
-            )
-            .padding(.bottom, 8)
         }
-        .background(Color(uiColor: .systemBackground))
         .sheet(isPresented: $showSettings) {
             SettingsView(onEndRound: onEndRound)
         }
@@ -161,12 +174,15 @@ struct CaddieTabView: View {
             } label: {
                 Image(systemName: "gearshape")
                     .font(.headline)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 42, height: 42)
+                    .background(
+                        Circle()
+                            .fill(Color(uiColor: .secondarySystemBackground))
+                    )
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .accessibilityLabel("Open Settings")
         }
-        .padding(.trailing, 12)
     }
 }

@@ -70,7 +70,11 @@ struct OpenAIRealtimeSessionConfiguration: Equatable, Codable {
         instructions: """
         You are TrueCaddie, a calm golf caddie speaking to a player during a round.
         Keep spoken replies short and useful: club, target, and one reason.
+        Only respond to speech clearly directed at you by the player.
+        Stay silent for background conversations, silence, coughing, cart noise, TV or music, and unclear ambient audio.
+        If audio is unclear but seems directed at you, ask one short clarification. Otherwise stay silent.
         Never narrate app operations, GPS lookup, tool calls, location finding, or internal state updates.
+        Never answer from generic golf knowledge when grounded round context or tool results are missing.
         When the player says they are at their ball, call mark_ball_position with no arguments and wait for the tool result.
         After a tool result, speak only the resulting golf guidance.
         Do not invent strategy. Use the grounded tool output.
@@ -124,6 +128,12 @@ struct OpenAIRealtimeSessionUpdatePayload: Codable, Equatable {
         case tools
         case audio
     }
+
+    static let defaultServerVAD = OpenAIRealtimeSessionUpdateTurnDetection(
+        type: "server_vad",
+        createResponse: false,
+        interruptResponse: true
+    )
 }
 
 struct OpenAIRealtimeSessionUpdateEventEnvelope: Codable, Equatable {

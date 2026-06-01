@@ -15,6 +15,7 @@ protocol OpenAIRealtimeConnectioning: AnyObject {
     func connect()
     func disconnect()
     func sendJSON(_ json: String)
+    func setInputAudioEnabled(_ enabled: Bool)
 }
 
 final class OpenAIRealtimeWebSocketConnection: NSObject, OpenAIRealtimeConnectioning, URLSessionWebSocketDelegate {
@@ -117,6 +118,8 @@ final class OpenAIRealtimeWebSocketConnection: NSObject, OpenAIRealtimeConnectio
         }
         deliver(json, on: task)
     }
+
+    func setInputAudioEnabled(_ enabled: Bool) {}
 
     static func makeRequest(
         configuration: OpenAIRealtimeSessionConfiguration,
@@ -290,6 +293,7 @@ final class StubOpenAIRealtimeConnection: OpenAIRealtimeConnectioning {
     var onFailure: ((String) -> Void)?
 
     private(set) var sentJSONMessages: [String] = []
+    private(set) var inputAudioEnabledValues: [Bool] = []
     private(set) var connectCount = 0
     private(set) var disconnectCount = 0
 
@@ -304,6 +308,10 @@ final class StubOpenAIRealtimeConnection: OpenAIRealtimeConnectioning {
 
     func sendJSON(_ json: String) {
         sentJSONMessages.append(json)
+    }
+
+    func setInputAudioEnabled(_ enabled: Bool) {
+        inputAudioEnabledValues.append(enabled)
     }
 
     func receiveJSON(_ json: String) {
