@@ -3215,6 +3215,34 @@ struct TrueCaddieHostTests {
         #expect(controller.statusLabel.contains("network dropped"))
     }
 
+    @Test func hostVoiceSessionControllerClassifiesQuotaFailuresForUI() throws {
+        let eventSource = StubRealtimeVoiceEventSource()
+        let controller = HostVoiceSessionController(
+            sessionManager: RealtimeVoiceSessionManager(
+                credentialProvider: EmbeddedPilotCredentialProvider(apiKey: "pilot-key")
+            ),
+            eventSource: eventSource
+        )
+        let bundle = try HostCourseBundleStore.loadKungsbackaNya()
+        let quotaMessage = """
+        {
+        "error": {
+        "message": "You exceeded your current quota, please check your plan and billing details.",
+        "type": "insufficient_quota",
+        "code": "insufficient_quota"
+        }
+        }
+        """
+
+        controller.updateContext(makeConversationContext(bundle: bundle))
+        controller.connectIfNeeded()
+        controller.simulateTransportFailure(quotaMessage)
+
+        #expect(controller.failurePresentation?.title == "Voice unavailable")
+        #expect(controller.failurePresentation?.statusChipLabel == "Quota issue")
+        #expect(controller.statusLabel.contains("quota or billing"))
+    }
+
     @Test func conversationCanResolveToolCallThroughRealtimeAgentStub() throws {
         let bundle = try HostCourseBundleStore.loadKungsbackaNya()
         let context = HostCaddieSession.TurnContext(

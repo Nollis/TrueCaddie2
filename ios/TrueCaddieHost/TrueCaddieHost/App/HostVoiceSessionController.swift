@@ -3,6 +3,12 @@ import Foundation
 import TrueCaddieDomain
 
 final class HostVoiceSessionController: ObservableObject {
+    struct VoiceFailurePresentation: Equatable {
+        let title: String
+        let message: String
+        let statusChipLabel: String
+    }
+
     @Published private(set) var state: VoiceSessionState
     @Published private(set) var permissionState: RealtimeVoicePermissionState
 
@@ -70,8 +76,19 @@ final class HostVoiceSessionController: ObservableObject {
                 ? "Listening live with \(descriptor.model)\(sessionSuffix)"
                 : "Voice session ready: \(descriptor.model)\(sessionSuffix)"
         case let .failed(message):
+            if let presentation = Self.failurePresentation(for: message) {
+                return "\(presentation.title): \(presentation.message)"
+            }
             return "Voice session unavailable: \(message)"
         }
+    }
+
+    var failurePresentation: VoiceFailurePresentation? {
+        guard case let .failed(message) = state.connectionState else {
+            return nil
+        }
+
+        return Self.failurePresentation(for: message)
     }
 
     var needsMicrophonePermission: Bool {
@@ -508,6 +525,31 @@ final class HostVoiceSessionController: ObservableObject {
         }
 
         return String(format: "%.1f", number)
+    }
+
+    private static func failurePresentation(for message: String) -> VoiceFailurePresentation? {
+        let normalized = message.lowercased()
+
+        if normalized.contains("insufficient_quota") ||
+            normalized.contains("exceeded your current quota") ||
+            normalized.contains("billing") {
+            return VoiceFailurePresentation(
+                title: "Voice unavailable",
+                message: "OpenAI quota or billing needs attention before live voice can respond.",
+                statusChipLabel: "Quota issue"
+            )
+        }
+
+        if normalized.contains("missing realtime credential") ||
+            normalized.contains("credential provider not configured") {
+            return VoiceFailurePresentation(
+                title: "Voice unavailable",
+                message: "No realtime API key is configured for this build.",
+                statusChipLabel: "No key"
+            )
+        }
+
+        return nil
     }
 }
 

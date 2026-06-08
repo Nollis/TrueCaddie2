@@ -172,13 +172,17 @@ struct CaddieVoiceCluster: View {
             if voiceController.isListening { return "Listening" }
             if voiceController.state.playbackState == .speaking { return "Speaking" }
             return "Ready"
-        case .failed: return "Failed"
+        case .failed:
+            return voiceController.failurePresentation?.statusChipLabel ?? "Failed"
         }
     }
 
     private var voicePromptTitle: String {
         if voiceController.needsMicrophonePermission {
             return "Set up voice"
+        }
+        if let failure = voiceController.failurePresentation {
+            return failure.title
         }
         if voiceController.isListening {
             return "Listening now"
@@ -192,6 +196,9 @@ struct CaddieVoiceCluster: View {
     private var voicePromptSubtitle: String {
         if voiceController.needsMicrophonePermission {
             return "Enable the mic once and the caddie will be ready whenever you need it."
+        }
+        if let failure = voiceController.failurePresentation {
+            return failure.message
         }
         if voiceController.isListening {
             return "Speak naturally, then tap Done Speaking when you've finished."

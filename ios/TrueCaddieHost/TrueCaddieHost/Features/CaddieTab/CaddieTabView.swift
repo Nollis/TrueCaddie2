@@ -104,6 +104,14 @@ struct CaddieTabView: View {
         return preview
     }
 
+    private var heroDistanceToPinM: Double? {
+        if usesLiveRoundState {
+            return roundState.holeState(for: selectedHoleNumber)?.shotStateContext?.remainingDistanceM
+        }
+
+        return locationModel.distanceToPinM
+    }
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -126,7 +134,7 @@ struct CaddieTabView: View {
                         CaddieRecommendationHero(
                             packet: displayPreview?.packet,
                             emptyStateText: emptyStateText,
-                            livePinDistanceM: locationModel.distanceToPinM,
+                            livePinDistanceM: heroDistanceToPinM,
                             locationAuthorizationStatus: locationModel.authorizationStatus,
                             liveWind: windModel.windContext
                         )
