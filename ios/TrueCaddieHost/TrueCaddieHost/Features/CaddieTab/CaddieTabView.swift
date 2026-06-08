@@ -48,6 +48,18 @@ struct CaddieTabView: View {
         }
     }
 
+    private var currentShotNumber: Int {
+        roundState.holeState(for: selectedHoleNumber)?.shotStateContext?.shotNumber ?? 1
+    }
+
+    private var currentHoleScore: Int {
+        roundState.holeState(for: selectedHoleNumber)?.strokesTaken ?? 0
+    }
+
+    private var isHoleFinished: Bool {
+        roundState.holeState(for: selectedHoleNumber)?.status == .finished
+    }
+
     private var emptyStateText: String {
         if voiceController.needsMicrophonePermission {
             return "Enable microphone access to start the caddie."
@@ -153,10 +165,18 @@ struct CaddieTabView: View {
                 }
 
                 CaddieTapRow(
-                    voiceController: voiceController,
+                    holeNumber: selectedHoleNumber,
+                    par: currentPar,
+                    currentScore: currentHoleScore,
+                    currentShotNumber: currentShotNumber,
                     currentRemainingDistanceM: currentRemainingDistanceM,
+                    currentLie: currentLie,
+                    isHoleFinished: isHoleFinished,
                     showEditButton: showInspectorControls,
-                    onRequestEditor: onRequestInspector
+                    onRequestEditor: onRequestInspector,
+                    onStartHole: startHoleIfNeeded,
+                    onReportResult: reportShotResult,
+                    onCompleteHole: completeHole
                 )
                 .padding(.bottom, 8)
             }
@@ -192,5 +212,38 @@ struct CaddieTabView: View {
             .foregroundStyle(.secondary)
             .accessibilityLabel("Open Settings")
         }
+    }
+
+    private func startHoleIfNeeded() {
+        guard roundState.holeState(for: selectedHoleNumber) == nil,
+              let selectedHole else {
+            return
+        }
+
+        roundState = roundState.startHole(selectedHole, roundContext: effectiveRoundContext)
+    }
+
+    private func reportShotResult(_ lie: ShotLie) {
+        startHoleIfNeeded()
+        _ = voiceController.submitResolvedVoiceToolInvocation(
+            VoiceToolInvocation(
+                actionName: .reportResult,
+                arguments: .init(
+                    lie: lie,
+                    remainingDistanceM: currentRemainingDistanceM
+                )
+            )
+        )
+    }
+
+    private func completeHole(strokesTaken: Int) {
+        startHoleIfNeeded()
+        let finishedRoundState = roundState.finishHole(selectedHoleNumber, strokesTaken: strokesTaken)
+        roundState = finishedRoundState
+        selectedHoleNumber = HostRoundProgressModel.nextUnfinishedHoleNumber(
+            after: selectedHoleNumber,
+            bundle: bundle,
+            roundState: finishedRoundState
+        ) ?? selectedHoleNumber
     }
 }
