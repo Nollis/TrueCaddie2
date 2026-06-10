@@ -15,117 +15,98 @@ struct CaddieTapRow: View {
     let onReportResult: (ShotLie) -> Void
     let onCompleteHole: (Int) -> Void
 
-    @State private var showHoleSheet = false
     @State private var draftScore = 1
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Hole details")
-                        .font(.headline.weight(.semibold))
-                    Text("Track the hole, update the result, and finish cleanly.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                Button {
-                    showHoleSheet = true
-                } label: {
-                    Label("Open", systemImage: "slider.horizontal.3")
-                        .font(.callout.weight(.semibold))
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .accessibilityLabel("Open hole details")
-            }
-
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                summaryPill(title: "Score", value: currentScore == 0 ? "-" : "\(currentScore)")
-                summaryPill(title: "Shots", value: "\(max(currentShotNumber - 1, 0))")
-                summaryPill(title: "Lie", value: lieLabel)
-                summaryPill(title: "Left", value: "\(Int(currentRemainingDistanceM.rounded())) m")
-            }
-
-            if isHoleFinished {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Hole complete. You can still adjust the score from Hole details.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
+        VStack(alignment: .leading, spacing: 18) {
+            headerSection
+            scoreSection
+            resultSection
+            completeSection
 
             if showEditButton {
                 Button("Open Inspector") { onRequestEditor() }
                     .buttonStyle(.bordered)
+                    .controlSize(.small)
             }
         }
-        .padding(18)
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(uiColor: .secondarySystemBackground),
+                            Color.green.opacity(0.05)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
         )
-        .sheet(isPresented: $showHoleSheet) {
-            NavigationStack {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
-                        headerSection
-                        scoreSection
-                        resultSection
-                        completeSection
-                    }
-                    .padding(20)
-                }
-                .background(Color(uiColor: .systemGroupedBackground))
-                .navigationTitle("Hole \(holeNumber)")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") {
-                            showHoleSheet = false
-                        }
-                    }
-                }
-            }
-            .presentationDetents([.medium, .large])
-            .onAppear {
-                draftScore = max(currentScore, 1)
-            }
-        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+        )
         .onChange(of: currentScore) { _, newScore in
             draftScore = max(newScore, 1)
+        }
+        .onAppear {
+            draftScore = max(currentScore, 1)
         }
     }
 
     private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                statBadge("Par \(par)")
-                statBadge(currentRemainingDistanceM > 0 ? "\(Int(currentRemainingDistanceM.rounded())) m left" : "Ready")
-                statBadge(lieLabel)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Play Hole \(holeNumber)")
+                        .font(.title3.weight(.bold))
+                    Text(isHoleFinished ? "Hole complete. You can still adjust the score here." : "Log the result and finish the hole without leaving the caddie screen.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 0)
+
+                if isHoleFinished {
+                    statusChip("Complete", tint: .green)
+                } else {
+                    statusChip("In play", tint: .blue)
+                }
             }
 
-            Text(isHoleFinished ? "Hole complete" : "Keep the round state simple and current.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                summaryPill(title: "Par", value: "\(par)")
+                summaryPill(title: "Left", value: leftLabel)
+                summaryPill(title: "Lie", value: lieLabel)
+                summaryPill(title: "Shots", value: "\(max(currentShotNumber - 1, 0))")
+            }
         }
     }
 
     private var scoreSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Hole score")
-                .font(.headline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Score")
+                        .font(.headline.weight(.semibold))
+                    Text("Adjust total strokes for this hole.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
 
-            HStack(spacing: 18) {
+            HStack(spacing: 16) {
                 scoreButton(systemImage: "minus") {
                     draftScore = max(1, draftScore - 1)
                 }
 
                 VStack(spacing: 2) {
                     Text("\(draftScore)")
-                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
                     Text("strokes")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -137,9 +118,12 @@ struct CaddieTapRow: View {
                 }
             }
 
-            Text("Current shot \(currentShotNumber)")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 10) {
+                statBadge("Current shot \(currentShotNumber)")
+                if currentScore > 0 {
+                    statBadge("Recorded \(currentScore)")
+                }
+            }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -147,9 +131,14 @@ struct CaddieTapRow: View {
     }
 
     private var resultSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("After the shot")
-                .font(.headline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("After the shot")
+                    .font(.headline.weight(.semibold))
+                Text("Tap the most useful outcome so the caddie stays grounded.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 resultButton(title: "Fairway", systemImage: "checkmark.circle", lie: .fairway)
@@ -164,14 +153,18 @@ struct CaddieTapRow: View {
     }
 
     private var completeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Finish the hole")
-                .font(.headline.weight(.semibold))
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Finish the hole")
+                    .font(.headline.weight(.semibold))
+                Text("When the hole is over, save the score and move on to the next one.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
 
             Button {
                 onStartHole()
                 onCompleteHole(draftScore)
-                showHoleSheet = false
             } label: {
                 Text(isHoleFinished ? "Update Hole Score" : "Complete Hole")
                     .font(.headline.weight(.semibold))
@@ -215,6 +208,18 @@ struct CaddieTapRow: View {
             )
     }
 
+    private func statusChip(_ text: String, tint: Color) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(tint.opacity(0.12))
+            )
+    }
+
     private func scoreButton(systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
@@ -239,6 +244,10 @@ struct CaddieTapRow: View {
                 .padding(.vertical, 12)
         }
         .buttonStyle(.bordered)
+    }
+
+    private var leftLabel: String {
+        "\(Int(currentRemainingDistanceM.rounded())) m"
     }
 
     private var lieLabel: String {
